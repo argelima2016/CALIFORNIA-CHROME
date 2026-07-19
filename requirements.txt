@@ -4,3 +4,4 @@ openpyxl
 xlsxwriter
 streamlit
 streamlit-autorefresh
+pypdf
