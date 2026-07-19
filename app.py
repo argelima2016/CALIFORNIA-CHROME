@@ -2,12 +2,13 @@ import streamlit as st
 import pandas as pd
 import io
 import os
+from pypdf import PdfMerger
 
-# Instala esto si no lo tienes: pip install streamlit-autorefresh
+# Instala esto si no lo tienes: pip install streamlit-autorefresh pypdf
 from streamlit_autorefresh import st_autorefresh
 
 # Configuración de la página web
-st.set_page_config(page_title="Sistema de Remates y Dupletas en Vivo", layout="wide", page_icon="🏇")
+st.set_page_config(page_title="Sistema de Remates, Dupletas y PDF en Vivo", layout="wide", page_icon="🏇")
 
 # --- AUTOREFRESH PARA TIEMPO REAL ---
 # Refresca la página automáticamente cada 3 segundos para sincronizar las terminales
@@ -45,6 +46,9 @@ if 'historial_transacciones' not in st.session_state:
 
 if 'dupletas_tickets' not in st.session_state:
     st.session_state.dupletas_tickets = []
+
+if 'archivos_subidos' not in st.session_state:
+    st.session_state.archivos_subidos = []
 
 # --- FORMATO DE MONEDA VENEZOLANA (Bs.) ---
 def formatear_bs(monto):
@@ -103,7 +107,13 @@ if st.sidebar.button("🗑️ Reiniciar Jornada Global", use_container_width=Tru
     st.rerun()
 
 # --- INTERFAZ DE PESTAÑAS ---
-tab1, tab2, tab3, tab4 = st.tabs(["🏇 Subasta en Vivo (Bs.)", "🎟️ Módulo de Dupleta", "📊 Cuentas por Jugador", "🧾 Historial de Transacciones"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "🏇 Subasta en Vivo (Bs.)", 
+    "🎟️ Módulo de Dupleta", 
+    "📊 Cuentas por Jugador", 
+    "🧾 Historial de Transacciones", 
+    "📄 Unir Programas PDF"
+])
 
 # ==========================================
 # PESTAÑA 1: SUBASTA EN VIVO
@@ -190,9 +200,6 @@ with tab1:
                 st.rerun()
 
 # ==========================================
-# PESTAÑAS SECUNDARIAS
-# ==========================================
-# ==========================================
 # PESTAÑA 2: MÓDULO DE DUPLETAS
 # ==========================================
 with tab2:
@@ -205,7 +212,6 @@ with tab2:
         st.subheader("📝 Registrar Nueva Dupleta")
         jugador_dupleta = st.selectbox("Jugador / Comprador", st.session_state.lista_jugadores, key="sel_jugador_dupleta")
         
-        # Selección de las carreras y ejemplares para la dupleta
         carrera_dup_1 = st.selectbox("Primera Válida (Carrera 1)", lista_carreras_disponibles, key="sel_carr_dup_1")
         caballo_dup_1 = st.selectbox("Ejemplar 1", list(st.session_state.remates.get(carrera_dup_1, { "Sin ejemplares": {} }).keys()), key="sel_cab_dup_1")
         
@@ -228,7 +234,6 @@ with tab2:
                 }
                 st.session_state.dupletas_tickets.append(nuevo_ticket)
                 
-                # Registrar el cargo al jugador por la compra de la dupleta
                 if jugador_dupleta in st.session_state.cuentas:
                     st.session_state.cuentas[jugador_dupleta]['Pujas'] += monto_dupleta
                     st.session_state.historial_transacciones.append({
@@ -261,6 +266,10 @@ with tab2:
                         st.rerun()
         else:
             st.info("No hay dupletas registradas en la sesión actual.")
+
+# ==========================================
+# PESTAÑA 3: CUENTAS POR JUGADOR
+# ==========================================
 with tab3:
     st.title("📊 Cuentas Generales en Directo")
     balance_data = []
@@ -273,10 +282,78 @@ with tab3:
         balance_data.append({"Jugador": jug, "Compras": valores['Pujas'], "Premios": valores['Premios'], "Saldo Final": saldo_final, "Estado": estado})
     st.dataframe(pd.DataFrame(balance_data), use_container_width=True, hide_index=True)
 
+# ==========================================
+# PESTAÑA 4: HISTORIAL DE TRANSACCIONES
+# ==========================================
 with tab4:
     st.title("🧾 Historial Global")
     if st.session_state.historial_transacciones:
         st.dataframe(pd.DataFrame(st.session_state.historial_transacciones), use_container_width=True, hide_index=True)
     else:
         st.info("Aún no se han registrado transacciones en el historial.")
-    
+
+# ==========================================
+# PESTAÑA 5: UNIR PROGRAMAS PDF
+# ==========================================
+with tab5:
+    st.title("📄 Unificador de Programas PDF de Carreras")
+    st.markdown("Sube los archivos PDF correspondientes a los programas o boletines de cada carrera y únelos en un solo documento listo para imprimir o compartir.")
+
+    col_upload, col_preview = st.columns([1, 1])
+
+    with col_upload:
+        st.subheader("📤 Cargar Archivos PDF")
+        
+        uploaded_files = st.file_uploader(
+            "Selecciona o arrastra los archivos PDF en orden (Carrera 1, Carrera 2, etc.)", 
+            type=["pdf"], 
+            accept_multiple_files=True,
+            key="uploader_pdfs_carreras"
+        )
+        
+        if uploaded_files:
+            st.session_state.archivos_subidos = uploaded_files
+            st.success(f"¡Se han cargado {len(uploaded_files)} archivos PDF correctamente!")
+
+    with col_preview:
+        st.subheader("📋 Orden de los Archivos")
+        if st.session_state.archivos_subidos:
+            st.info("Verifica el orden en el que se fusionarán los documentos:")
+            lista_nombres = [f"{idx + 1}. {file.name}" for idx, file in enumerate(st.session_state.archivos_subidos)]
+            for nombre in lista_nombres:
+                st.markdown(f"- {nombre}")
+        else:
+            st.warning("Aún no has cargado ningún archivo PDF.")
+
+    st.markdown("---")
+
+    if st.session_state.archivos_subidos:
+        st.subheader("⚙️ Generar Documento Consolidado")
+        
+        nombre_salida = st.text_input("Nombre del archivo PDF resultante:", value="Programa_Completo_Carreras.pdf")
+        
+        if st.button("🚀 Unir y Fusionar PDFs", type="primary", use_container_width=True):
+            try:
+                merger = PdfMerger()
+                
+                for pdf_file in st.session_state.archivos_subidos:
+                    merger.append(pdf_file)
+                
+                pdf_output = io.BytesIO()
+                merger.write(pdf_output)
+                merger.close()
+                pdf_output.seek(0)
+                
+                st.success("¡Los archivos PDF se han unificado con éxito!")
+                
+                st.download_button(
+                    label="📥 Descargar PDF Unificado",
+                    data=pdf_output,
+                    file_name=nombre_salida,
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+                
+            except Exception as e:
+                st.error(f"Ocurrió un error al intentar fusionar los archivos PDF: {e}")
+            
