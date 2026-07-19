@@ -347,7 +347,12 @@ with open("merged-output.pdf", "wb") as output_file:
 
 merger.close()
                 
-                st.success("¡Los archivos PDF se han unificado con éxito!")
+                # Ensure this block is properly aligned with the if/else or function block above it
+    if st.button("Unificar PDFs"):
+        # ... your merging logic here ...
+        
+        # Line 350 should align with the code inside the block above:
+        st.success("¡Los archivos PDF se han unificado con éxito!")
                 
                 st.download_button(
                     label="📥 Descargar PDF Unificado",
