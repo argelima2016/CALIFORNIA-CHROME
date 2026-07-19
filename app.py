@@ -46,38 +46,48 @@ def formatear_bs(monto):
 # ==========================================
 # ⚙️ CONTROL LATERAL Y CARGA DE PROGRAMA
 # ==========================================
+# ==========================================
+# ⚙️ CONTROL LATERAL Y CARGA AUTOMÁTICA
+# ==========================================
 st.sidebar.header("⚙️ Control de Carrera")
 
-st.sidebar.subheader("📅 Cargar Programa del Día")
-archivo_programa = st.sidebar.file_uploader("Sube el Excel de las carreras del día", type=["xlsx", "csv"])
-
-if archivo_programa is not None:
-    try:
-        if archivo_programa.name.endswith('.csv'):
-            df_prog = pd.read_csv(archivo_programa)
-        else:
-            df_prog = pd.read_excel(archivo_programa)
-            
-        if "Carrera" in df_prog.columns and "Caballo" in df_prog.columns:
-            # Limpiar y ordenar carreras
-            carreras_detectadas = sorted(df_prog["Carrera"].unique(), key=lambda x: int(''.join(filter(str.isdigit, str(x))) or 0))
-            
-            for carr in carreras_detectadas:
-                carr_name = str(carr) if "Carrera" in str(carr) else f"Carrera {carr}"
-                if carr_name not in st.session_state.remates:
-                    st.session_state.remates[carr_name] = {}
+# --- NUEVA FUNCIÓN AUTOMÁTICA ---
+def cargar_programa_automatico():
+    import os
+    # Nombre fijo del archivo en la carpeta del proyecto
+    archivo_fijo = "programa_del_dia.xlsx" 
+    
+    if os.path.exists(archivo_fijo):
+        try:
+            df_prog = pd.read_excel(archivo_fijo)
+            if "Carrera" in df_prog.columns and "Caballo" in df_prog.columns:
+                carreras_detectadas = sorted(df_prog["Carrera"].unique(), key=lambda x: int(''.join(filter(str.isdigit, str(x))) or 0))
                 
-                caballos_carrera = df_prog[df_prog["Carrera"] == carr]["Caballo"].tolist()
-                for cab in caballos_carrera:
-                    nombre_caballo = str(cab).strip()
-                    if nombre_caballo not in st.session_state.remates[carr_name]:
-                        st.session_state.remates[carr_name][nombre_caballo] = {"jugador": "Sin Postor", "monto": 0.0}
-            st.sidebar.success("¡Programa cargado con éxito!")
-        else:
-            st.sidebar.error("El Excel debe tener columnas 'Carrera' y 'Caballo'.")
-    except Exception as e:
-        st.sidebar.error(f"Error: {e}")
+                for carr in carreras_detectadas:
+                    carr_name = str(carr) if "Carrera" in str(carr) else f"Carrera {carr}"
+                    if carr_name not in st.session_state.remates:
+                        st.session_state.remates[carr_name] = {}
+                    
+                    caballos_carrera = df_prog[df_prog["Carrera"] == carr]["Caballo"].tolist()
+                    for cab in caballos_carrera:
+                        nombre_caballo = str(cab).strip()
+                        if nombre_caballo not in st.session_state.remates[carr_name]:
+                            st.session_state.remates[carr_name][nombre_caballo] = {"jugador": "Sin Postor", "monto": 0.0}
+                return True
+        except Exception as e:
+            st.sidebar.error(f"Error al leer programa automático: {e}")
+    return False
 
+# Ejecutar la carga automática silenciosa al iniciar si no hay remates creados
+if not st.session_state.remates:
+    if cargar_programa_automatico():
+        st.sidebar.success("✅ Programa cargado automáticamente desde 'programa_del_dia.xlsx'")
+    else:
+        st.sidebar.info("💡 Coloca un archivo 'programa_del_dia.xlsx' en la carpeta para carga automática.")
+
+# Mantenemos el file_uploader por si un día quieres cambiar el programa a mitad de jornada manualmente
+archivo_programa = st.sidebar.file_uploader("O sube otro Excel manualmente", type=["xlsx", "csv"])
+# ... (deja el resto del código del file_uploader tal como estaba)
 lista_carreras_disponibles = list(st.session_state.remates.keys())
 if not lista_carreras_disponibles:
     lista_carreras_disponibles = [f"Carrera {i}" for i in range(1, 15)]
