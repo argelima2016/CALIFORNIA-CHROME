@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import io
+import re
+from pypdf import PdfReader
 
 # Configuración de la página web
 st.set_page_config(page_title="Sistema de Remates y Dupletas Pro", layout="wide", page_icon="🏇")
@@ -16,7 +18,48 @@ def cargar_jugadores_base():
     except Exception:
         return ["CASA", "SOMBI", "LUIS", "CARLOS", "RAMON", "ALDEA", "ANGEL", "ALFONSO", "MACANO", "MIGUEL", "TOCAYO", "EL GOCHO", "PAPIRO", "CHAYO", "ALEXIS"]
 
-# --- ESTADO DE LA SESIÓN (PERSISTENCIA DE DATOS) ---
+# --- FUNCIONES DE PROCESAMIENTO DE ARCHIVOS ---
+def procesar_texto_pdf(texto_completo):
+    """
+    Analiza el texto extraído del PDF para estructurar carreras y caballos.
+    Busca patrones como 'CARRERA 1', '1. CABALLO', '2) CABALLO', etc.
+    """
+    estructura_remates = {}
+    
+    # Dividir el texto por secciones que parezcan ser carreras
+    # Captura palabras como "CARRERA 1", "CARRERA NRO 2", "CARRERA NUMERO 3", etc.
+    bloques_carreras = re.split(r'(?i)\bCARRERA\s*(?:NRO|NÚMERO|N°|\.?)\s*(\d+)', texto_completo)
+    
+    # El primer elemento del split suele ser texto basura antes de la primera carrera
+    if len(bloques_carreras) > 1:
+        for i in range(1, len(bloques_carreras), 2):
+            num_carrera = bloques_carreras[i]
+            carr_name = f"Carrera {num_carrera}"
+            contenido_carrera = bloques_carreras[i+1]
+            
+            # Buscar caballos: habitualmente vienen precedidos por un número y un punto/guión/paréntesis
+            # Ejemplo: "1. EL DE FROIX", "2- PAPA PEDRO", "3) CALIFORNIAN"
+            lineas = contenido_carrera.split('\n')
+            caballos_detectados = []
+            
+            for linea in lineas:
+                linea = linea.strip()
+                # Expresión regular que busca: Inicio de línea -> Número -> Separador opcional -> Nombre
+                match = re.match(r'^(\d+)\s*[\.\-\)\/\s]\s*([A-ZÁÉÍÓÚÑa-záéíóúñ\s0-9]{3,25})', linea)
+                if match:
+                    nombre_caballo = match.group(2).strip().upper()
+                    # Filtrar palabras comunes que causan falsos positivos en las revistas
+                    palabras_basura = ["DIVIDENDO", "DISTANCIA", "METROS", "PESO", "JINETE", "ENTRENADOR", "PADRE", "MADRE", "PP"]
+                    if not any(basura in nombre_caballo for basura in palabras_basura) and len(nombre_caballo) > 2:
+                        caballos_detectados.append(nombre_caballo)
+            
+            # Si logramos detectar caballos en esta sección, los guardamos en el sistema
+            if caballos_detectados:
+                estructura_remates[carr_name] = {cab: {"jugador": "Sin Postor", "monto": 0.0} for cab in caballos_detectados}
+                
+    return estructura_remates
+
+# --- ESTADO DE LA SESIÓN ---
 if 'lista_jugadores' not in st.session_state:
     st.session_state.lista_jugadores = cargar_jugadores_base()
 
@@ -43,40 +86,58 @@ def formatear_bs(monto):
     return f"Bs. {monto:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 # ==========================================
-# ⚙️ CONTROL LATERAL Y CARGA DE PROGRAMA
+# ⚙️ CONTROL LATERAL Y CARGA DE PROGRAMA MULTI-FORMATO
 # ==========================================
 st.sidebar.header("⚙️ Control de Carrera")
 
 st.sidebar.subheader("📅 Cargar Programa del Día")
-archivo_programa = st.sidebar.file_uploader("Sube el Excel de las carreras del día", type=["xlsx", "csv"])
+# Se actualizó el selector para aceptar PDF además de Excel y CSV
+archivo_programa = st.sidebar.file_uploader("Sube el archivo de carreras (Excel, CSV o PDF)", type=["xlsx", "csv", "pdf"])
 
 if archivo_programa is not None:
     try:
-        if archivo_programa.name.endswith('.csv'):
-            df_prog = pd.read_csv(archivo_programa)
-        else:
-            df_prog = pd.read_excel(archivo_programa)
+        # CASO 1: PROCESAR PDF
+        if archivo_programa.name.endswith('.pdf'):
+            lector_pdf = PdfReader(archivo_programa)
+            texto_extraido = ""
+            for pagina in lector_pdf.pages:
+                texto_extraido += pagina.extract_text() + "\n"
             
-        if "Carrera" in df_prog.columns and "Caballo" in df_prog.columns:
-            carreras_detectadas = df_prog["Carrera"].unique()
+            nuevos_remates = procesar_texto_pdf(texto_extraido)
             
-            for carr in carreras_detectadas:
-                carr_name = str(carr) if "Carrera" in str(carr) else f"Carrera {carr}"
-                if carr_name not in st.session_state.remates:
-                    st.session_state.remates[carr_name] = {}
-                
-                caballos_carrera = df_prog[df_prog["Carrera"] == carr]["Caballo"].tolist()
-                for cab in caballos_carrera:
-                    nombre_caballo = str(cab).strip()
-                    if nombre_caballo not in st.session_state.remates[carr_name]:
-                        st.session_state.remates[carr_name][nombre_caballo] = {"jugador": "Sin Postor", "monto": 0.0}
-            st.sidebar.success("¡Programa cargado con éxito!")
-        else:
-            st.sidebar.error("El Excel debe tener 'Carrera' y 'Caballo'.")
-    except Exception as e:
-        st.sidebar.error(f"Error: {e}")
+            if nuevos_remates:
+                st.session_state.remates.update(nuevos_remates)
+                st.sidebar.success(f"¡PDF procesado! Se cargaron {len(nuevos_remates)} carreras.")
+            else:
+                st.sidebar.error("No se detectaron patrones de 'Carrera' o 'Ejemplares' válidos en el PDF. Revisa el formato o usa Excel.")
 
-lista_carreras_disponibles = list(st.session_state.remates.keys())
+        # CASO 2: PROCESAR CSV u EXCEL
+        else:
+            if archivo_programa.name.endswith('.csv'):
+                df_prog = pd.read_csv(archivo_programa)
+            else:
+                df_prog = pd.read_excel(archivo_programa)
+                
+            if "Carrera" in df_prog.columns and "Caballo" in df_prog.columns:
+                carreras_detectadas = df_prog["Carrera"].unique()
+                
+                for carr in carreras_detectadas:
+                    carr_name = str(carr) if "Carrera" in str(carr) else f"Carrera {carr}"
+                    if carr_name not in st.session_state.remates:
+                        st.session_state.remates[carr_name] = {}
+                    
+                    caballos_carrera = df_prog[df_prog["Carrera"] == carr]["Caballo"].tolist()
+                    for cab in caballos_carrera:
+                        nombre_caballo = str(cab).strip().upper()
+                        if nombre_caballo not in st.session_state.remates[carr_name]:
+                            st.session_state.remates[carr_name][nombre_caballo] = {"jugador": "Sin Postor", "monto": 0.0}
+                st.sidebar.success("¡Programa de Excel/CSV cargado con éxito!")
+            else:
+                st.sidebar.error("El Excel/CSV debe contener las columnas exactas 'Carrera' y 'Caballo'.")
+    except Exception as e:
+        st.sidebar.error(f"Error procesando el archivo: {e}")
+
+lista_carreras_disponibles = sorted(list(st.session_state.remates.keys()), key=lambda x: [int(s) for s in re.findall(r'\d+', x)] or [0])
 if not lista_carreras_disponibles:
     lista_carreras_disponibles = [f"Carrera {i}" for i in range(1, 15)]
 
