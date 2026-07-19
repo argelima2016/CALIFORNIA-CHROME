@@ -1,7 +1,7 @@
-# app.py optimizado para actualización en tiempo real en vivo
 import streamlit as st
 import pandas as pd
 import io
+import os
 
 # Instala esto si no lo tienes: pip install streamlit-autorefresh
 from streamlit_autorefresh import st_autorefresh
@@ -10,7 +10,7 @@ from streamlit_autorefresh import st_autorefresh
 st.set_page_config(page_title="Sistema de Remates y Dupletas en Vivo", layout="wide", page_icon="🏇")
 
 # --- AUTOREFRESH PARA TIEMPO REAL ---
-# Refresca la página automáticamente cada 3 segundos para todos los conectados
+# Refresca la página automáticamente cada 3 segundos para sincronizar las terminales
 st_autorefresh(interval=3000, key="datarefresh_en_vivo")
 
 # --- CARGA INICIAL DE JUGADORES ---
@@ -57,7 +57,6 @@ st.sidebar.header("⚙️ Control de Carrera en Vivo")
 st.sidebar.caption("🔄 Sincronización en tiempo real activa (3s)")
 
 def cargar_programa_automatico():
-    import os
     archivo_fijo = "programa_del_dia.xlsx" 
     if os.path.exists(archivo_fijo):
         try:
@@ -131,7 +130,7 @@ with tab1:
             incremento_elegido = 500.0
 
         monto_propuesto = float(puja_actual + (incremento_elegido if incremento_elegido > 0 else 50.0))
-        monto_puja = st.number_input("Monto de la Nueva Puja (Bs.)", min_value=50.0, value=monto_propuesto, step=50.0, key=f"num_monto_{carrera_actual}_{caballo}_val")
+        monto_puja = st.number_input("Monto de la Nueva Puja (Bs.)", min_value=50.0, value=monto_propuesto, step=50.0, key=f"num_monto_{carrera_actual}_{caballo}")
         
         if st.button("🔨 Confirmar y Transmitir Puja", key=f"btn_pujar_{carrera_actual}", use_container_width=True, type="primary"):
             if monto_puja <= puja_actual:
@@ -182,20 +181,19 @@ with tab1:
                         "Carrera": carrera_actual, "Jugador": info_ganador['jugador'], 
                         "Tipo": "Abono (Premio)", "Detalle": f"Ganador con {caballo_ganador}", "Monto (Bs.)": pote_ganador
                     })
-                    st.session_state.ganancia_casa += monto_casa
-                    st.session_state.historial_ganadores[carrera_actual] = {
-                        "Ganador": info_ganador['jugador'], "Caballo": caballo_ganador, "Premio": formatear_bs(pote_ganador)
-                    }
-                    st.balloons()
-                    st.success(f"¡Liquidado! Ganador: {info_ganador['jugador']}")
-                    st.rerun()
+                st.session_state.ganancia_casa += monto_casa
+                st.session_state.historial_ganadores[carrera_actual] = {
+                    "Ganador": info_ganador['jugador'], "Caballo": caballo_ganador, "Premio": formatear_bs(pote_ganador)
+                }
+                st.balloons()
+                st.success(f"¡Liquidado! Ganador: {info_ganador['jugador']}")
+                st.rerun()
 
 # ==========================================
-# RESTANTES PESTAÑAS (Dupletas, Cuentas, Auditoría)
+# PESTAÑAS SECUNDARIAS
 # ==========================================
 with tab2:
     st.title("🎟️ Dupletas en Vivo")
-    # (El módulo opera igual conectado al session_state global refrescado)
     st.info("Módulo de dupletas sincronizado con el servidor local.")
 
 with tab3:
@@ -214,3 +212,5 @@ with tab4:
     st.title("🧾 Historial Global")
     if st.session_state.historial_transacciones:
         st.dataframe(pd.DataFrame(st.session_state.historial_transacciones), use_container_width=True, hide_index=True)
+    else:
+        st.info("Aún no se han registrado transacciones en el historial.")
