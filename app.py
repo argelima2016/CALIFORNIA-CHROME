@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 import os
-from pypdf import PdfMerger
+from pypdf import PdfWriter
 
 # Instala esto si no lo tienes: pip install streamlit-autorefresh pypdf
 from streamlit_autorefresh import st_autorefresh
@@ -332,17 +332,20 @@ with tab5:
         
         nombre_salida = st.text_input("Nombre del archivo PDF resultante:", value="Programa_Completo_Carreras.pdf")
         
-        if st.button("🚀 Unir y Fusionar PDFs", type="primary", use_container_width=True):
-            try:
-                merger = PdfMerger()
-                
-                for pdf_file in st.session_state.archivos_subidos:
-                    merger.append(pdf_file)
-                
-                pdf_output = io.BytesIO()
-                merger.write(pdf_output)
-                merger.close()
-                pdf_output.seek(0)
+        # Initialize the writer
+merger = PdfWriter()
+
+# List of your PDF files to merge
+pdf_files = ["file1.pdf", "file2.pdf"]
+
+for pdf in pdf_files:
+    merger.append(pdf)
+
+# Write the combined PDF to an output file or stream
+with open("merged-output.pdf", "wb") as output_file:
+    merger.write(output_file)
+
+merger.close()
                 
                 st.success("¡Los archivos PDF se han unificado con éxito!")
                 
