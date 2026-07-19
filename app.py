@@ -192,10 +192,75 @@ with tab1:
 # ==========================================
 # PESTAÑAS SECUNDARIAS
 # ==========================================
+# ==========================================
+# PESTAÑA 2: MÓDULO DE DUPLETAS
+# ==========================================
 with tab2:
-    st.title("🎟️ Dupletas en Vivo")
-    st.info("Módulo de dupletas sincronizado con el servidor local.")
+    st.title("🎟️ Control y Gestión de Dupletas")
+    st.markdown("Registre y valide los tickets de dupletas jugados durante la jornada hípica.")
+    
+    col_dup_reg, col_dup_list = st.columns([1, 2])
+    
+    with col_dup_reg:
+        st.subheader("📝 Registrar Nueva Dupleta")
+        jugador_dupleta = st.selectbox("Jugador / Comprador", st.session_state.lista_jugadores, key="sel_jugador_dupleta")
+        
+        # Selección de las carreras y ejemplares para la dupleta
+        carrera_dup_1 = st.selectbox("Primera Válida (Carrera 1)", lista_carreras_disponibles, key="sel_carr_dup_1")
+        caballo_dup_1 = st.selectbox("Ejemplar 1", list(st.session_state.remates.get(carrera_dup_1, { "Sin ejemplares": {} }).keys()), key="sel_cab_dup_1")
+        
+        carrera_dup_2 = st.selectbox("Segunda Válida (Carrera 2)", lista_carreras_disponibles, key="sel_carr_dup_2")
+        caballo_dup_2 = st.selectbox("Ejemplar 2", list(st.session_state.remates.get(carrera_dup_2, { "Sin ejemplares": {} }).keys()), key="sel_cab_dup_2")
+        
+        monto_dupleta = st.number_input("Monto de la Dupleta (Bs.)", min_value=50.0, value=100.0, step=50.0, key="num_monto_dupleta")
+        
+        if st.button("💾 Emitir y Guardar Ticket de Dupleta", use_container_width=True, type="primary"):
+            if carrera_dup_1 == carrera_dup_2:
+                st.error("⚠️ Las dos carreras de la dupleta deben ser distintas.")
+            else:
+                nuevo_ticket = {
+                    "ID": len(st.session_state.dupletas_tickets) + 1,
+                    "Jugador": jugador_dupleta,
+                    "1era Selección": f"{carrera_dup_1} - {caballo_dup_1}",
+                    "2da Selección": f"{carrera_dup_2} - {caballo_dup_2}",
+                    "Monto": monto_dupleta,
+                    "Estado": "Pendiente ⏳"
+                }
+                st.session_state.dupletas_tickets.append(nuevo_ticket)
+                
+                # Registrar el cargo al jugador por la compra de la dupleta
+                if jugador_dupleta in st.session_state.cuentas:
+                    st.session_state.cuentas[jugador_dupleta]['Pujas'] += monto_dupleta
+                    st.session_state.historial_transacciones.append({
+                        "Carrera": "Dupleta", 
+                        "Jugador": jugador_dupleta, 
+                        "Tipo": "Cargo (Dupleta)", 
+                        "Detalle": f"Ticket #{nuevo_ticket['ID']}", 
+                        "Monto (Bs.)": -monto_dupleta
+                    })
+                
+                st.toast(f"✅ Ticket #{nuevo_ticket['ID']} emitido con éxito para {jugador_dupleta}.")
+                st.rerun()
 
+    with col_dup_list:
+        st.subheader("📋 Tickets de Dupletas Emitidos")
+        if st.session_state.dupletas_tickets:
+            df_dupletas = pd.DataFrame(st.session_state.dupletas_tickets)
+            st.dataframe(df_dupletas, use_container_width=True, hide_index=True)
+            
+            st.markdown("---")
+            st.subheader("🎯 Actualizar Estado de Ticket")
+            id_a_actualizar = st.selectbox("Seleccione ID de Ticket", [t["ID"] for t in st.session_state.dupletas_tickets], key="sel_id_ticket_act")
+            nuevo_estado = st.selectbox("Nuevo Estado", ["Pendiente ⏳", "Ganador 🏆", "Perdedor ❌"], key="sel_nuevo_estado_ticket")
+            
+            if st.button("🔄 Cambiar Estado del Ticket", use_container_width=True):
+                for ticket in st.session_state.dupletas_tickets:
+                    if ticket["ID"] == id_a_actualizar:
+                        ticket["Estado"] = nuevo_estado
+                        st.success(f"Estado del ticket #{id_a_actualizar} actualizado a: {nuevo_estado}")
+                        st.rerun()
+        else:
+            st.info("No hay dupletas registradas en la sesión actual.")
 with tab3:
     st.title("📊 Cuentas Generales en Directo")
     balance_data = []
