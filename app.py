@@ -344,14 +344,9 @@ for pdf in pdf_files:
 # Write the combined PDF to an output file or stream
 with open("merged-output.pdf", "wb") as output_file:
     merger.write(output_file)
-
 merger.close()
-                
-                # Ensure this block is properly aligned with the if/else or function block above it
+# Re-type this section cleanly
     if st.button("Unificar PDFs"):
-        # ... your merging logic here ...
-        
-        # Line 350 should align with the code inside the block above:
         st.success("¡Los archivos PDF se han unificado con éxito!")
                 
                 st.download_button(
