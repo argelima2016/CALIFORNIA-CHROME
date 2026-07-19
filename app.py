@@ -341,22 +341,28 @@ with tab3:
     st.markdown("---")
     
     # Preparar DF visual formateado sin romper la matemática subyacente
+    # Preparar DF visual formateado
     df_balances_visual = df_balances.copy()
     for col in ["Total Compras (Debe)", "Total Premios (Haber)", "Abonos Realizados", "Saldo Final"]:
         df_balances_visual[col] = df_balances_visual[col].apply(formatear_bs)
         
-    # --- MEJORA: TABLERO ESTILO SEMÁFORO (CON COLORES CONDICIONALES) ---
+    # --- CORRECCIÓN CRÍTICA: Buscar el saldo numérico real usando el índice de la fila ---
     def colorear_filas_saldos(row):
-        val = row["Saldo Final"]
-        if val < 0:
-            return ['background-color: rgba(217, 83, 79, 0.15)'] * len(row)  # Rojo Transparente
-        elif val > 0:
-            return ['background-color: rgba(92, 184, 92, 0.15)'] * len(row)   # Verde Transparente
+        # row.name nos da el número de fila actual. 
+        # Buscamos el saldo real numérico en el DataFrame original usando esa misma fila.
+        saldo_real = df_balances.loc[row.name, "Saldo Final"]
+        
+        if saldo_real < 0:
+            return ['background-color: rgba(217, 83, 79, 0.15)'] * len(row)  # Rojo suave
+        elif saldo_real > 0:
+            return ['background-color: rgba(92, 184, 92, 0.15)'] * len(row)   # Verde suave
         return [''] * len(row)
 
+    # Es obligatorio pasar axis=1 para que evalúe por filas completas
     df_estilado = df_balances_visual.style.apply(colorear_filas_saldos, axis=1)
-    st.dataframe(df_estilado, use_container_width=True, hide_index=True, key="tabla_balances_general_v2")
     
+    # Renderizar la tabla con el estilo corregido
+    st.dataframe(df_estilado, use_container_width=True, hide_index=True, key="tabla_balances_general_v2")
     st.markdown("### 📥 Descargar Cierre Financiero")
     try:
         buffer = io.BytesIO()
