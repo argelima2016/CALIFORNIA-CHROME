@@ -2,49 +2,98 @@ import streamlit as st
 import pandas as pd
 
 # Configuración de la página web
-st.set_page_config(page_title="Sistema de Remates en Bolívares", layout="wide", page_icon="🏇")
+st.set_page_config(page_title="Sistema de Remates y Dupletas Pro", layout="wide", page_icon="🏇")
 
-# --- CARGA AUTOMÁTICA DESDE TU EXCEL ---
+# --- CARGA INICIAL DE JUGADORES (Mantiene tu lista por defecto si no hay archivo) ---
 @st.cache_data
-def cargar_jugadores():
+def cargar_jugadores_base():
     try:
-        # Lee directamente tu archivo adjunto
         df_excel = pd.read_excel('TOTAL DE REMATES.xlsx', sheet_name='Hoja1')
         jugadores = df_excel.iloc[5:, 1].dropna().tolist()
         jugadores = [str(j).strip() for j in jugadores if str(j).strip() != '']
         return jugadores
     except Exception:
-        # Respaldo exacto de tu lista si el archivo no está en la misma carpeta
         return ["CASA", "SOMBI", "LUIS", "CARLOS", "RAMON", "ALDEA", "ANGEL", "ALFONSO", "MACANO", "MIGUEL", "TOCAYO", "EL GOCHO", "PAPIRO", "CHAYO", "ALEXIS"]
 
-lista_jugadores = cargar_jugadores()
+# --- ESTADO DE LA SESIÓN (PERSISTENCIA DE DATOS) ---
+if 'lista_jugadores' not in st.session_state:
+    st.session_state.lista_jugadores = cargar_jugadores_base()
 
-# --- ESTADO DE LA SESIÓN ---
 if 'remates' not in st.session_state:
     st.session_state.remates = {}
+
 if 'historial_ganadores' not in st.session_state:
     st.session_state.historial_ganadores = {}
+
 if 'cuentas' not in st.session_state:
-    st.session_state.cuentas = {j: {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0} for j in lista_jugadores}
+    st.session_state.cuentas = {j: {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0} for j in st.session_state.lista_jugadores}
+
 if 'ganancia_casa' not in st.session_state:
     st.session_state.ganancia_casa = 0.0
+
 if 'historial_transacciones' not in st.session_state:
     st.session_state.historial_transacciones = []
+
+if 'dupletas_tickets' not in st.session_state:
+    st.session_state.dupletas_tickets = []
 
 # --- FORMATO DE MONEDA VENEZOLANA (Bs.) ---
 def formatear_bs(monto):
     return f"Bs. {monto:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# --- CONTROL LATERAL ---
+# ==========================================
+# ⚙️ CONTROL LATERAL Y CARGA DE PROGRAMA
+# ==========================================
 st.sidebar.header("⚙️ Control de Carrera")
-carrera_actual = st.sidebar.selectbox("Seleccionar Carrera", [f"Carrera {i}" for i in range(1, 15)], key="selector_carrera_sidebar")
-porcentaje_casa = st.sidebar.slider("Retención de la Casa (%)", 0, 20, 10, key="slider_retencion_casa")
 
-if carrera_actual not in st.session_state.remates:
+# 📥 NUEVA FUNCIÓN: CARGAR PROGRAMACIÓN DE EJEMPLARES DESDE EXCEL
+st.sidebar.subheader("📅 Cargar Programa del Día")
+archivo_programa = st.sidebar.file_uploader("Sube el Excel de las carreras del día", type=["xlsx", "csv"])
+
+if archivo_programa is not None:
+    try:
+        # Leer el archivo subido por el usuario en tiempo real
+        if archivo_programa.name.endswith('.csv'):
+            df_prog = pd.read_csv(archivo_programa)
+        else:
+            df_prog = pd.read_excel(archivo_programa)
+            
+        # Validar que tenga las columnas necesarias
+        if "Carrera" in df_prog.columns and "Caballo" in df_prog.columns:
+            # Limpiar y estructurar las carreras cargadas
+            carreras_detectadas = df_prog["Carrera"].unique()
+            
+            for carr in carreras_detectadas:
+                carr_name = str(carr) if "Carrera" in str(carr) else f"Carrera {carr}"
+                if carr_name not in st.session_state.remates:
+                    st.session_state.remates[carr_name] = {}
+                
+                caballos_carrera = df_prog[df_prog["Carrera"] == carr]["Caballo"].tolist()
+                for cab in caballos_carrera:
+                    nombre_caballo = str(cab).strip()
+                    # Solo lo agrega si no tiene postor registrado previamente para no borrar datos activos
+                    if nombre_caballo not in st.session_state.remates[carr_name]:
+                        st.session_state.remates[carr_name][nombre_caballo] = {"jugador": "Sin Postor", "monto": 0.0}
+            st.sidebar.success("¡Programa cargado y organizado con éxito!")
+        else:
+            st.sidebar.error("El Excel debe tener las columnas 'Carrera' y 'Caballo'.")
+    except Exception as e:
+        st.sidebar.error(f"Error al procesar el archivo: {e}")
+
+# Selector de carreras dinámico basado en lo cargado o por defecto
+lista_carreras_disponibles = list(st.session_state.remates.keys())
+if not lista_carreras_disponibles:
+    lista_carreras_disponibles = [f"Carrera {i}" for i in range(1, 15)]
+
+carrera_actual = st.sidebar.selectbox("Seleccionar Carrera Activa", lista_carreras_disponibles, key="selector_carrera_sidebar")
+porcentaje_casa = st.sidebar.slider("Retención de la Casa (%)", 0, 50, 30, key="slider_retencion_casa")
+
+# Inicialización por defecto con 12 caballos si no se ha subido ningún archivo
+if carrera_actual not in st.session_state.remates or not st.session_state.remates[carrera_actual]:
     st.session_state.remates[carrera_actual] = {f"Caballo {i}": {"jugador": "Sin Postor", "monto": 0.0} for i in range(1, 13)}
 
-# --- INTERFAZ ---
-tab1, tab2, tab3 = st.tabs(["🏇 Subasta en Vivo (Bs.)", "📊 Cuentas por Jugador", "🧾 Historial de Transacciones"])
+# --- INTERFAZ DE PESTAÑAS ---
+tab1, tab2, tab3, tab4 = st.tabs(["🏇 Subasta en Vivo (Bs.)", "🎟️ Módulo de Dupleta", "📊 Cuentas por Jugador", "🧾 Historial de Transacciones"])
 
 # ==========================================
 # PESTAÑA 1: SUBASTA EN VIVO
@@ -55,15 +104,12 @@ with tab1:
 
     with col_pujas:
         st.subheader("🔨 Registrar Puja")
-        
-        # Eliminamos st.form para evitar el bug de removeChild en Streamlit Cloud
         caballo = st.selectbox("Seleccione el Ejemplar", list(st.session_state.remates[carrera_actual].keys()), key=f"sel_caballo_{carrera_actual}")
-        jugador = st.selectbox("Seleccione el Jugador", lista_jugadores, key=f"sel_jugador_{carrera_actual}")
+        jugador = st.selectbox("Seleccione el Jugador", st.session_state.lista_jugadores, key=f"sel_jugador_{carrera_actual}")
         
         puja_actual = st.session_state.remates[carrera_actual][caballo]['monto']
         st.info(f"Puja actual para {caballo}: **{formatear_bs(puja_actual)}**")
         
-        # El monto mínimo sugerido calcula automáticamente +50 si ya hay puja previa
         monto_sugerido = float(puja_actual + 50) if puja_actual > 0 else 50.0
         monto_puja = st.number_input("Monto de la Nueva Puja (Bs.)", min_value=50.0, value=monto_sugerido, step=50.0, key=f"num_monto_{carrera_actual}_{caballo}")
         
@@ -134,10 +180,119 @@ with tab1:
             st.dataframe(pd.DataFrame.from_dict(st.session_state.historial_ganadores, orient='index'), use_container_width=True, key="tabla_historial_ganadores")
 
 # ==========================================
-# PESTAÑA 2: CUENTAS POR JUGADOR
+# PESTAÑA 2: MÓDULO DE DUPLETA
 # ==========================================
 with tab2:
+    st.title("🎟️ Control de Dupletas Combinadas")
+    col_dup1, col_dup2 = st.columns([1, 2])
+    
+    with col_dup1:
+        st.subheader("📝 Registrar Ticket de Dupleta")
+        j_dupleta = st.selectbox("Jugador que compra la Dupleta", st.session_state.lista_jugadores, key="sel_jugador_dupleta")
+        
+        # Muestra la lista real de caballos si se subió el archivo
+        c1_dup = st.text_input("Nombre o Número del Caballo - Carrera A", placeholder="Ej: Caballo 1 o My Own Business", key="c1_dup")
+        c2_dup = st.text_input("Nombre o Número del Caballo - Carrera B", placeholder="Ej: Caballo 3 o Bambera", key="c2_dup")
+        monto_ticket = st.number_input("Costo del Ticket (Bs.)", min_value=50.0, step=50.0, key="monto_ticket_dupleta")
+        
+        if st.button("📥 Vender / Registrar Dupleta", use_container_width=True):
+            if c1_dup == "" or c2_dup == "":
+                st.error("Debes ingresar los datos de ambos caballos.")
+            else:
+                st.session_state.dupletas_tickets.append({
+                    "Jugador": j_dupleta,
+                    "Selección": f"{c1_dup.strip()} x {c2_dup.strip()}",
+                    "Carrera_A": c1_dup.strip(),
+                    "Carrera_B": c2_dup.strip(),
+                    "Monto": monto_ticket
+                })
+                st.success(f"Ticket registrado para {j_dupleta}: {c1_dup} x {c2_dup}")
+                st.rerun()
+            
+    with col_dup2:
+        st.subheader("📋 Tickets en Juego")
+        if st.session_state.dupletas_tickets:
+            df_dup = pd.DataFrame(st.session_state.dupletas_tickets)
+            total_pote_dup = df_dup["Monto"].sum()
+            
+            df_dup_visual = df_dup.copy()
+            df_dup_visual["Monto"] = df_dup_visual["Monto"].apply(formatear_bs)
+            st.dataframe(df_dup_visual[["Jugador", "Selección", "Monto"]], use_container_width=True, hide_index=True)
+            
+            comision_casa_dup = total_pote_dup * 0.30
+            premio_neto_dup = total_pote_dup - comision_casa_dup
+            
+            cd1, cd2, cd3 = st.columns(3)
+            cd1.metric("💰 Pote Dupleta", formatear_bs(total_pote_dup))
+            cd2.metric("🏠 Casa (30%)", formatear_bs(comision_casa_dup))
+            cd3.metric("🏆 Premio a Pagar", formatear_bs(premio_neto_dup))
+            
+            st.markdown("---")
+            st.subheader("🏁 Liquidar Ganadores de la Dupleta")
+            
+            col_liq1, col_liq2 = st.columns(2)
+            with col_liq1:
+                ganador_a = st.text_input("Caballo Ganador Carrera A", key="ganador_a_dup_txt").strip()
+            with col_liq2:
+                ganador_b = st.text_input("Caballo Ganador Carrera B", key="ganador_b_dup_txt").strip()
+                
+            if st.button("🏆 Escrutar y Pagar Dupleta", use_container_width=True, type="primary"):
+                ganadores_dupleta = []
+                for tk in st.session_state.dupletas_tickets:
+                    if tk["Carrera_A"].lower() == ganador_a.lower() and tk["Carrera_B"].lower() == ganador_b.lower():
+                        ganadores_dupleta.append(tk["Jugador"])
+                
+                for tk in st.session_state.dupletas_tickets:
+                    st.session_state.cuentas[tk["Jugador"]]['Pujas'] += tk["Monto"]
+                    st.session_state.historial_transacciones.append({
+                        "Carrera": "Dupleta (Compra)", "Jugador": tk["Jugador"], 
+                        "Tipo": "Cargo (Compra)", "Detalle": f"Ticket Dupleta {tk['Selección']}", "Monto (Bs.)": -tk["Monto"]
+                    })
+                
+                if ganadores_dupleta:
+                    premio_por_ganador = premio_neto_dup / len(ganadores_dupleta)
+                    for g in ganadores_dupleta:
+                        st.session_state.cuentas[g]['Premios'] += premio_por_ganador
+                        st.session_state.historial_transacciones.append({
+                            "Carrera": "Dupleta (Premio)", "Jugador": g, 
+                            "Tipo": "Abono (Premio)", "Detalle": f"Ganador Dupleta {ganador_a} x {ganador_b}", "Monto (Bs.)": premio_por_ganador
+                        })
+                    st.session_state.ganancia_casa += comision_casa_dup
+                    st.balloons()
+                    st.success(f"¡Dupleta Liquidada! Ganadores: {', '.join(ganadores_dupleta)}. Cada uno recibe {formatear_bs(premio_por_ganador)}")
+                else:
+                    st.session_state.ganancia_casa += total_pote_dup
+                    st.info("Ningún jugador acertó la combinación. El dinero pasa a la Casa.")
+                
+                st.session_state.dupletas_tickets = []
+                st.rerun()
+        else:
+            st.caption("No hay tickets de dupleta registrados.")
+
+# ==========================================
+# PESTAÑA 3: CUENTAS POR JUGADOR
+# ==========================================
+with tab3:
     st.title("📊 Balance General de Cuentas Corrientes (Bs.)")
+    
+    st.subheader("➕ Añadir Nuevo Jugador al Sistema")
+    col_add1, col_add2 = st.columns([2, 1])
+    with col_add1:
+        nuevo_jugador_nombre = st.text_input("Nombre del nuevo jugador:", key="txt_nuevo_jugador").strip().upper()
+    with col_add2:
+        if st.button("💾 Registrar Jugador", use_container_width=True):
+            if nuevo_jugador_nombre == "":
+                st.error("El nombre no puede estar vacío.")
+            elif nuevo_jugador_nombre in st.session_state.lista_jugadores:
+                st.warning(f"El jugador '{nuevo_jugador_nombre}' ya existe.")
+            else:
+                st.session_state.lista_jugadores.append(nuevo_jugador_nombre)
+                st.session_state.cuentas[nuevo_jugador_nombre] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                st.success(f"¡Jugador '{nuevo_jugador_nombre}' agregado exitosamente!")
+                st.rerun()
+                
+    st.markdown("---")
+    
     balance_data = []
     for jug, valores in st.session_state.cuentas.items():
         saldo_final = valores['Premios'] + valores['Abonos'] - valores['Pujas']
@@ -161,7 +316,7 @@ with tab2:
     st.subheader("💵 Registrar Pago Móvil / Efectivo / Transferencia")
     col_abono1, col_abono2 = st.columns(2)
     with col_abono1:
-        jugador_paga = st.selectbox("¿Qué jugador realiza el movimiento?", lista_jugadores, key="sel_jugador_paga_admin")
+        jugador_paga = st.selectbox("¿Qué jugador realiza el movimiento?", st.session_state.lista_jugadores, key="sel_jugador_paga_admin")
         tipo_movimiento = st.radio("Tipo de movimiento", ["Jugador paga su deuda (Abono en Bs.)", "Casa paga saldo a favor al jugador (Retiro en Bs.)"], key="radio_tipo_movimiento")
         monto_movimiento = st.number_input("Monto del movimiento (Bs.)", min_value=10.0, step=50.0, key="num_monto_movimiento_admin")
         if st.button("💾 Registrar Movimiento de Caja", key="btn_registrar_movimiento_caja", use_container_width=True):
@@ -180,9 +335,9 @@ with tab2:
             st.rerun()
 
 # ==========================================
-# PESTAÑA 3: HISTORIAL DE TRANSACCIONES
+# PESTAÑA 4: HISTORIAL DE TRANSACCIONES
 # ==========================================
-with tab3:
+with tab4:
     st.title("🧾 Auditoría General de Movimientos (Bs.)")
     if st.session_state.historial_transacciones:
         df_historial_t = pd.DataFrame(st.session_state.historial_transacciones)
