@@ -46,9 +46,6 @@ def formatear_bs(monto):
 # ==========================================
 # ⚙️ CONTROL LATERAL Y CARGA DE PROGRAMA
 # ==========================================
-# ==========================================
-# ⚙️ CONTROL LATERAL Y CARGA AUTOMÁTICA
-# ==========================================
 st.sidebar.header("⚙️ Control de Carrera")
 
 # --- NUEVA FUNCIÓN AUTOMÁTICA ---
