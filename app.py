@@ -1,10 +1,10 @@
-import streamlit as pd
+# Puedes guardar este código completo como app.py y correrlo con: streamlit run app.py
 import streamlit as st
 import pandas as pd
 import io
 
 # Configuración de la página web
-st.set_page_config(page_title="Sistema de Remates y Dupletas Pro", layout="wide", page_icon="🏇")
+st.set_page_config(page_title="Sistema de Remates y Dupletas Pro v2", layout="wide", page_icon="🏇")
 
 # --- CARGA INICIAL DE JUGADORES ---
 @st.cache_data
@@ -13,7 +13,7 @@ def cargar_jugadores_base():
         df_excel = pd.read_excel('TOTAL DE REMATES.xlsx', sheet_name='Hoja1')
         jugadores = df_excel.iloc[5:, 1].dropna().tolist()
         jugadores = [str(j).strip().upper() for j in jugadores if str(j).strip() != '']
-        return list(set(jugadores)) # Evita duplicados bizarros
+        return list(sorted(set(jugadores)))
     except Exception:
         return ["CASA", "SOMBI", "LUIS", "CARLOS", "RAMON", "ALDEA", "ANGEL", "ALFONSO", "MACANO", "MIGUEL", "TOCAYO", "EL GOCHO", "PAPIRO", "CHAYO", "ALEXIS"]
 
@@ -59,7 +59,8 @@ if archivo_programa is not None:
             df_prog = pd.read_excel(archivo_programa)
             
         if "Carrera" in df_prog.columns and "Caballo" in df_prog.columns:
-            carreras_detectadas = df_prog["Carrera"].unique()
+            # Limpiar y ordenar carreras
+            carreras_detectadas = sorted(df_prog["Carrera"].unique(), key=lambda x: int(''.join(filter(str.isdigit, str(x))) or 0))
             
             for carr in carreras_detectadas:
                 carr_name = str(carr) if "Carrera" in str(carr) else f"Carrera {carr}"
@@ -73,7 +74,7 @@ if archivo_programa is not None:
                         st.session_state.remates[carr_name][nombre_caballo] = {"jugador": "Sin Postor", "monto": 0.0}
             st.sidebar.success("¡Programa cargado con éxito!")
         else:
-            st.sidebar.error("El Excel debe tener 'Carrera' y 'Caballo'.")
+            st.sidebar.error("El Excel debe tener columnas 'Carrera' y 'Caballo'.")
     except Exception as e:
         st.sidebar.error(f"Error: {e}")
 
@@ -86,6 +87,20 @@ porcentaje_casa = st.sidebar.slider("Retención de la Casa (%)", 0, 50, 30, key=
 
 if carrera_actual not in st.session_state.remates or not st.session_state.remates[carrera_actual]:
     st.session_state.remates[carrera_actual] = {f"Caballo {i}": {"jugador": "Sin Postor", "monto": 0.0} for i in range(1, 13)}
+
+# Generar lista unificada de caballos para el módulo de dupletas blindadas
+todos_los_caballos = sorted(list({cab for carr in st.session_state.remates.values() for cab in carr.keys()}))
+if not todos_los_caballos:
+    todos_los_caballos = [f"Caballo {i}" for i in range(1, 15)]
+
+# --- BOTÓN DE PÁNICO / REINICIO DE JORNADA ---
+st.sidebar.markdown("---")
+st.sidebar.subheader("🚨 Peligro: Zona de Reinicio")
+if st.sidebar.button("🗑️ Reiniciar Jornada (Borrar Todo)", use_container_width=True, type="secondary"):
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.toast("🚨 Jornada reiniciada por completo. Cargando sistema limpio...")
+    st.rerun()
 
 # --- INTERFAZ DE PESTAÑAS ---
 tab1, tab2, tab3, tab4 = st.tabs(["🏇 Subasta en Vivo (Bs.)", "🎟️ Módulo de Dupleta", "📊 Cuentas por Jugador", "🧾 Historial de Transacciones"])
@@ -100,22 +115,36 @@ with tab1:
     with col_pujas:
         st.subheader("🔨 Registrar Puja")
         caballo = st.selectbox("Seleccione el Ejemplar", list(st.session_state.remates[carrera_actual].keys()), key=f"sel_caballo_{carrera_actual}")
-        
-        # Corrección: Asegurar que los componentes lean la lista actualizada de session_state
         jugador = st.selectbox("Seleccione el Jugador", st.session_state.lista_jugadores, key=f"sel_jugador_{carrera_actual}")
         
         puja_actual = st.session_state.remates[carrera_actual][caballo]['monto']
         st.info(f"Puja actual para {caballo}: **{formatear_bs(puja_actual)}**")
         
-        monto_sugerido = float(puja_actual + 50) if puja_actual > 0 else 50.0
-        monto_puja = st.number_input("Monto de la Nueva Puja (Bs.)", min_value=50.0, value=monto_sugerido, step=50.0, key=f"num_monto_{carrera_actual}_{caballo}")
+        # --- MEJORA: BOTONES INCREMENTALES RÁPIDOS ---
+        st.write("⚡ Incrementos Rápidos:")
+        col_inc1, col_inc2, col_inc3 = st.columns(3)
+        incremento_elegido = 0.0
         
-        if st.button("🔨 Confirmar Adjudicación", key=f"btn_pujar_{carrera_actual}", use_container_width=True):
+        if col_inc1.button("➕ Bs. 50", use_container_width=True, key=f"inc_50_{carrera_actual}"):
+            incremento_elegido = 50.0
+        if col_inc2.button("➕ Bs. 100", use_container_width=True, key=f"inc_100_{carrera_actual}"):
+            incremento_elegido = 100.0
+        if col_inc3.button("➕ Bs. 500", use_container_width=True, key=f"inc_500_{carrera_actual}"):
+            incremento_elegido = 500.0
+
+        if puja_actual == 0:
+            monto_propuesto = 50.0 + incremento_elegido
+        else:
+            monto_propuesto = float(puja_actual + (incremento_elegido if incremento_elegido > 0 else 50.0))
+            
+        monto_puja = st.number_input("Monto de la Nueva Puja (Bs.)", min_value=50.0, value=monto_propuesto, step=50.0, key=f"num_monto_{carrera_actual}_{caballo}_val")
+        
+        if st.button("🔨 Confirmar Adjudicación", key=f"btn_pujar_{carrera_actual}", use_container_width=True, type="primary"):
             if monto_puja <= puja_actual:
-                st.error(f"El monto debe ser mayor a la puja actual ({formatear_bs(puja_actual)})")
+                st.error(f"El monto debe ser estrictamente mayor a la puja actual ({formatear_bs(puja_actual)})")
             else:
                 st.session_state.remates[carrera_actual][caballo] = {"jugador": jugador, "monto": monto_puja}
-                st.success(f"Adjudicado: {caballo} a {jugador} por {formatear_bs(monto_puja)}")
+                st.toast(f" Adjudicado: {caballo} ➡️ {jugador} por {formatear_bs(monto_puja)}")
                 st.rerun()
 
     with col_tablero:
@@ -144,7 +173,7 @@ with tab1:
         caballo_ganador = st.selectbox("¿Qué ejemplar ganó la carrera?", list(st.session_state.remates[carrera_actual].keys()), key=f"sel_ganador_{carrera_actual}")
         if st.button("🏆 Guardar Carrera y Cargar a Cuentas", key=f"btn_cerrar_{carrera_actual}", use_container_width=True):
             if carrera_actual in st.session_state.historial_ganadores:
-                st.warning("Esta carrera ya fue liquidada.")
+                st.warning("Esta carrera ya fue liquidada previamente.")
             else:
                 for cab, info in st.session_state.remates[carrera_actual].items():
                     if info['jugador'] != "Sin Postor" and info['monto'] > 0:
@@ -166,10 +195,10 @@ with tab1:
                         "Ganador": info_ganador['jugador'], "Caballo": caballo_ganador, "Premio": formatear_bs(pote_ganador)
                     }
                     st.balloons()
-                    st.success(f"¡Cuentas actualizadas! {info_ganador['jugador']} ganó {formatear_bs(pote_ganador)}")
+                    st.success(f"¡Cuentas liquidadas! {info_ganador['jugador']} ganó {formatear_bs(pote_ganador)}")
                     st.rerun()
                 else:
-                    st.error("El caballo ganador no tuvo postor.")
+                    st.error("El caballo ganador no tuvo postores asignados. No se puede liquidar el premio.")
 
     with col_c2:
         st.write("🏁 **Historial de Carreras Cerradas:**")
@@ -177,7 +206,7 @@ with tab1:
             st.dataframe(pd.DataFrame.from_dict(st.session_state.historial_ganadores, orient='index'), use_container_width=True, key="tabla_historial_ganadores")
 
 # ==========================================
-# PESTAÑA 2: MÓDULO DE DUPLETA
+# PESTAÑA 2: MÓDULO DE DUPLETA (BLINDADO)
 # ==========================================
 with tab2:
     st.title("🎟️ Control de Dupletas Combinadas")
@@ -187,30 +216,27 @@ with tab2:
         st.subheader("📝 Registrar Ticket de Dupleta")
         j_dupleta = st.selectbox("Jugador que compra la Dupleta", st.session_state.lista_jugadores, key="sel_jugador_dupleta")
         
-        c1_dup = st.text_input("Nombre o Número del Caballo - Carrera A", placeholder="Ej: Caballo 1", key="c1_dup")
-        c2_dup = st.text_input("Nombre o Número del Caballo - Carrera B", placeholder="Ej: Caballo 3", key="c2_dup")
+        # --- MEJORA: SELECCIÓN BLINDADA CON SELECTBOX EN VEZ DE TEXT_INPUT ---
+        c1_dup = st.selectbox("Ejemplar - Carrera A", todos_los_caballos, key="c1_dup_select")
+        c2_dup = st.selectbox("Ejemplar - Carrera B", todos_los_caballos, key="c2_dup_select")
         monto_ticket = st.number_input("Costo del Ticket (Bs.)", min_value=50.0, step=50.0, key="monto_ticket_dupleta")
         
         if st.button("📥 Vender / Registrar Dupleta", use_container_width=True):
-            if c1_dup == "" or c2_dup == "":
-                st.error("Debes ingresar los datos de ambos caballos.")
-            else:
-                # OPTIMIZACIÓN: Se cobra el ticket de inmediato al registrarlo para evitar errores de doble liquidación después
-                st.session_state.cuentas[j_dupleta]['Pujas'] += monto_ticket
-                st.session_state.historial_transacciones.append({
-                    "Carrera": "Dupleta (Venta)", "Jugador": j_dupleta, 
-                    "Tipo": "Cargo (Compra)", "Detalle": f"Ticket Dupleta {c1_dup.strip()} x {c2_dup.strip()}", "Monto (Bs.)": -monto_ticket
-                })
-                
-                st.session_state.dupletas_tickets.append({
-                    "Jugador": j_dupleta,
-                    "Selección": f"{c1_dup.strip()} x {c2_dup.strip()}",
-                    "Carrera_A": c1_dup.strip(),
-                    "Carrera_B": c2_dup.strip(),
-                    "Monto": monto_ticket
-                })
-                st.success(f"Ticket cobrado y registrado para {j_dupleta}: {c1_dup} x {c2_dup}")
-                st.rerun()
+            st.session_state.cuentas[j_dupleta]['Pujas'] += monto_ticket
+            st.session_state.historial_transacciones.append({
+                "Carrera": "Dupleta (Venta)", "Jugador": j_dupleta, 
+                "Tipo": "Cargo (Compra)", "Detalle": f"Ticket Dupleta {c1_dup} x {c2_dup}", "Monto (Bs.)": -monto_ticket
+            })
+            
+            st.session_state.dupletas_tickets.append({
+                "Jugador": j_dupleta,
+                "Selección": f"{c1_dup} x {c2_dup}",
+                "Carrera_A": c1_dup,
+                "Carrera_B": c2_dup,
+                "Monto": monto_ticket
+            })
+            st.success(f"Ticket cobrado y registrado para {j_dupleta}: {c1_dup} x {c2_dup}")
+            st.rerun()
             
     with col_dup2:
         st.subheader("📋 Tickets en Juego")
@@ -235,17 +261,16 @@ with tab2:
             
             col_liq1, col_liq2 = st.columns(2)
             with col_liq1:
-                ganador_a = st.text_input("Caballo Ganador Carrera A", key="ganador_a_dup_txt").strip()
+                ganador_a = st.selectbox("Caballo Ganador Carrera A", todos_los_caballos, key="ganador_a_dup_sel")
             with col_liq2:
-                ganador_b = st.text_input("Caballo Ganador Carrera B", key="ganador_b_dup_txt").strip()
+                ganador_b = st.selectbox("Caballo Ganador Carrera B", todos_los_caballos, key="ganador_b_dup_sel")
                 
             if st.button("🏆 Escrutar y Pagar Dupleta", use_container_width=True, type="primary"):
                 ganadores_dupleta = []
                 for tk in st.session_state.dupletas_tickets:
-                    if tk["Carrera_A"].lower() == ganador_a.lower() and tk["Carrera_B"].lower() == ganador_b.lower():
+                    if tk["Carrera_A"] == ganador_a and tk["Carrera_B"] == ganador_b:
                         ganadores_dupleta.append(tk["Jugador"])
                 
-                # Eliminamos el bucle que volvía a cobrar el ticket aquí.
                 if ganadores_dupleta:
                     premio_por_ganador = premio_neto_dup / len(ganadores_dupleta)
                     for g in ganadores_dupleta:
@@ -259,15 +284,15 @@ with tab2:
                     st.success(f"¡Dupleta Liquidada! Ganadores: {', '.join(ganadores_dupleta)}. Reciben {formatear_bs(premio_por_ganador)}")
                 else:
                     st.session_state.ganancia_casa += total_pote_dup
-                    st.info("Ningún jugador acertó la combinación. El dinero pasa a la Casa.")
+                    st.info("Ningún jugador acertó la combinación exacta. El pote pasa íntegro a la Casa.")
                 
                 st.session_state.dupletas_tickets = []
                 st.rerun()
         else:
-            st.caption("No hay tickets de dupleta activos sin escrutar.")
+            st.caption("No hay tickets de dupleta activos en la jornada actual.")
 
 # ==========================================
-# PESTAÑA 3: CUENTAS POR JUGADOR
+# PESTAÑA 3: CUENTAS Y TABLERO SEMÁFORO
 # ==========================================
 with tab3:
     st.title("📊 Balance General de Cuentas Corrientes (Bs.)")
@@ -275,15 +300,18 @@ with tab3:
     st.subheader("➕ Añadir Nuevo Jugador al Sistema")
     col_add1, col_add2 = st.columns([2, 1])
     with col_add1:
+        # MEJORA: Normalización limpia de nombres
         nuevo_jugador_nombre = st.text_input("Nombre del nuevo jugador:", key="txt_nuevo_jugador").strip().upper()
+        nuevo_jugador_nombre = " ".join(nuevo_jugador_nombre.split())
     with col_add2:
         if st.button("💾 Registrar Jugador", use_container_width=True):
             if nuevo_jugador_nombre == "":
                 st.error("El nombre no puede estar vacío.")
             elif nuevo_jugador_nombre in st.session_state.lista_jugadores:
-                st.warning(f"El jugador '{nuevo_jugador_nombre}' ya existe.")
+                st.warning(f"El jugador '{nuevo_jugador_nombre}' ya se encuentra registrado.")
             else:
                 st.session_state.lista_jugadores.append(nuevo_jugador_nombre)
+                st.session_state.lista_jugadores.sort()
                 st.session_state.cuentas[nuevo_jugador_nombre] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
                 st.success(f"¡Jugador '{nuevo_jugador_nombre}' agregado exitosamente!")
                 st.rerun()
@@ -291,7 +319,6 @@ with tab3:
     st.markdown("---")
     
     balance_data = []
-    # Asegurar que se listan todos los jugadores reales de la sesión actual
     for jug in st.session_state.lista_jugadores:
         if jug not in st.session_state.cuentas:
             st.session_state.cuentas[jug] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
@@ -313,14 +340,23 @@ with tab3:
     
     st.markdown("---")
     
-    # Formatear visualmente el DF sin arruinar los datos matemáticos
+    # Preparar DF visual formateado sin romper la matemática subyacente
     df_balances_visual = df_balances.copy()
     for col in ["Total Compras (Debe)", "Total Premios (Haber)", "Abonos Realizados", "Saldo Final"]:
         df_balances_visual[col] = df_balances_visual[col].apply(formatear_bs)
         
-    st.dataframe(df_balances_visual, use_container_width=True, hide_index=True, key="tabla_balances_general")
+    # --- MEJORA: TABLERO ESTILO SEMÁFORO (CON COLORES CONDICIONALES) ---
+    def colorear_filas_saldos(row):
+        val = row["Saldo Final"]
+        if val < 0:
+            return ['background-color: rgba(217, 83, 79, 0.15)'] * len(row)  # Rojo Transparente
+        elif val > 0:
+            return ['background-color: rgba(92, 184, 92, 0.15)'] * len(row)   # Verde Transparente
+        return [''] * len(row)
+
+    df_estilado = df_balances_visual.style.apply(colorear_filas_saldos, axis=1)
+    st.dataframe(df_estilado, use_container_width=True, hide_index=True, key="tabla_balances_general_v2")
     
-    # --- BOTÓN DE RESPALDO EXCEL (SALVAFIESTAS) ---
     st.markdown("### 📥 Descargar Cierre Financiero")
     try:
         buffer = io.BytesIO()
@@ -331,11 +367,11 @@ with tab3:
         st.download_button(
             label="📊 Descargar Reporte de Cuentas en Excel",
             data=buffer.getvalue(),
-            file_name="CIERRE_DE_REMATES.xlsx",
+            file_name="CIERRE_DE_REMATES_PRO.xlsx",
             mime="application/vnd.ms-excel"
         )
-    except Exception as e:
-        st.caption("El botón de exportación se activará al generar transacciones.")
+    except Exception:
+        st.caption("El botón de exportación se activará automáticamente al generar transacciones.")
 
     st.markdown("---")
     st.subheader("💵 Registrar Pago Móvil / Efectivo / Transferencia")
@@ -356,7 +392,7 @@ with tab3:
             st.session_state.historial_transacciones.append({
                 "Carrera": "Administración", "Jugador": jugador_paga, "Tipo": tipo_t, "Detalle": "Movimiento de caja liquidado", "Monto (Bs.)": monto_registro
             })
-            st.success(f"Movimiento de {formatear_bs(monto_movimiento)} asentado.")
+            st.success(f"Movimiento de {formatear_bs(monto_movimiento)} asentado de manera conforme.")
             st.rerun()
 
 # ==========================================
@@ -368,6 +404,19 @@ with tab4:
         df_historial_t = pd.DataFrame(st.session_state.historial_transacciones)
         df_mostrar = df_historial_t.copy()
         df_mostrar["Monto (Bs.)"] = df_mostrar["Monto (Bs.)"].apply(formatear_bs)
-        st.dataframe(df_mostrar, use_container_width=True, hide_index=True, key="tabla_auditoria_final")
+        
+        # --- MEJORA: COLUMNAS DE AUDITORÍA DINÁMICAS USANDO ST.DATAFRAME COLUMN_CONFIG ---
+        st.dataframe(
+            df_mostrar,
+            use_container_width=True,
+            hide_index=True,
+            key="tabla_auditoria_final_v2",
+            column_config={
+                "Tipo": st.column_config.SelectColumn(
+                    "Tipo de Operación",
+                    options=["Cargo (Compra)", "Abono (Premio)", "Abono Manual (Caja)", "Retiro Manual (Caja)"]
+                )
+            }
+        )
     else:
-        st.caption("No hay transacciones registradas.")
+        st.caption("No se registran transacciones ni movimientos auditables en la jornada actual.")
