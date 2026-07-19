@@ -2,3 +2,5 @@ pdfplumber
 pandas
 openpyxl
 xlsxwriter
+streamlit
+streamlit-autorefresh
