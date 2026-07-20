@@ -78,22 +78,24 @@ def cargar_programa_automatico():
             st.sidebar.error(f"Error al leer programa automático: {e}")
     return False
 
+# Cargar automáticamente si existe archivo Excel o inicializar carreras por defecto para evitar listas vacías
 if not st.session_state.remates:
-    cargar_programa_automatico()
+    exito_carga = cargar_programa_automatico()
+    if not exito_carga:
+        # Estructura por defecto de 10 carreras con 10 caballos para que NUNCA cargue vacío
+        for i in range(1, 11):
+            carr_nombre = f"Carrera {i}"
+            st.session_state.remates[carr_nombre] = {f"Ejemplar {j}": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 11)}
 
 lista_carreras_disponibles = list(st.session_state.remates.keys())
-if not lista_carreras_disponibles:
-    lista_carreras_disponibles = [f"Carrera {i}" for i in range(1, 15)]
 
 carrera_actual = st.sidebar.selectbox("Seleccionar Carrera Activa", lista_carreras_disponibles, key="selector_carrera_sidebar")
 porcentaje_casa = st.sidebar.slider("Retención de la Casa (%)", 0, 50, 30, key="slider_retencion_casa")
 
 if carrera_actual not in st.session_state.remates or not st.session_state.remates[carrera_actual]:
-    st.session_state.remates[carrera_actual] = {f"Caballo {i}": {"jugador": "Sin Postor", "monto": 0.0} for i in range(1, 13)}
+    st.session_state.remates[carrera_actual] = {f"Caballo {i}": {"jugador": "Sin Postor", "monto": 0.0} for i in range(1, 11)}
 
 todos_los_caballos = sorted(list({cab for carr in st.session_state.remates.values() for cab in carr.keys()}))
-if not todos_los_caballos:
-    todos_los_caballos = [f"Caballo {i}" for i in range(1, 15)]
 
 # --- BOTÓN DE PÁNICO / REINICIO ---
 st.sidebar.markdown("---")
