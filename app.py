@@ -284,7 +284,7 @@ with tab1:
     estado_conteo = st.session_state.estado_conteo_carrera.get(carrera_actual, "INACTIVO")
     
     if hora_limite:
-        st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta para <b>{carrera_actual}</b>: <b>{hora_limite.strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta para <b>{carrera_actual}</b>: <b>{hora_limite.strftime('%H:%M:%S')}</b> (Hora de Venezuela)</div>", unsafe_allow_html=True)
     else:
         st.markdown(f"<div class='cierre-info-box'>⚠️ Sin hora de cierre estricta configurada para <b>{carrera_actual}</b></div>", unsafe_allow_html=True)
 
