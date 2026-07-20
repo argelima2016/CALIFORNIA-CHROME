@@ -682,43 +682,71 @@ with tab2:
             st.info("No hay ejemplares inscritos en esta carrera.")
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETA (DINÁMICO Y ANTI-DUPLICADOS)
+# PESTAÑA 3: MÓDULO DE DUPLETA MODERNO Y DINÁMICO
 # ==========================================
 with tab3:
-    st.title("🎟️ Módulo de Dupleta Dinámico (Anti-Tickets Duplicados)")
-    st.markdown("Selecciona de forma interactiva tus ejemplares por carrera. El sistema valida automáticamente que **no existan tickets idénticos** registrados para un mismo jugador.")
+    st.markdown("<div class='subasta-header'>🎟️ Módulo de Dupleta Inteligente & Anti-Duplicados</div>", unsafe_allow_html=True)
+    st.markdown("Crea dupletas dinámicas seleccionando ejemplares por carrera. El sistema valida automáticamente que **no existan tickets idénticos** registrados para un mismo jugador.")
 
     carreras_habilitadas = st.session_state.carreras_habilitadas_dupleta
 
     if not carreras_habilitadas:
-        st.warning("⚠️ No hay carreras habilitadas para dupletas. Configúralas en la barra lateral.")
+        st.warning("⚠️ No hay carreras habilitadas para dupletas. Configúralas primero en la barra lateral (Admin: Carreras de Dupleta).")
     else:
-        col_dup_1, col_dup_2 = st.columns([1.2, 1], gap="medium")
+        # Métricas rápidas superiores de dupletas
+        dupletas_activas_list = [t for t in st.session_state.dupletas_tickets if t["Estado"] == "Activo"]
+        monto_total_dupletas = sum([t["Monto"] for t in dupletas_activas_list])
+        
+        col_m1, col_m2 = st.columns(2)
+        col_m1.metric("🎫 Dupletas Activas en Juego", len(dupletas_activas_list))
+        col_m2.metric("💵 Monto Total en Dupletas", formatear_bs(monto_total_dupletas))
+        
+        st.markdown("---")
+
+        col_dup_1, col_dup_2 = st.columns([1.2, 1], gap="large")
 
         with col_dup_1:
             with st.container(border=True):
-                st.subheader("⚡ Creador Dinámico de Dupleta")
+                st.markdown("### ⚡ Creador de Dupleta Dinámica")
                 
-                jugador_dupleta = st.selectbox("Comprador / Jugador", st.session_state.lista_jugadores, key="sel_jugador_dupleta_dinamico")
+                jugador_dupleta = st.selectbox(
+                    "👤 Seleccionar Comprador / Jugador", 
+                    st.session_state.lista_jugadores, 
+                    key="sel_jugador_dupleta_moderno"
+                )
                 
-                # Panel Dinámico de Selección por Botones / Selectbox combinados para máxima fluidez
+                st.markdown("#### 🏇 Selecciona los Ejemplares por Carrera")
+                st.caption("*(Puedes dejar en '-- Omitir --' las carreras en las que no desees jugar)*")
+                
                 seleccion_ejemplares_ticket = {}
                 
+                # Diseño en grillas por carrera para mayor dinamismo visual
                 for carr_h in carreras_habilitadas:
                     caballos_carr = list(st.session_state.remates.get(carr_h, {}).keys())
-                    opciones_cab = ["-- Ninguno / Omitir --"] + caballos_carr
+                    opciones_cab = ["-- Omitir / Sin selección --"] + caballos_carr
                     
-                    sel_c = st.selectbox(f"🐴 Ejemplar para **{carr_h}**", opciones_cab, key=f"dup_dinamico_sel_{carr_h}")
-                    if sel_c != "-- Ninguno / Omitir --":
+                    sel_c = st.selectbox(
+                        f"🔹 {carr_h}", 
+                        opciones_cab, 
+                        key=f"dup_moderno_sel_{carr_h}"
+                    )
+                    if sel_c != "-- Omitir / Sin selección --":
                         seleccion_ejemplares_ticket[carr_h] = sel_c
 
-                monto_dupleta = st.number_input("Monto Apostado (Bs.)", min_value=50.0, value=500.0, step=50.0, key="input_monto_dupleta_dinamico")
+                st.markdown("---")
+                monto_dupleta = st.number_input(
+                    "💰 Monto de la Apuesta (Bs.)", 
+                    min_value=50.0, 
+                    value=500.0, 
+                    step=50.0, 
+                    key="input_monto_dupleta_moderno"
+                )
 
-                if st.button("🚀 Emitir Dupleta Dinámica", type="primary", use_container_width=True):
+                if st.button("🚀 Emitir Dupleta Verificada", type="primary", use_container_width=True):
                     if len(seleccion_ejemplares_ticket) < 2:
-                        st.error("⚠️ Para que sea una dupleta válida, debes seleccionar ejemplares en al menos 2 carreras.")
+                        st.error("⚠️ Una dupleta requiere obligatoriamente selecciones en al menos **2 carreras**.")
                     else:
-                        # VALIDACIÓN ANTI-DUPLICADOS EXACTOS (Mismo jugador, mismas selecciones de carreras y caballos)
+                        # VALIDACIÓN ANTI-DUPLICADOS EXACTOS (Mismo jugador y mismas selecciones clave-valor)
                         ticket_duplicado_encontrado = False
                         for tkt_existente in st.session_state.dupletas_tickets:
                             if tkt_existente["Estado"] == "Activo" and tkt_existente["Jugador"] == jugador_dupleta:
@@ -727,7 +755,7 @@ with tab3:
                                     break
                         
                         if ticket_duplicado_encontrado:
-                            st.error("🚨 ¡Este ticket ya existe! El jugador ya posee una dupleta activa exactamente con estas mismas selecciones. No se permiten tickets duplicados.")
+                            st.error("🚨 **¡Duplicado Bloqueado!** El jugador ya posee un ticket activo con esta misma combinación exacta de ejemplares.")
                         else:
                             id_ticket = f"DUP-{len(st.session_state.dupletas_tickets) + 1:03d}"
                             ticket_nuevo = {
@@ -739,6 +767,7 @@ with tab3:
                             }
                             st.session_state.dupletas_tickets.append(ticket_nuevo)
                             
+                            # Cargo automático a la cuenta corriente del jugador
                             if jugador_dupleta not in st.session_state.cuentas:
                                 st.session_state.cuentas[jugador_dupleta] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
                             st.session_state.cuentas[jugador_dupleta]['Pujas'] += monto_dupleta
@@ -749,30 +778,36 @@ with tab3:
                                 "Tipo": "Cargo (Dupleta)", "Detalle": f"Ticket {id_ticket} [{detalle_str}]", "Monto (Bs.)": -monto_dupleta
                             })
                             
-                            st.success(f"✅ ¡Dupleta dinámica {id_ticket} emitida con éxito por {formatear_bs(monto_dupleta)}!")
+                            st.success(f"✅ ¡Dupleta `{id_ticket}` generada con éxito por **{formatear_bs(monto_dupleta)}**!")
                             st.rerun()
 
         with col_dup_2:
-            st.subheader("📋 Registro de Dupletas Activas")
+            st.markdown("### 📋 Tickets de Dupleta Emitidos")
+            
             if st.session_state.dupletas_tickets:
-                for idx, tkt in enumerate(st.session_state.dupletas_tickets):
+                # Contenedor con scroll visual para la lista de tickets
+                for idx, tkt in enumerate(reversed(st.session_state.dupletas_tickets)):
                     with st.container(border=True):
-                        st.markdown(f"**Ticket:** `{tkt['ID']}` | **Jugador:** {tkt['Jugador']}")
-                        st.markdown(f"**Monto:** `{formatear_bs(tkt['Monto'])}` | **Estado:** `{tkt['Estado']}`")
-                        st.markdown("**Combinación:**")
+                        c_t1, c_t2 = st.columns([2, 1])
+                        c_t1.markdown(f"**Ticket:** `{tkt['ID']}`")
+                        c_t2.markdown(f"**{tkt['Estado']}**", help="Estado actual del ticket")
+                        
+                        st.markdown(f"👤 **Jugador:** `{tkt['Jugador']}` | 💵 **Monto:** `{formatear_bs(tkt['Monto'])}`")
+                        st.markdown("🎯 **Selecciones:**")
+                        
                         for c_key, e_val in tkt['Selecciones'].items():
-                            st.markdown(f"• *{c_key}*: **{e_val}**")
+                            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;• *{c_key}* ➡️ **{e_val}**")
                         
                         if tkt['Estado'] == "Activo":
-                            if st.button("🗑️ Anular Ticket", key=f"btn_anular_dup_dinamico_{idx}", use_container_width=True):
+                            if st.button("🗑️ Anular Ticket", key=f"btn_anular_dup_moderno_{tkt['ID']}_{idx}", use_container_width=True):
                                 st.session_state.cuentas[tkt['Jugador']]['Pujas'] -= tkt['Monto']
                                 tkt['Estado'] = "Anulado"
-                                st.toast(f"🗑️ Ticket {tkt['ID']} anulado correctamente.")
+                                st.toast(f"🗑️ Ticket {tkt['ID']} anulado y saldo reintegrado a la cuenta.")
                                 st.rerun()
                         else:
-                            st.caption("*(Ticket Anulado)*")
+                            st.markdown("*(Este ticket se encuentra anulado)*")
             else:
-                st.info("No hay tickets de dupleta registrados.")
+                st.info("No hay tickets de dupleta registrados en la sesión actual.")
 
 # ==========================================
 # PESTAÑA 4: CIERRE Y LIQUIDACIÓN
