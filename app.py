@@ -626,7 +626,7 @@ with tab3:
                             "jugador": jugador_dupleta,
                             "monto": monto_dupleta,
                             "legs": seleccion_legs,
-                            "estado": "Activa",
+                            "estado": "Pendiente", # Estado inicial predeterminado
                             "fecha": ahora_dt.strftime('%d/%m/%Y %I:%M %p')
                         }
                         st.session_state.dupletas_tickets.append(nuevo_ticket)
@@ -651,17 +651,59 @@ with tab3:
     else:
         for idx_t, tick in enumerate(st.session_state.dupletas_tickets):
             with st.container(border=True):
-                col_info_t, col_btn_t = st.columns([3, 1])
+                # Columnas compactas para ID/Jugador, Estado actual, Botón Ganador, Botón Perdedor y Botón Anular
+                col_info_t, col_st_g, col_st_p, col_btn_del = st.columns([2.5, 0.8, 0.8, 0.6])
+                
                 with col_info_t:
                     resumen_legs_str = " ➔ ".join([f"**{l['carrera']}**: {l['ejemplar']}" for l in tick['legs']])
-                    st.markdown(f"`{tick['id']}` | **{tick['jugador']}** | 💰 `{formatear_bs(tick['monto'])}`")
+                    estado_actual = tick.get('estado', 'Pendiente')
+                    
+                    # Color dinámico según el estado del ticket
+                    color_badge = "#00d2d3" if estado_actual == "Ganador" else ("#ff4757" if estado_actual == "Perdedor" else "#f1e05a")
+                    
+                    st.markdown(f"`{tick['id']}` | **{tick['jugador']}** | 💰 `{formatear_bs(tick['monto'])}` | <span style='color: {color_badge}; font-weight: bold;'>[{estado_actual}]</span>", unsafe_allow_html=True)
                     st.markdown(f"*{resumen_legs_str}*")
-                with col_btn_t:
-                    if st.button("🗑️ Anular", key=f"del_ticket_lineal_{idx_t}", use_container_width=True):
+                
+                with col_st_g:
+                    if st.button("🏆 Ganador", key=f"btn_ganador_{idx_t}", use_container_width=True):
+                        if tick.get('estado') != "Ganador":
+                            tick['estado'] = "Ganador"
+                            # Abonar premio automático (Suma total de tickets de la dupleta) al jugador
+                            premio_dupleta_actual = sum([t['monto'] for t in st.session_state.dupletas_tickets])
+                            jug_t = tick['jugador']
+                            if jug_t not in st.session_state.cuentas:
+                                st.session_state.cuentas[jug_t] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                            st.session_state.cuentas[jug_t]['Premios'] += premio_dupleta_actual
+                            st.session_state.historial_transacciones.append({
+                                "Carrera": "Múltiple", "Jugador": jug_t,
+                                "Tipo": "Abono (Premio Dupleta)", "Detalle": f"Ganador Ticket {tick['id']}", "Monto (Bs.)": premio_dupleta_actual
+                            })
+                            st.toast(f"🏆 ¡Ticket {tick['id']} marcado como GANADOR! Se abonaron {formatear_bs(premio_dupleta_actual)} a {jug_t}.")
+                            st.rerun()
+
+                with col_st_p:
+                    if st.button("❌ Perdedor", key=f"btn_perdedor_{idx_t}", use_container_width=True):
+                        if tick.get('estado') == "Ganador":
+                            # Si antes era ganador y se cambia a perdedor, restamos el premio abonado previamente para mantener consistencia
+                            premio_dupleta_actual = sum([t['monto'] for t in st.session_state.dupletas_tickets])
+                            jug_t = tick['jugador']
+                            if jug_t in st.session_state.cuentas:
+                                st.session_state.cuentas[jug_t]['Premios'] -= premio_dupleta_actual
+                        
+                        tick['estado'] = "Perdedor"
+                        st.toast(f"❌ Ticket {tick['id']} marcado como PERDEDOR.")
+                        st.rerun()
+
+                with col_btn_del:
+                    st.markdown("<div style='margin-top: 4px;'></div>", unsafe_allow_html=True)
+                    if st.button("🗑️", key=f"del_ticket_lineal_{idx_t}", use_container_width=True, help="Anular Ticket"):
                         jug_t = tick['jugador']
                         mont_t = tick['monto']
                         if jug_t in st.session_state.cuentas:
                             st.session_state.cuentas[jug_t]['Pujas'] -= mont_t
+                            if tick.get('estado') == "Ganador":
+                                premio_dupleta_actual = sum([t['monto'] for t in st.session_state.dupletas_tickets])
+                                st.session_state.cuentas[jug_t]['Premios'] -= premio_dupleta_actual
                         st.session_state.dupletas_tickets.pop(idx_t)
                         st.rerun()
 
