@@ -1,14 +1,11 @@
 import streamlit as st
 import pandas as pd
-import io
 import os
 import re
 from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
-from pypdf import PdfReader, PdfWriter
+from pypdf import PdfReader
 from streamlit_autorefresh import st_autorefresh
-import urllib.request
-import json
 
 # Configuración de la página web
 st.set_page_config(page_title="Sistema de Remates, Dupletas y PDF en Vivo", layout="wide", page_icon="🏇")
@@ -536,13 +533,24 @@ with tab2:
                     st.rerun()
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETA PRO (CON VALIDACIÓN ANTIDUPLICADOS)
+# PESTAÑA 3: MÓDULO DE DUPLETA PRO (PREMIO = SUMA DE TICKETS)
 # ==========================================
 with tab3:
-    st.markdown("<div class='subasta-header'>🎟️ Módulo de Dupleta (Selector Lineal Antiduplicados)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subasta-header'>🎟️ Módulo de Dupleta (Antiduplicados & Premio Sumatorio)</div>", unsafe_allow_html=True)
 
     if st.session_state.dupleta_bloqueada:
         st.error("🔒 **BLOQUEADO:** El administrador cerró la emisión de tickets.")
+
+    # Calcular Pote Total de Dupletas (Suma de todos los tickets activos)
+    pote_total_dupletas = sum([t['monto'] for t in st.session_state.dupletas_tickets])
+
+    col_met_d1, col_met_d2 = st.columns(2)
+    with col_met_d1:
+        st.metric("💰 Pote Acumulado de Dupletas", formatear_bs(pote_total_dupletas))
+    with col_met_d2:
+        st.metric("🏆 Premio Total Dupleta (Suma de Tickets)", formatear_bs(pote_total_dupletas))
+
+    st.markdown("---")
 
     carreras_habilitadas = st.session_state.carreras_habilitadas_dupleta
     if not carreras_habilitadas:
@@ -564,7 +572,6 @@ with tab3:
             carreras_usadas_en_ticket = set()
             valido_legs = True
             
-            # Selector lineal compacto
             for i in range(num_legs):
                 col_carr, col_cab = st.columns([1, 1.2], gap="small")
                 
