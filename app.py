@@ -416,7 +416,7 @@ with st.sidebar.expander("🐴 🗑️ Opciones Avanzadas del Banco", expanded=F
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remate Adelantado", 
     "✍️ Gestión Manual (Caballos)", 
-    "🎟️ Módulo de Dupleta", 
+    "🎟️ Módulo de Dupleta Pro", 
     "🏁 Cierre y Liquidación", 
     "📊 Cuentas por Jugador", 
     "🧾 Historial de Transacciones", 
@@ -681,152 +681,161 @@ with tab2:
             st.info("No hay ejemplares inscritos en esta carrera.")
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETA MODERNO Y SEGURO
+# PESTAÑA 3: MÓDULO DE DUPLETA PRO (NUEVO MODELO DE SELECCIÓN MÚLTIPLE)
 # ==========================================
 with tab3:
-    st.title("🎟️ Módulo de Dupletas de La Rinconada")
-    st.markdown("Crea combinaciones de forma rápida. El sistema valida automáticamente las carreras autorizadas y evita que se repita exactamente la misma combinación de ejemplares.")
+    st.title("🎟️ Módulo de Dupletas Pro: Selección Múltiple y Parleys")
+    st.markdown("Arma tus tickets combinados seleccionando múltiples carreras y ejemplares simultáneamente con cálculo automático de pagos progresivos y protección anti-duplicados.")
 
     carreras_dup_activas = st.session_state.carreras_habilitadas_dupleta
     
     if not carreras_dup_activas:
         st.warning("⚠️ No hay carreras habilitadas para dupletas por el administrador en la barra lateral.")
     else:
-        col_dup_izq, col_dup_der = st.columns([1.2, 1], gap="large")
+        col_dup_form, col_dup_tabla = st.columns([1.3, 1], gap="large")
 
-        with col_dup_izq:
+        with col_dup_form:
             with st.container(border=True):
-                st.subheader("📝 Registrar Nueva Dupleta")
+                st.subheader("📝 Emisor Pro de Combinadas")
                 
-                jugador_dup = st.selectbox("Comprador / Jugador", st.session_state.lista_jugadores, key="sel_jugador_dupleta_simple")
+                jugador_dup_pro = st.selectbox("Comprador / Jugador", st.session_state.lista_jugadores, key="sel_jugador_dupleta_pro")
                 
-                # Selector limpio de 2 o 3 selecciones
-                tipo_dupleta = st.radio("Estructura de la Dupleta", ["Dupleta (2 Carreras)", "Trpleta (3 Carreras)"], horizontal=True, key="radio_tipo_dupleta_simple")
-                num_picks = 2 if "2" in tipo_dupleta else 3
+                # Selector dinámico de carreras que participan en la dupleta / tripleta / parley
+                carreras_seleccionadas_pro = st.multiselect(
+                    "Selecciona las Carreras en Orden",
+                    options=carreras_dup_activas,
+                    default=carreras_dup_activas[:2] if len(carreras_dup_activas) >= 2 else carreras_dup_activas,
+                    key="multiselect_carreras_pro"
+                )
                 
-                picks_actuales = []
-                carreras_elegidas = []
-                bloqueo_carrera_repetida = True
+                picks_pro = []
+                bloqueo_valido_pro = True
                 
-                for i in range(num_picks):
-                    st.markdown(f"**Selección #{i+1}**")
-                    col_c_sel, col_e_sel = st.columns(2)
+                if len(carreras_seleccionadas_pro) < 2:
+                    st.warning("⚠️ Debes seleccionar al menos 2 carreras para armar una dupleta o jugada combinada.")
+                    bloqueo_valido_pro = False
+                else:
+                    st.markdown("---")
+                    st.markdown("**Asigna el ejemplar para cada carrera seleccionada:**")
                     
-                    with col_c_sel:
-                        carr_sel = st.selectbox(f"Carrera #{i+1}", carreras_dup_activas, key=f"dup_carr_simple_{i}")
-                    
-                    with col_e_sel:
-                        caballos_en_carr = list(st.session_state.remates.get(carr_sel, {}).keys())
-                        cab_sel = st.selectbox(f"Ejemplar #{i+1}", caballos_en_carr if caballos_en_carr else ["Sin ejemplares"], key=f"dup_cab_simple_{i}")
-                    
-                    if carr_sel in carreras_elegidas:
-                        bloqueo_carrera_repetida = False
-                    else:
-                        carreras_elegidas.append(carr_sel)
+                    for carr_item in carreras_seleccionadas_pro:
+                        caballos_en_carr = list(st.session_state.remates.get(carr_item, {}).keys())
                         
-                    picks_actuales.append({"Carrera": carr_sel, "Ejemplar": cab_sel})
-                    if i < num_picks - 1:
-                        st.markdown("---")
-
-                monto_dup = st.number_input("Monto de la Dupleta (Bs.)", min_value=50.0, value=500.0, step=50.0, key="input_monto_dupleta_simple")
-                
-                # Cálculo de premio base estimado (x2 por cada logro)
-                premio_estimado = monto_dup * (2 ** num_picks)
-                st.info(f"💡 **Premio Estimado:** `{formatear_bs(premio_estimado)}`")
-
-                if st.button("🎟️ Emitir Dupleta", use_container_width=True, type="primary"):
-                    if not bloqueo_carrera_repetida:
-                        st.error("⚠️ No puedes seleccionar la misma carrera two veces en una misma combinada.")
-                    else:
-                        # VERIFICAR BLOQUEO DE COMBINACIÓN EXACTAMENTE IGUAL
-                        combinacion_actual_clave = tuple(sorted([(p["Carrera"], p["Ejemplar"]) for p in picks_actuales]))
+                        col_cp_1, col_cp_2 = st.columns([1, 1.2])
+                        with col_cp_1:
+                            st.markdown(f"**{carr_item}**")
+                        with col_cp_2:
+                            cab_elegido = st.selectbox(
+                                f"Ejemplar para {carr_item}", 
+                                caballos_en_carr if caballos_en_carr else ["Sin ejemplares"], 
+                                key=f"sel_cab_pro_{carr_item}",
+                                label_visibility="collapsed"
+                            )
                         
-                        dupleta_repetida = False
-                        for t_existente in st.session_state.dupletas_tickets:
-                            if t_existente.get("Estado") != "Perdedor":
-                                t_clave = tuple(sorted([(p["Carrera"], p["Ejemplar"]) for p in t_existente["Picks"]]))
-                                if t_clave == combinacion_actual_clave:
-                                    dupleta_repetida = True
+                        picks_pro.append({"Carrera": carr_item, "Ejemplar": cab_elegido})
+
+                monto_dup_pro = st.number_input("Monto de la Jugada (Bs.)", min_value=50.0, value=500.0, step=50.0, key="input_monto_dupleta_pro")
+                
+                # Multiplicador progresivo (x2 por cada logro incorporado en la combinada)
+                cantidad_logros = len(carreras_seleccionadas_pro)
+                premio_estimado_pro = monto_dup_pro * (2 ** cantidad_logros) if cantidad_logros >= 2 else 0.0
+                
+                if cantidad_logros >= 2:
+                    st.info(f"💡 **Logros:** `{cantidad_logros}` | 🏆 **Premio Estimado (X{2**cantidad_logros}):** `{formatear_bs(premio_estimado_pro)}`")
+
+                if st.button("🚀 Emitir Ticket Pro Combinado", use_container_width=True, type="primary"):
+                    if not bloqueo_valido_pro or cantidad_logros < 2:
+                        st.error("⚠️ Debes configurar una combinación válida de al menos 2 carreras.")
+                    else:
+                        # VERIFICACIÓN DE SEGURIDAD CONTRA TICKET EXACTAMENTE DUPLICADO
+                        combinacion_pro_clave = tuple(sorted([(p["Carrera"], p["Ejemplar"]) for p in picks_pro]))
+                        
+                        ticket_duplicado = False
+                        for t_ex in st.session_state.dupletas_tickets:
+                            if t_ex.get("Estado") != "Perdedor":
+                                t_ex_clave = tuple(sorted([(p["Carrera"], p["Ejemplar"]) for p in t_ex["Picks"]]))
+                                if t_ex_clave == combinacion_pro_clave:
+                                    ticket_duplicado = True
                                     break
                         
-                        if dupleta_repetida:
-                            st.error("🚫 ¡Bloqueo de seguridad! Esta combinación exacta de ejemplares ya fue registrada previamente en otro ticket activo.")
+                        if ticket_duplicado:
+                            st.error("🚫 ¡Bloqueo de seguridad! Esta combinación exacta de ejemplares ya se encuentra activa en otro ticket.")
                         else:
-                            ticket_nuevo = {
-                                "Jugador": jugador_dup,
-                                "Picks": picks_actuales,
-                                "Monto": monto_dup,
-                                "Premio": premio_estimado,
+                            ticket_pro_nuevo = {
+                                "Jugador": jugador_dup_pro,
+                                "Picks": picks_pro,
+                                "Monto": monto_dup_pro,
+                                "Premio": premio_estimado_pro,
                                 "Estado": "En Curso",
                                 "Fecha": ahora_dt.strftime('%I:%M:%S %p')
                             }
-                            st.session_state.dupletas_tickets.append(ticket_nuevo)
+                            st.session_state.dupletas_tickets.append(ticket_pro_nuevo)
                             
-                            # Cargo automático a cuenta del jugador
-                            if jugador_dup not in st.session_state.cuentas:
-                                st.session_state.cuentas[jugador_dup] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
-                            st.session_state.cuentas[jugador_dup]['Pujas'] += monto_dup
+                            # Cargo automático del monto a la cuenta del apostador
+                            if jugador_dup_pro not in st.session_state.cuentas:
+                                st.session_state.cuentas[jugador_dup_pro] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                            st.session_state.cuentas[jugador_dup_pro]['Pujas'] += monto_dup_pro
                             
                             st.session_state.historial_transacciones.append({
-                                "Carrera": "Dupleta", "Jugador": jugador_dup,
-                                "Tipo": "Cargo (Dupleta)", "Detalle": f"Ticket de {num_picks} selecciones", "Monto (Bs.)": -monto_dup
+                                "Carrera": "Dupleta Pro", "Jugador": jugador_dup_pro,
+                                "Tipo": "Cargo (Dupleta Pro)", "Detalle": f"Ticket Parley de {cantidad_logros} selecciones", "Monto (Bs.)": -monto_dup_pro
                             })
                             
-                            st.success("✅ ¡Dupleta registrada y cargada a cuentas exitosamente!")
+                            st.success("✅ ¡Ticket Pro emitido y cargado a cuentas exitosamente!")
                             st.rerun()
 
-        with col_dup_der:
-            st.subheader("📋 Tickets Emitidos (Visibilidad de Duplicados)")
+        with col_dup_der := col_dup_tabla:
+            st.subheader("📋 Control y Seguimiento de Tickets")
             
             if not st.session_state.dupletas_tickets:
-                st.info("No hay tickets registrados en esta sesión.")
+                st.info("No hay tickets de dupleta registrados en esta sesión.")
             else:
-                filtro_t = st.selectbox("Filtrar Estado", ["Todos", "En Curso", "Ganador", "Perdedor"], key="filtro_dupleta_simple")
+                filtro_t_pro = st.selectbox("Filtrar Estado de Tickets", ["Todos", "En Curso", "Ganador", "Perdedor"], key="filtro_dupleta_pro")
                 
-                # Sección para mostrar tabla resumen general de combinaciones activas y evitar duplicados a simple vista
-                with st.expander("🔍 Tabla Resumen de Combinaciones Activas", expanded=True):
-                    datos_resumen_dup = []
-                    for t_idx, tk in enumerate(st.session_state.dupletas_tickets):
-                        picks_str = " + ".join([f"{p['Carrera']} ({p['Ejemplar']})" for p in tk['Picks']])
-                        datos_resumen_dup.append({
-                            "Tk #": t_idx + 1,
-                            "Jugador": tk['Jugador'],
-                            "Combinación": picks_str,
-                            "Estado": tk['Estado']
+                # Vista en tabla general para auditoría rápida
+                with st.expander("🔍 Resumen General de Tickets Activos", expanded=False):
+                    datos_resumen_pro = []
+                    for idx_res, tk_res in enumerate(st.session_state.dupletas_tickets):
+                        picks_str_res = " ➔ ".join([f"{p['Carrera']}: {p['Ejemplar']}" for p in tk_res['Picks']])
+                        datos_resumen_pro.append({
+                            "Tk #": idx_res + 1,
+                            "Jugador": tk_res['Jugador'],
+                            "Selecciones": picks_str_res,
+                            "Estado": tk_res['Estado']
                         })
-                    st.dataframe(pd.DataFrame(datos_resumen_dup), use_container_width=True, hide_index=True)
+                    st.dataframe(pd.DataFrame(datos_resumen_pro), use_container_width=True, hide_index=True)
 
                 st.markdown("---")
-                for idx_t, ticket in enumerate(st.session_state.dupletas_tickets):
-                    if filtro_t != "Todos" and ticket['Estado'] != filtro_t:
+                for idx_tp, ticket_item in enumerate(st.session_state.dupletas_tickets):
+                    if filtro_t_pro != "Todos" and ticket_item['Estado'] != filtro_t_pro:
                         continue
                         
-                    badge_estado = "🟡" if ticket['Estado'] == "En Curso" else ("🟢" if ticket['Estado'] == "Ganador" else "🔴")
+                    badge_e = "🟡" if ticket_item['Estado'] == "En Curso" else ("🟢" if ticket_item['Estado'] == "Ganador" else "🔴")
                     
                     with st.container(border=True):
-                        st.markdown(f"**Ticket #{idx_t + 1}** {badge_estado} | **{ticket['Jugador']}**")
-                        st.markdown(f"💰 **Monto:** `{formatear_bs(ticket['Monto'])}` | 🏆 **Premio:** `{formatear_bs(ticket['Premio'])}`")
+                        st.markdown(f"**Ticket Pro #{idx_tp + 1}** {badge_e} | **{ticket_item['Jugador']}**")
+                        st.markdown(f"💰 **Aporte:** `{formatear_bs(ticket_item['Monto'])}` | 🏆 **Premio Potencial:** `{formatear_bs(ticket_item['Premio'])}`")
                         
-                        for p in ticket['Picks']:
-                            st.caption(f"• **{p['Carrera']}** ➡️ {p['Ejemplar']}")
+                        for pk in ticket_item['Picks']:
+                            st.caption(f"• **{pk['Carrera']}** ➡️ `{pk['Ejemplar']}`")
                             
-                        c_acc1, c_acc2 = st.columns(2)
-                        with c_acc1:
-                            if st.button("✅ Ganador", key=f"btn_s_ganador_{idx_t}", use_container_width=True):
-                                if ticket['Estado'] != "Ganador":
-                                    st.session_state.dupletas_tickets[idx_t]['Estado'] = "Ganador"
-                                    if ticket['Jugador'] not in st.session_state.cuentas:
-                                        st.session_state.cuentas[ticket['Jugador']] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
-                                    st.session_state.cuentas[ticket['Jugador']]['Premios'] += ticket['Premio']
+                        col_btn_p1, col_btn_p2 = st.columns(2)
+                        with col_btn_p1:
+                            if st.button("✅ Ganador", key=f"btn_pro_ganador_{idx_tp}", use_container_width=True):
+                                if ticket_item['Estado'] != "Ganador":
+                                    st.session_state.dupletas_tickets[idx_tp]['Estado'] = "Ganador"
+                                    if ticket_item['Jugador'] not in st.session_state.cuentas:
+                                        st.session_state.cuentas[ticket_item['Jugador']] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                                    st.session_state.cuentas[ticket_item['Jugador']]['Premios'] += ticket_item['Premio']
                                     st.session_state.historial_transacciones.append({
-                                        "Carrera": "Dupleta", "Jugador": ticket['Jugador'],
-                                        "Tipo": "Abono (Premio Dupleta)", "Detalle": f"Ticket #{idx_t + 1} acertado", "Monto (Bs.)": ticket['Premio']
+                                        "Carrera": "Dupleta Pro", "Jugador": ticket_item['Jugador'],
+                                        "Tipo": "Abono (Premio Dupleta Pro)", "Detalle": f"Ticket Pro #{idx_tp + 1} acertado", "Monto (Bs.)": ticket_item['Premio']
                                     })
-                                    st.success("¡Premio abonado al jugador!")
+                                    st.success("¡Premio abonado exitosamente al jugador!")
                                     st.rerun()
-                        with c_acc2:
-                            if st.button("❌ Perdedor", key=f"btn_s_perdedor_{idx_t}", use_container_width=True):
-                                st.session_state.dupletas_tickets[idx_t]['Estado'] = "Perdedor"
+                        with col_btn_p2:
+                            if st.button("❌ Perdedor", key=f"btn_pro_perdedor_{idx_tp}", use_container_width=True):
+                                st.session_state.dupletas_tickets[idx_tp]['Estado'] = "Perdedor"
                                 st.rerun()
 
 # ==========================================
