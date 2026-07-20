@@ -223,7 +223,7 @@ todos_los_caballos = sorted(list({cab for carr in st.session_state.remates.value
 
 # --- PANEL DE CONFIGURACIÓN DE HORA DE CIERRE ESTRICTA Y MANUAL (ADMIN) ---
 st.sidebar.markdown("---")
-with st.sidebar.expander("⏰ Hora de Cierre Estricta y Manual", expanded=True):
+with st.sidebar.expander("⏰ Hora de Cierre Estricta y Manual", expanded=False):
     st.markdown(f"Configurar para: **{carrera_actual}**")
     
     hora_actual_def = ahora_dt.time()
@@ -249,6 +249,64 @@ with st.sidebar.expander("⏰ Hora de Cierre Estricta y Manual", expanded=True):
                 del st.session_state.horas_cierre_remate[carrera_actual]
             st.session_state.estado_conteo_carrera[carrera_actual] = "INACTIVO"
             st.toast(f"🗑️ Hora programada removida para {carrera_actual}.")
+            st.rerun()
+
+# --- NUEVO PANEL LATERAL: GESTIÓN DE CIERRE Y LIQUIDACIÓN ---
+st.sidebar.markdown("---")
+with st.sidebar.expander("🏁 Gestión de Cierre y Liquidación", expanded=True):
+    st.markdown(f"Acciones para: **{carrera_actual}**")
+    
+    carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carrera_actual, False)
+    
+    if not carrera_cerrada:
+        if st.button("🔒 Cerrar Remate", key=f"btn_cerrar_remate_side_{carrera_actual}", use_container_width=True, type="secondary"):
+            st.session_state.carreras_cerradas_remate[carrera_actual] = True
+            st.session_state.estado_conteo_carrera[carrera_actual] = "CERRADO"
+            st.toast(f"🔒 ¡El remate para {carrera_actual} ha sido cerrado exitosamente!")
+            st.rerun()
+    else:
+        st.success("🔒 Remate cerrado.")
+        if st.button("🔓 Reabrir Remate", key=f"btn_reabrir_remate_side_{carrera_actual}", use_container_width=True):
+            st.session_state.carreras_cerradas_remate[carrera_actual] = False
+            st.session_state.estado_conteo_carrera[carrera_actual] = "INACTIVO"
+            st.toast(f"🔓 Remate reabierto para {carrera_actual}.")
+            st.rerun()
+            
+    st.markdown("---")
+    
+    # Calcular pote total y premio actual para liquidación rápida desde la barra lateral
+    total_pote_side = sum([info['monto'] for info in st.session_state.remates[carrera_actual].values()])
+    monto_casa_side = total_pote_side * (porcentaje_casa / 100)
+    pote_neto_base_side = total_pote_side - monto_casa_side
+    pote_incentivo_extra_side = st.session_state.get(f"pote_incentivo_{carrera_actual}", 0.0)
+    premio_total_calculado_side = pote_neto_base_side + pote_incentivo_extra_side
+    
+    caballo_ganador_side = st.selectbox("Ejemplar Ganador", list(st.session_state.remates[carrera_actual].keys()), key=f"sel_ganador_side_{carrera_actual}")
+    
+    if st.button("🏆 Liquidar Carrera", key=f"btn_liquidar_side_{carrera_actual}", use_container_width=True, type="primary"):
+        if carrera_actual in st.session_state.historial_ganadores:
+            st.warning("Esta carrera ya fue liquidada.")
+        else:
+            for cab, info in st.session_state.remates[carrera_actual].items():
+                if info['jugador'] != "Sin Postor" and info['monto'] > 0:
+                    st.session_state.cuentas[info['jugador']]['Pujas'] += info['monto']
+                    st.session_state.historial_transacciones.append({
+                        "Carrera": carrera_actual, "Jugador": info['jugador'], 
+                        "Tipo": "Cargo (Compra)", "Detalle": f"Adjudicación de {cab}", "Monto (Bs.)": -info['monto']
+                    })
+            info_ganador = st.session_state.remates[carrera_actual][caballo_ganador_side]
+            if info_ganador['jugador'] != "Sin Postor":
+                st.session_state.cuentas[info_ganador['jugador']]['Premios'] += premio_total_calculado_side
+                st.session_state.historial_transacciones.append({
+                    "Carrera": carrera_actual, "Jugador": info_ganador['jugador'], 
+                    "Tipo": "Abono (Premio)", "Detalle": f"Ganador con {caballo_ganador_side} (Incentivo incl.)", "Monto (Bs.)": premio_total_calculado_side
+                })
+            st.session_state.ganancia_casa += monto_casa_side
+            st.session_state.historial_ganadores[carrera_actual] = {
+                "Ganador": info_ganador['jugador'], "Caballo": caballo_ganador_side, "Premio": formatear_bs(premio_total_calculado_side)
+            }
+            st.balloons()
+            st.success(f"¡Liquidado! Ganador: {info_ganador['jugador']}")
             st.rerun()
 
 # --- PANEL DE ADMINISTRADOR DE DUPLETAS EN LA BARRA LATERAL ---
@@ -436,52 +494,6 @@ with tab1:
                                 st.toast(f"✅ {caballo_seleccionado} ➡️ {jugador} ({formatear_bs(monto_puja)})")
                                 
                             st.rerun()
-
-        with st.container(border=True):
-            st.markdown("🏁 **Gestión de Cierre y Liquidación**")
-            
-            if not carrera_cerrada:
-                if st.button("🔒 Cerrar Remate de esta Carrera", key=f"btn_cerrar_remate_{carrera_actual}", use_container_width=True, type="secondary"):
-                    st.session_state.carreras_cerradas_remate[carrera_actual] = True
-                    st.session_state.estado_conteo_carrera[carrera_actual] = "CERRADO"
-                    st.toast(f"🔒 ¡El remate para {carrera_actual} ha sido cerrado exitosamente!")
-                    st.rerun()
-            else:
-                st.success("🔒 El remate de esta carrera está cerrado.")
-                if st.button("🔓 Reabrir Remate", key=f"btn_reabrir_remate_{carrera_actual}", use_container_width=True):
-                    st.session_state.carreras_cerradas_remate[carrera_actual] = False
-                    st.session_state.estado_conteo_carrera[carrera_actual] = "INACTIVO"
-                    st.toast(f"🔓 Remate reabierto para {carrera_actual}.")
-                    st.rerun()
-            
-            st.markdown("---")
-            caballo_ganador = st.selectbox("Ejemplar Ganador", list(st.session_state.remates[carrera_actual].keys()), key=f"sel_ganador_{carrera_actual}")
-            
-            if st.button("🏆 Liquidar Carrera", key=f"btn_cerrar_{carrera_actual}", use_container_width=True, type="primary"):
-                if carrera_actual in st.session_state.historial_ganadores:
-                    st.warning("Esta carrera ya fue liquidada.")
-                else:
-                    for cab, info in st.session_state.remates[carrera_actual].items():
-                        if info['jugador'] != "Sin Postor" and info['monto'] > 0:
-                            st.session_state.cuentas[info['jugador']]['Pujas'] += info['monto']
-                            st.session_state.historial_transacciones.append({
-                                "Carrera": carrera_actual, "Jugador": info['jugador'], 
-                                "Tipo": "Cargo (Compra)", "Detalle": f"Adjudicación de {cab}", "Monto (Bs.)": -info['monto']
-                            })
-                    info_ganador = st.session_state.remates[carrera_actual][caballo_ganador]
-                    if info_ganador['jugador'] != "Sin Postor":
-                        st.session_state.cuentas[info_ganador['jugador']]['Premios'] += premio_total_calculado
-                        st.session_state.historial_transacciones.append({
-                            "Carrera": carrera_actual, "Jugador": info_ganador['jugador'], 
-                            "Tipo": "Abono (Premio)", "Detalle": f"Ganador con {caballo_ganador} (Incentivo incl.)", "Monto (Bs.)": premio_total_calculado
-                        })
-                    st.session_state.ganancia_casa += monto_casa
-                    st.session_state.historial_ganadores[carrera_actual] = {
-                        "Ganador": info_ganador['jugador'], "Caballo": caballo_ganador, "Premio": formatear_bs(premio_total_calculado)
-                    }
-                    st.balloons()
-                    st.success(f"¡Liquidado! Ganador: {info_ganador['jugador']}")
-                    st.rerun()
 
 # ==========================================
 # PESTAÑA 2: GESTIÓN MANUAL DE CABALLOS Y CORRELATIVO AUTOMÁTICO (1 A 17)
