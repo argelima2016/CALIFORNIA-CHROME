@@ -306,33 +306,42 @@ with tab2:
                     st.rerun()
 
         st.markdown("---")
-        st.subheader("📚 Cargar desde Banco Guardado")
+        st.subheader("📚 Cargar desde Banco Guardado (Búsqueda Inteligente)")
         if st.session_state.banco_ejemplares:
-            ejemplar_banco = st.selectbox("Seleccionar del Banco Histórico", st.session_state.banco_ejemplares, key="sel_banco_ejemplar")
-            if st.button("📥 Inscribir con Siguiente Número (1-17)", use_container_width=True):
-                if len(st.session_state.remates[carrera_actual]) >= 17:
-                    st.error("⚠️ Límite de 17 ejemplares alcanzado en esta carrera.")
-                else:
-                    nombre_limpio = re.sub(r'^\d+[\s\-\.\)]*', '', ejemplar_banco).strip().title()
-                    
-                    elementos_actuales = list(st.session_state.remates[carrera_actual].keys())
-                    numeros_usados = []
-                    for elem in elementos_actuales:
-                        match_num = re.match(r'^(\d+)', elem)
-                        if match_num:
-                            numeros_usados.append(int(match_num.group(1)))
-                    
-                    siguiente_num = 1
-                    while siguiente_num in numeros_usados and siguiente_num <= 17:
-                        siguiente_num += 1
-                    
-                    if siguiente_num > 17:
-                        st.error("⚠️ No hay posiciones disponibles (máximo 17).")
+            # 🔍 BARRA DE BÚSQUEDA / FILTRO EN TIEMPO REAL PARA EL BANCO
+            filtro_banco = st.text_input("🔍 Escribe para buscar rápido en el banco", placeholder="Ej: Rayo...", key="filtro_rapido_banco")
+            
+            # Filtrar la lista del banco según lo que escriba el usuario (sin importar mayúsculas/minúsculas)
+            banco_filtrado = [e for e in st.session_state.banco_ejemplares if filtro_banco.lower() in e.lower()]
+            
+            if not banco_filtrado:
+                st.warning("⚠️ No se encontraron ejemplares con ese nombre en el banco.")
+            else:
+                ejemplar_banco = st.selectbox("Seleccionar Ejemplar Encontrado", banco_filtrado, key="sel_banco_ejemplar_filtrado")
+                if st.button("📥 Inscribir con Siguiente Número (1-17)", use_container_width=True):
+                    if len(st.session_state.remates[carrera_actual]) >= 17:
+                        st.error("⚠️ Límite de 17 ejemplares alcanzado en esta carrera.")
                     else:
-                        formato_llave = f"{siguiente_num} - {nombre_limpio}"
-                        st.session_state.remates[carrera_actual][formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
-                        st.success(f"✅ Cargado como **{formato_llave}** en {carrera_actual}.")
-                        st.rerun()
+                        nombre_limpio = re.sub(r'^\d+[\s\-\.\)]*', '', ejemplar_banco).strip().title()
+                        
+                        elementos_actuales = list(st.session_state.remates[carrera_actual].keys())
+                        numeros_usados = []
+                        for elem in elementos_actuales:
+                            match_num = re.match(r'^(\d+)', elem)
+                            if match_num:
+                                numeros_usados.append(int(match_num.group(1)))
+                        
+                        siguiente_num = 1
+                        while siguiente_num in numeros_usados and siguiente_num <= 17:
+                            siguiente_num += 1
+                        
+                        if siguiente_num > 17:
+                            st.error("⚠️ No hay posiciones disponibles (máximo 17).")
+                        else:
+                            formato_llave = f"{siguiente_num} - {nombre_limpio}"
+                            st.session_state.remates[carrera_actual][formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
+                            st.success(f"✅ Cargado como **{formato_llave}** en {carrera_actual}.")
+                            st.rerun()
         else:
             st.info("No hay ejemplares en el banco guardado.")
 
@@ -533,7 +542,7 @@ with tab6:
                                     nombre_puro = re.sub(r'^\d+[\s\-\.\)]*', '', nombre_bruto).strip().title()
                                     
                                     if nombre_puro and len(nombre_puro) > 2 and nombre_puro not in ejemplares_detectados_nombres:
-                                        if len(ejemplares_detectados_nombres) < 17:
+                                        if len(ejemplares_detectados_nombies) < 17:
                                             ejemplares_detectados_nombres.append(nombre_puro)
                                             if nombre_puro not in st.session_state.banco_ejemplares:
                                                 st.session_state.banco_ejemplares.append(nombre_puro)
