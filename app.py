@@ -3,7 +3,6 @@ import pandas as pd
 import io
 import os
 import re
-import requests
 from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 from pypdf import PdfReader, PdfWriter
@@ -15,24 +14,13 @@ st.set_page_config(page_title="Sistema de Remates, Dupletas y PDF en Vivo", layo
 # --- AUTOREFRESH PARA TIEMPO REAL (1 SEGUNDO PARA PRECISIÓN DE CONTEO) ---
 st_autorefresh(interval=1000, key="datarefresh_en_vivo")
 
-# --- FUNCIÓN OFICIAL PARA OBTENER LA HORA EXACTA DE VENEZUELA (AMERICA/CARACAS) ---
+# --- FUNCIÓN LOCAL PARA OBTENER LA HORA EXACTA DE VENEZUELA (AMERICA/CARACAS) ---
 @st.cache_data(ttl=15)
 def obtener_hora_venezuela():
     """
     Obtiene la hora exacta actual para la zona horaria de Venezuela (America/Caracas).
-    Utiliza zoneinfo de Python con respaldo a UTC-4 y API externa para máxima precisión.
+    Utiliza zoneinfo de Python con respaldo a UTC-4.
     """
-    try:
-        respuesta = requests.get("https://timeapi.world/timezone/America/Caracas", timeout=3)
-        if respuesta.status_code == 200:
-            data = respuesta.json()
-            datetime_str = data.get("datetime")
-            if datetime_str:
-                dt_limpio = datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
-                return dt_limpio.replace(tzinfo=None), True
-    except Exception:
-        pass
-    
     try:
         zona_venezuela = ZoneInfo("America/Caracas")
         dt_zonificado = datetime.now(zona_venezuela).replace(tzinfo=None)
@@ -167,11 +155,8 @@ def formatear_bs(monto):
 # ==========================================
 st.sidebar.header("⚙️ Control de Carrera en Vivo")
 
-ahora_dt, conexion_internet = obtener_hora_venezuela()
-if conexion_internet:
-    st.sidebar.caption("🇻🇪 🌐 Hora Oficial de Venezuela (Sincronizada)")
-else:
-    st.sidebar.caption("🇻🇪 ⚠️ Hora de Venezuela (Modo Respaldo UTC-4)")
+ahora_dt, conexion_local = obtener_hora_venezuela()
+st.sidebar.caption("🇻🇪 🕒 Hora Local de Venezuela (Sistema)")
 
 def cargar_programa_automatico():
     archivo_fijo = "programa_del_dia.xlsx" 
@@ -289,20 +274,20 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 ])
 
 # ==========================================
-# PESTAÑA 1: REMATE ADELANTADO (CON SELECTOR RÁPIDO DE EJEMPLAR)
+# PESTAÑA 1: REMATE ADELANTADO (CON BOTONES RÁPIDOS DE EJEMPLAR)
 # ==========================================
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 Remate Adelantado: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
     
-    # --- LÓGICA DEL TEMPORIZADOR Y HORA ESTRICTA CON HORA DE VENEZUELA ---
+    # --- LÓGICA DEL TEMPORIZADOR Y HORA ESTRICTA CON HORA LOCAL DE VENEZUELA ---
     hora_limite = st.session_state.horas_cierre_remate.get(carrera_actual)
     carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carrera_actual, False)
     estado_conteo = st.session_state.estado_conteo_carrera.get(carrera_actual, "INACTIVO")
     
     if hora_limite:
-        st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta para <b>{carrera_actual}</b>: <b>{hora_limite.strftime('%H:%M:%S')}</b> | 🇻🇪 Hora Actual Venezuela: <b>{ahora_dt.strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta para <b>{carrera_actual}</b>: <b>{hora_limite.strftime('%H:%M:%S')}</b> | 🇻🇪 Hora Actual: <b>{ahora_dt.strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
     else:
-        st.markdown(f"<div class='cierre-info-box'>⚠️ Sin hora de cierre estricta para <b>{carrera_actual}</b> | 🇻🇪 Hora Actual Venezuela: <b>{ahora_dt.strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='cierre-info-box'>⚠️ Sin hora de cierre estricta para <b>{carrera_actual}</b> | 🇻🇪 Hora Actual: <b>{ahora_dt.strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
 
     if hora_limite and not carrera_cerrada:
         dt_limite = datetime.combine(ahora_dt.date(), hora_limite)
@@ -324,7 +309,7 @@ with tab1:
             restantes_10s = max(0, 10 - int(tiempo_transcurrido))
             
             if restantes_10s > 0:
-                st.markdown(f"<div class='timer-box'>⚠️ ¡ATENCIÓN VENEZUELA! CIERRE INMINENTE EN: <b>{restantes_10s}</b> SEGUNDOS</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='timer-box'>⚠️ ¡ATENCIÓN! CIERRE INMINENTE EN: <b>{restantes_10s}</b> SEGUNDOS</div>", unsafe_allow_html=True)
             else:
                 st.session_state.estado_conteo_carrera[carrera_actual] = "ESPERA_POST_PUJA"
                 st.session_state.tiempo_inicio_conteo[carrera_actual] = ahora_dt
@@ -377,39 +362,25 @@ with tab1:
         with st.container(border=True):
             st.markdown("⚡ **Registro Dinámico de Puja**")
             
-            # --- MEJORA: BUSCADOR INSTANTÁNEO Y BOTONES DE ACCESO RÁPIDO PARA EL CABALLO ---
+            # --- SELECCIÓN RÁPIDA DE EJEMPLAR EXCLUSIVAMENTE CON BOTONES (SIN BUSCADOR) ---
             lista_caballos_activos = list(st.session_state.remates[carrera_actual].keys())
             
             if not lista_caballos_activos:
                 st.warning("No hay ejemplares en esta carrera.")
             else:
-                # Pestañas o selector rápido para elegir entre lista desplegable filtrable o botones visuales
-                modo_seleccion = st.radio("Método de Selección de Ejemplar", ["🔍 Buscador Inteligente", "🔢 Botones Rápidos (Pista)"], horizontal=True, key=f"modo_sel_cab_{carrera_actual}")
-                
-                caballo_seleccionado = None
-                
-                if modo_seleccion == "🔍 Buscador Inteligente":
-                    caballo_seleccionado = st.selectbox(
-                        "Seleccionar Ejemplar (Número o Nombre)", 
-                        lista_caballos_activos, 
-                        key=f"sel_caballo_inteligente_{carrera_actual}"
-                    )
-                else:
-                    st.markdown("Haz clic en el número del ejemplar para seleccionarlo al instante:")
-                    # Creamos una botonera visual tipo grilla de 3 o 4 columnas para elegir rápido
-                    cols_botones = st.columns(4)
-                    if f"caballo_seleccionado_click_{carrera_actual}" not in st.session_state:
-                        st.session_state[f"caballo_seleccionado_click_{carrera_actual}"] = lista_caballos_activos[0]
-                        
-                    for idx, cab_item in enumerate(lista_caballos_activos):
-                        # Extraer solo el número o primer nombre corto para el botón compacto
-                        num_parte = cab_item.split(" - ")[0]
-                        with cols_botones[idx % 4]:
-                            if st.button(f"#{num_parte}", key=f"btn_rapido_cab_{carrera_actual}_{idx}", use_container_width=True):
-                                st.session_state[f"caballo_seleccionado_click_{carrera_actual}"] = cab_item
+                st.markdown("Haz clic en el número del ejemplar para seleccionarlo:")
+                cols_botones = st.columns(4)
+                if f"caballo_seleccionado_click_{carrera_actual}" not in st.session_state or st.session_state[f"caballo_seleccionado_click_{carrera_actual}"] not in lista_caballos_activos:
+                    st.session_state[f"caballo_seleccionado_click_{carrera_actual}"] = lista_caballos_activos[0]
                     
-                    caballo_seleccionado = st.session_state[f"caballo_seleccionado_click_{carrera_actual}"]
-                    st.info(f"🎯 Seleccionado: **{caballo_seleccionado}**")
+                for idx, cab_item in enumerate(lista_caballos_activos):
+                    num_parte = cab_item.split(" - ")[0]
+                    with cols_botones[idx % 4]:
+                        if st.button(f"#{num_parte}", key=f"btn_rapido_cab_{carrera_actual}_{idx}", use_container_width=True):
+                            st.session_state[f"caballo_seleccionado_click_{carrera_actual}"] = cab_item
+                
+                caballo_seleccionado = st.session_state[f"caballo_seleccionado_click_{carrera_actual}"]
+                st.info(f"🎯 Seleccionado: **{caballo_seleccionado}**")
 
                 st.markdown("---")
                 jugador = st.selectbox("Comprador / Jugador", st.session_state.lista_jugadores, key=f"sel_jugador_{carrera_actual}")
@@ -536,39 +507,33 @@ with tab2:
                     st.rerun()
 
         st.markdown("---")
-        st.subheader("📚 Cargar desde Banco Guardado (Búsqueda Inteligente)")
+        st.subheader("📚 Cargar desde Banco Guardado")
         if st.session_state.banco_ejemplares:
-            filtro_banco = st.text_input("🔍 Escribe para buscar rápido en el banco", placeholder="Ej: Rayo...", key="filtro_rapido_banco")
-            banco_filtrado = [e for e in st.session_state.banco_ejemplares if filtro_banco.lower() in e.lower()]
-            
-            if not banco_filtrado:
-                st.warning("⚠️ No se encontraron ejemplares con ese nombre en el banco.")
-            else:
-                ejemplar_banco = st.selectbox("Seleccionar Ejemplar Encontrado", banco_filtrado, key="sel_banco_ejemplar_filtrado")
-                if st.button("📥 Inscribir con Siguiente Número (1-17)", use_container_width=True):
-                    if len(st.session_state.remates[carrera_actual]) >= 17:
-                        st.error("⚠️ Límite de 17 ejemplares alcanzado en esta carrera.")
+            ejemplar_banco = st.selectbox("Seleccionar Ejemplar del Banco", st.session_state.banco_ejemplares, key="sel_banco_ejemplar_simple")
+            if st.button("📥 Inscribir con Siguiente Número (1-17)", use_container_width=True):
+                if len(st.session_state.remates[carrera_actual]) >= 17:
+                    st.error("⚠️ Límite de 17 ejemplares alcanzado en esta carrera.")
+                else:
+                    nombre_limpio = re.sub(r'^\d+[\s\-\.\)]*', '', ejemplar_banco).strip().title()
+                    
+                    elementos_actuales = list(st.session_state.remates[carrera_actual].keys())
+                    numeros_usados = []
+                    for elem in elementos_actuales:
+                        match_num = re.match(r'^(\d+)', elem)
+                        if match_num:
+                            numeros_usados.append(int(match_num.group(1)))
+                    
+                    siguiente_num = 1
+                    while siguiente_num in numeros_usados and siguiente_num <= 17:
+                        siguiente_num += 1
+                    
+                    if siguiente_num > 17:
+                        st.error("⚠️ No hay posiciones disponibles (máximo 17).")
                     else:
-                        nombre_limpio = re.sub(r'^\d+[\s\-\.\)]*', '', ejemplar_banco).strip().title()
-                        
-                        elementos_actuales = list(st.session_state.remates[carrera_actual].keys())
-                        numeros_usados = []
-                        for elem in elementos_actuales:
-                            match_num = re.match(r'^(\d+)', elem)
-                            if match_num:
-                                numeros_usados.append(int(match_num.group(1)))
-                        
-                        siguiente_num = 1
-                        while siguiente_num in numeros_usados and siguiente_num <= 17:
-                            siguiente_num += 1
-                        
-                        if siguiente_num > 17:
-                            st.error("⚠️ No hay posiciones disponibles (máximo 17).")
-                        else:
-                            formato_llave = f"{siguiente_num} - {nombre_limpio}"
-                            st.session_state.remates[carrera_actual][formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
-                            st.success(f"✅ Cargado como **{formato_llave}** en {carrera_actual}.")
-                            st.rerun()
+                        formato_llave = f"{siguiente_num} - {nombre_limpio}"
+                        st.session_state.remates[carrera_actual][formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
+                        st.success(f"✅ Cargado como **{formato_llave}** en {carrera_actual}.")
+                        st.rerun()
         else:
             st.info("No hay ejemplares en el banco guardado.")
 
@@ -626,11 +591,8 @@ with tab3:
                 lista_cab_1 = list(ejemplares_dict_1.keys())
                 
                 if lista_cab_1:
-                    filtro_1 = st.text_input("🔍 Buscar ejemplar (Carrera 1)", placeholder="Ej: 3 o nombre...", key="filtro_cab_1")
-                    filtrados_1 = [c for c in lista_cab_1 if filtro_1.lower() in c.lower()]
-                    
-                    cab_sel_1 = st.radio("Selecciona Ejemplar 1:", filtrados_1 if filtrados_1 else ["(Sin resultados)"], key="radio_cab_1")
-                    if cab_sel_1 != "(Sin resultados)":
+                    cab_sel_1 = st.selectbox("Selecciona Ejemplar 1:", lista_cab_1, key="sel_cab_1_directo")
+                    if cab_sel_1:
                         st.session_state.dup_carrera_1 = carr_sel_1
                         st.session_state.dup_caballo_1 = cab_sel_1
                 else:
@@ -645,11 +607,8 @@ with tab3:
                 lista_cab_2 = list(ejemplares_dict_2.keys())
                 
                 if lista_cab_2:
-                    filtro_2 = st.text_input("🔍 Buscar ejemplar (Carrera 2)", placeholder="Ej: 5 o nombre...", key="filtro_cab_2")
-                    filtrados_2 = [c for c in lista_cab_2 if filtro_2.lower() in c.lower()]
-                    
-                    cab_sel_2 = st.radio("Selecciona Ejemplar 2:", filtrados_2 if filtrados_2 else ["(Sin resultados)"], key="radio_cab_2")
-                    if cab_sel_2 != "(Sin resultados)":
+                    cab_sel_2 = st.selectbox("Selecciona Ejemplar 2:", lista_cab_2, key="sel_cab_2_directo")
+                    if cab_sel_2:
                         st.session_state.dup_carrera_2 = carr_sel_2
                         st.session_state.dup_caballo_2 = cab_sel_2
                 else:
@@ -717,7 +676,7 @@ with tab3:
             st.session_state.dup_caballo_1 = None
             st.session_state.dup_carrera_2 = None
             st.session_state.dup_caballo_2 = None
-            for k in ["filtro_cab_1", "filtro_cab_2", "num_monto_dupleta"]:
+            for k in ["num_monto_dupleta"]:
                 if k in st.session_state:
                     del st.session_state[k]
             st.toast("🧹 Formulario de dupleta limpiado con éxito.")
