@@ -380,10 +380,11 @@ with st.sidebar.expander("🐴 🗑️ Opciones Avanzadas del Banco", expanded=F
         st.rerun()
 
 # --- INTERFAZ DE PESTAÑAS ---
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remate Adelantado", 
     "✍️ Gestión Manual (Caballos)", 
     "🎟️ Módulo de Dupleta", 
+    "🏁 Cierre y Liquidación", 
     "📊 Cuentas por Jugador", 
     "🧾 Historial de Transacciones", 
     "📄 Lector Tabular PDF"
@@ -658,7 +659,7 @@ with tab2:
     st.write(list(st.session_state.remates[carrera_actual].keys()))
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETAS (ULTRA DINÁMICO Y FÁCIL)
+# PESTAÑA 3: MÓDULO DE DUPLETAS
 # ==========================================
 with tab3:
     st.title("🎟️ Módulo de Dupletas Rápido")
@@ -668,7 +669,6 @@ with tab3:
     if not carreras_permitidas:
         st.warning("⚠️ El administrador aún no ha seleccionado ninguna carrera habilitada para las dupletas en la barra lateral.")
     else:
-        # Selección del Jugador y Monto en la parte superior con un diseño compacto
         col_j_m1, col_j_m2 = st.columns([3, 1])
         with col_j_m1:
             jugador_dupleta = st.selectbox("👤 Jugador / Comprador", st.session_state.lista_jugadores, key="sel_jugador_dupleta_dinamico")
@@ -677,7 +677,6 @@ with tab3:
 
         st.markdown("---")
         
-        # Selección rápida por botones de carrera y radio/botones para los caballos
         col_paso_1, col_paso_2 = st.columns(2, gap="large")
 
         with col_paso_1:
@@ -710,7 +709,6 @@ with tab3:
 
         st.markdown("---")
 
-        # Vista previa en tiempo real y botón de emisión grande y destacado
         c_res_info, c_res_btn = st.columns([2, 1], vertical_alignment="center")
         
         with c_res_info:
@@ -785,9 +783,102 @@ with tab3:
         st.info("No hay dupletas registradas en la sesión actual.")
 
 # ==========================================
-# PESTAÑA 4: CUENTAS POR JUGADOR
+# PESTAÑA 4: RESUMEN DE REMATES CERRADOS Y DUPLETAS (LIQUIDACIÓN)
 # ==========================================
 with tab4:
+    st.title("🏁 Central de Cierre, Remates Cerrados y Dupletas")
+    st.markdown("Desde este módulo puedes visualizar rápidamente qué remates están cerrados, liquidar sus ganadores y administrar las dupletas activas.")
+
+    st.markdown("---")
+    st.subheader("🎯 Estado y Liquidación de Remates por Carrera")
+
+    carreras_disp_liq = list(st.session_state.remates.keys())
+    carr_liq_sel = st.selectbox("Seleccionar Carrera para Liquidar", carreras_disp_liq, key="sel_carr_liq_central")
+
+    is_cerrada = st.session_state.carreras_cerradas_remate.get(carr_liq_sel, False)
+    is_liquidada = carr_liq_sel in st.session_state.historial_ganadores
+
+    col_est_1, col_est_2 = st.columns(2)
+    with col_est_1:
+        st.markdown(f"**Estado del Remate:** {'🔒 Cerrado' if is_cerrada else '🟢 Abierto'}")
+    with col_est_2:
+        st.markdown(f"**Estado de Liquidación:** {'🏆 Ya Liquidada' if is_liquidada else '⏳ Pendiente de Liquidación'}")
+
+    if not is_liquidada:
+        total_pote_liq = sum([info['monto'] for info in st.session_state.remates[carr_liq_sel].values()])
+        monto_casa_liq = total_pote_liq * (porcentaje_casa / 100)
+        pote_neto_liq = total_pote_liq - monto_casa_liq
+        incentivo_liq = st.session_state.get(f"pote_incentivo_{carr_liq_sel}", 0.0)
+        premio_final_liq = pote_neto_liq + incentivo_liq
+
+        st.info(f"💰 Pote Total: {formatear_bs(total_pote_liq)} | 🏠 Casa ({porcentaje_casa}%): {formatear_bs(monto_casa_liq)} | 🏆 Premio Neto: {formatear_bs(premio_final_liq)}")
+
+        caballo_ganador_central = st.selectbox(
+            "Seleccionar Ejemplar Ganador", 
+            list(st.session_state.remates[carr_liq_sel].keys()), 
+            key=f"sel_ganador_central_{carr_liq_sel}"
+        )
+
+        if st.button("🏆 Procesar y Liquidar Premio", key=f"btn_procesar_liq_{carr_liq_sel}", type="primary", use_container_width=True):
+            if not st.session_state.remates_cargados_en_cuentas.get(carr_liq_sel, False):
+                for cab, info in st.session_state.remates[carr_liq_sel].items():
+                    if info['jugador'] != "Sin Postor" and info['monto'] > 0:
+                        if info['jugador'] not in st.session_state.cuentas:
+                            st.session_state.cuentas[info['jugador']] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                        st.session_state.cuentas[info['jugador']]['Pujas'] += info['monto']
+                        st.session_state.historial_transacciones.append({
+                            "Carrera": carr_liq_sel, "Jugador": info['jugador'], 
+                            "Tipo": "Cargo (Compra)", "Detalle": f"Adjudicación de {cab}", "Monto (Bs.)": -info['monto']
+                        })
+                st.session_state.remates_cargados_en_cuentas[carr_liq_sel] = True
+
+            info_ganador_c = st.session_state.remates[carr_liq_sel][caballo_ganador_central]
+            if info_ganador_c['jugador'] != "Sin Postor":
+                if info_ganador_c['jugador'] not in st.session_state.cuentas:
+                    st.session_state.cuentas[info_ganador_c['jugador']] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                st.session_state.cuentas[info_ganador_c['jugador']]['Premios'] += premio_final_liq
+                st.session_state.historial_transacciones.append({
+                    "Carrera": carr_liq_sel, "Jugador": info_ganador_c['jugador'], 
+                    "Tipo": "Abono (Premio)", "Detalle": f"Ganador con {caballo_ganador_central}", "Monto (Bs.)": premio_final_liq
+                })
+            
+            st.session_state.ganancia_casa += monto_casa_liq
+            st.session_state.historial_ganadores[carr_liq_sel] = {
+                "Ganador": info_ganador_c['jugador'], "Caballo": caballo_ganador_central, "Premio": formatear_bs(premio_final_liq)
+            }
+            st.balloons()
+            st.success(f"🎉 ¡Carrera liquidada con éxito! Ganador: {info_ganador_c['jugador']}")
+            st.rerun()
+    else:
+        st.success(f"✅ Esta carrera ya fue liquidada. Ganador registrado: {st.session_state.historial_ganadores[carr_liq_sel]['Ganador']}")
+
+    st.markdown("---")
+    st.subheader("🎟️ Control Rápido de Dupletas Activas")
+
+    if st.session_state.dupletas_tickets:
+        df_dupl_activas = pd.DataFrame(st.session_state.dupletas_tickets)
+        st.dataframe(df_dupl_activas, use_container_width=True, hide_index=True)
+
+        col_d1, col_d2, col_d3 = st.columns(3)
+        with col_d1:
+            id_ticket_sel = st.selectbox("ID de Ticket a Modificar", [t["ID"] for t in st.session_state.dupletas_tickets], key="sel_id_dupl_central")
+        with col_d2:
+            nuevo_est_dupl = st.selectbox("Cambiar Estado", ["Pendiente ⏳", "Ganador 🏆", "Perdedor ❌"], key="sel_est_dupl_central")
+        with col_d3:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("💾 Actualizar Dupleta", use_container_width=True, type="secondary"):
+                for ticket in st.session_state.dupletas_tickets:
+                    if ticket["ID"] == id_ticket_sel:
+                        ticket["Estado"] = nuevo_est_dupl
+                        st.toast(f"✅ Ticket #{id_ticket_sel} actualizado correctamente.")
+                        st.rerun()
+    else:
+        st.info("No hay tickets de dupletas registrados en el sistema.")
+
+# ==========================================
+# PESTAÑA 5: CUENTAS POR JUGADOR
+# ==========================================
+with tab5:
     st.title("📊 Cuentas Generales en Directo")
     balance_data = []
     for jug in st.session_state.lista_jugadores:
@@ -800,9 +891,9 @@ with tab4:
     st.dataframe(pd.DataFrame(balance_data), use_container_width=True, hide_index=True)
 
 # ==========================================
-# PESTAÑA 5: HISTORIAL DE TRANSACCIONES
+# PESTAÑA 6: HISTORIAL DE TRANSACCIONES
 # ==========================================
-with tab5:
+with tab6:
     st.title("🧾 Historial Global")
     if st.session_state.historial_transacciones:
         st.dataframe(pd.DataFrame(st.session_state.historial_transacciones), use_container_width=True, hide_index=True)
@@ -810,9 +901,9 @@ with tab5:
         st.info("Aún no se han registrado transacciones en el historial.")
 
 # ==========================================
-# PESTAÑA 6: LECTOR DE PDF
+# PESTAÑA 7: LECTOR DE PDF
 # ==========================================
-with tab6:
+with tab7:
     st.title("📄 Lector Estricto de Nombres Directo al Banco")
     st.markdown("Extrae **exclusivamente** los nombres de los ejemplares del PDF y los almacena **únicamente en el banco guardado**.")
 
