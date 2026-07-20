@@ -64,11 +64,11 @@ if 'lista_jugadores' not in st.session_state:
 if 'remates' not in st.session_state:
     st.session_state.remates = {}
 
-# BANCO / HISTORIAL DE EJEMPLARES FRECUENTES O AÑADIDOS MANUALMENTE
+# BANCO / HISTORIAL DE EJEMPLARES FRECUENTES (SÓLO NOMBRES)
 if 'banco_ejemplares' not in st.session_state:
     st.session_state.banco_ejemplares = [
-        "1 - Gran Alex", "2 - Rey David", "3 - Sombra Negra", 
-        "4 - Rayo Veloz", "5 - Catire Bory", "6 - Doña Rosa"
+        "Gran Alex", "Rey David", "Sombra Negra", 
+        "Rayo Veloz", "Catire Bory", "Doña Rosa"
     ]
 
 if 'historial_ganadores' not in st.session_state:
@@ -111,10 +111,12 @@ def cargar_programa_automatico():
                     if carr_name not in st.session_state.remates:
                         st.session_state.remates[carr_name] = {}
                     caballos_carrera = df_prog[df_prog["Carrera"] == carr]["Caballo"].tolist()
-                    for cab in caballos_carrera[:17]:  # Limitado a máximo 17 caballos por carrera
-                        nombre_caballo = str(cab).strip()
-                        if nombre_caballo not in st.session_state.remates[carr_name]:
-                            st.session_state.remates[carr_name][nombre_caballo] = {"jugador": "Sin Postor", "monto": 0.0}
+                    for idx, cab in enumerate(caballos_carrera[:17], start=1):
+                        nombre_limpio = str(cab).strip()
+                        nombre_limpio = re.sub(r'^\d+[\s\-\.\)]*', '', nombre_limpio).strip().title()
+                        formato_llave = f"{idx} - {nombre_limpio}"
+                        if formato_llave not in st.session_state.remates[carr_name]:
+                            st.session_state.remates[carr_name][formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
                 return True
         except Exception as e:
             st.sidebar.error(f"Error al leer programa automático: {e}")
@@ -135,7 +137,6 @@ porcentaje_casa = st.sidebar.slider("Retención de la Casa (%)", 0, 50, 30, key=
 if carrera_actual not in st.session_state.remates or not st.session_state.remates[carrera_actual]:
     st.session_state.remates[carrera_actual] = {f"{i} - Caballo": {"jugador": "Sin Postor", "monto": 0.0} for i in range(1, 11)}
 
-# Asegurarse de que el diccionario de la carrera actual respete el límite estricto de máximo 17 ejemplares
 if len(st.session_state.remates[carrera_actual]) > 17:
     claves_limitadas = list(st.session_state.remates[carrera_actual].keys())[:17]
     st.session_state.remates[carrera_actual] = {k: st.session_state.remates[carrera_actual][k] for k in claves_limitadas}
@@ -146,7 +147,7 @@ todos_los_caballos = sorted(list({cab for carr in st.session_state.remates.value
 st.sidebar.markdown("---")
 if st.sidebar.button("🗑️ Reiniciar Jornada Global", use_container_width=True, type="secondary"):
     for key in list(st.session_state.keys()):
-        if key != 'banco_ejemplares':  # Preservamos el banco de nombres guardados
+        if key != 'banco_ejemplares':
             del st.session_state[key]
     st.toast("🚨 Jornada reiniciada (Banco de nombres conservado).")
     st.rerun()
@@ -162,7 +163,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 ])
 
 # ==========================================
-# PESTAÑA 1: SUBASTA EN VIVO (TABLA MÁS GRANDE Y LADO A LADO)
+# PESTAÑA 1: SUBASTA EN VIVO
 # ==========================================
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 Subasta en Vivo: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
@@ -256,49 +257,77 @@ with tab1:
                     st.rerun()
 
 # ==========================================
-# PESTAÑA 2: GESTIÓN MANUAL DE CABALLOS Y BANCO DE NOMBRES GUARDADOS
+# PESTAÑA 2: GESTIÓN MANUAL DE CABALLOS Y CORRELATIVO AUTOMÁTICO (1 A 17)
 # ==========================================
 with tab2:
-    st.title("✍️ Gestión Manual de Ejemplares y Banco Persistente")
-    st.markdown("Añada o seleccione ejemplares guardados para la carrera activa. Los nombres nuevos se guardan automáticamente para reutilizarlos en otras carreras.")
+    st.title("✍️ Gestión Manual con Paginación Automática (1 al 17)")
+    st.markdown("Al inscribir un ejemplar, el sistema le asignará automáticamente el número consecutivo correspondiente desde el **1 hasta el 17**.")
 
     col_man_1, col_man_2 = st.columns(2)
 
     with col_man_1:
         st.subheader("➕ Añadir / Cargar Ejemplar")
         
-        # Opción A: Escribir uno nuevo
-        nombre_nuevo_caballo = st.text_input("Escribir Nuevo Ejemplar", placeholder="Ej: 7 - Rayo de Luz", key="input_nuevo_caballo_manual")
+        nombre_nuevo_caballo = st.text_input("Escribir Nombre del Caballo", placeholder="Ej: Rayo de Luz", key="input_nuevo_caballo_manual")
         
-        if st.button("💾 Guardar y Añadir a Carrera Actual", use_container_width=True, type="primary"):
+        if st.button("💾 Guardar y Asignar Número", use_container_width=True, type="primary"):
             nombre_limpio = nombre_nuevo_caballo.strip().title()
             if not nombre_limpio:
                 st.error("⚠️ El nombre del ejemplar no puede estar vacío.")
             elif len(st.session_state.remates[carrera_actual]) >= 17:
                 st.error("⚠️ Has alcanzado el límite máximo de 17 ejemplares para esta carrera.")
-            elif nombre_limpio in st.session_state.remates[carrera_actual]:
-                st.warning("⚠️ Este ejemplar ya está inscrito en esta carrera.")
             else:
-                st.session_state.remates[carrera_actual][nombre_limpio] = {"jugador": "Sin Postor", "monto": 0.0}
-                # Guardar en el banco general si no existe para futuras inscripciones
-                if nombre_limpio not in st.session_state.banco_ejemplares:
-                    st.session_state.banco_ejemplares.append(nombre_limpio)
-                st.success(f"✅ '{nombre_limpio}' guardado en el banco y añadido a {carrera_actual}.")
-                st.rerun()
+                elementos_actuales = list(st.session_state.remates[carrera_actual].keys())
+                numeros_usados = []
+                for elem in elementos_actuales:
+                    match_num = re.match(r'^(\d+)', elem)
+                    if match_num:
+                        numeros_usados.append(int(match_num.group(1)))
+                
+                siguiente_num = 1
+                while siguiente_num in numeros_usados and siguiente_num <= 17:
+                    siguiente_num += 1
+                
+                if siguiente_num > 17:
+                    st.error("⚠️ No hay posiciones disponibles (máximo 17).")
+                else:
+                    formato_llave = f"{siguiente_num} - {nombre_limpio}"
+                    st.session_state.remates[carrera_actual][formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
+                    
+                    if nombre_limpio not in st.session_state.banco_ejemplares:
+                        st.session_state.banco_ejemplares.append(nombre_limpio)
+                        
+                    st.success(f"✅ Registrado como **{formato_llave}** en {carrera_actual}.")
+                    st.rerun()
 
         st.markdown("---")
         st.subheader("📚 Cargar desde Banco Guardado")
         if st.session_state.banco_ejemplares:
             ejemplar_banco = st.selectbox("Seleccionar del Banco Histórico", st.session_state.banco_ejemplares, key="sel_banco_ejemplar")
-            if st.button("📥 Inscribir Ejemplar Seleccionado en Carrera Activa", use_container_width=True):
+            if st.button("📥 Inscribir con Siguiente Número (1-17)", use_container_width=True):
                 if len(st.session_state.remates[carrera_actual]) >= 17:
                     st.error("⚠️ Límite de 17 ejemplares alcanzado en esta carrera.")
-                elif ejemplar_banco in st.session_state.remates[carrera_actual]:
-                    st.warning("⚠️ Este ejemplar ya está inscrito en la carrera actual.")
                 else:
-                    st.session_state.remates[carrera_actual][ejemplar_banco] = {"jugador": "Sin Postor", "monto": 0.0}
-                    st.success(f"✅ '{ejemplar_banco}' cargado a {carrera_actual}.")
-                    st.rerun()
+                    nombre_limpio = re.sub(r'^\d+[\s\-\.\)]*', '', ejemplar_banco).strip().title()
+                    
+                    elementos_actuales = list(st.session_state.remates[carrera_actual].keys())
+                    numeros_usados = []
+                    for elem in elementos_actuales:
+                        match_num = re.match(r'^(\d+)', elem)
+                        if match_num:
+                            numeros_usados.append(int(match_num.group(1)))
+                    
+                    siguiente_num = 1
+                    while siguiente_num in numeros_usados and siguiente_num <= 17:
+                        siguiente_num += 1
+                    
+                    if siguiente_num > 17:
+                        st.error("⚠️ No hay posiciones disponibles (máximo 17).")
+                    else:
+                        formato_llave = f"{siguiente_num} - {nombre_limpio}"
+                        st.session_state.remates[carrera_actual][formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
+                        st.success(f"✅ Cargado como **{formato_llave}** en {carrera_actual}.")
+                        st.rerun()
         else:
             st.info("No hay ejemplares en el banco guardado.")
 
@@ -309,12 +338,9 @@ with tab2:
         if caballos_actuales_lista:
             caballo_a_borrar = st.selectbox("Seleccione Ejemplar a Remover de esta Carrera", caballos_actuales_lista, key="sel_borrar_caballo_manual")
             if st.button("🗑️ Eliminar Ejemplar Seleccionado", use_container_width=True, type="secondary"):
-                if len(st.session_state.remates[carrera_actual]) <= 1:
-                    st.error("⚠️ Debe conservar al menos un ejemplar en la carrera.")
-                else:
-                    del st.session_state.remates[carrera_actual][caballo_a_borrar]
-                    st.success(f"🗑️ Ejemplar removido de {carrera_actual}.")
-                    st.rerun()
+                del st.session_state.remates[carrera_actual][caballo_a_borrar]
+                st.success(f"🗑️ Ejemplar removido de {carrera_actual}.")
+                st.rerun()
         else:
             st.info("No hay ejemplares registrados en esta carrera.")
 
@@ -423,11 +449,11 @@ with tab5:
         st.info("Aún no se han registrado transacciones en el historial.")
 
 # ==========================================
-# PESTAÑA 6: LECTOR DE PDF CON PDFPLUMBER (TABLAS) - MÁXIMO 17 EJEMPLARES
+# PESTAÑA 6: LECTOR DE PDF (SÓLO NOMBRES PURIFICADOS)
 # ==========================================
 with tab6:
     st.title("📄 Lector Avanzado de Tablas (Pdfplumber)")
-    st.markdown("Este módulo utiliza extracción matricial para leer el programa oficial, limitando automáticamente a un **máximo de 17 ejemplares** por carrera.")
+    st.markdown("Extrae únicamente los **nombres puros de los ejemplares** del PDF, descartando números de programa y datos sobrantes, asignando luego un correlativo limpio del 1 al 17.")
 
     archivo_pdf_plumber = st.file_uploader(
         "Sube el programa oficial en PDF", 
@@ -438,12 +464,12 @@ with tab6:
     if archivo_pdf_plumber is not None:
         st.success("¡Archivo PDF cargado correctamente!")
         
-        if st.button("🚀 Extraer con Pdfplumber (Máx. 17 Ejemplares)", type="primary", use_container_width=True):
+        if st.button("🚀 Extraer Sólo Nombres (Máx. 17 Ejemplares)", type="primary", use_container_width=True):
             try:
                 import pdfplumber
                 carreras_estructuradas = {}
                 carrera_actual = "Carrera 1"
-                ejemplares_detectados = {}
+                ejemplares_detectados_nombres = []
                 contador_carrera = 1
 
                 with pdfplumber.open(archivo_pdf_plumber) as pdf:
@@ -461,10 +487,13 @@ with tab6:
                                     texto_upper = texto_fila_unido.upper()
 
                                     if "CARRERA" in texto_upper or "VÁLIDA" in texto_upper or "VALIDA" in texto_upper:
-                                        if ejemplares_detectados:
-                                            claves_carr = list(ejemplares_detectados.keys())[:17]
-                                            carreras_estructuradas[carrera_actual] = {k: ejemplares_detectados[k] for k in claves_carr}
-                                            ejemplares_detectados = {}
+                                        if ejemplares_detectados_nombres:
+                                            # Asignar numeración limpia del 1 al 17 a los nombres extraídos
+                                            ejemplares_reindexados = {}
+                                            for idx, nombre_puro in enumerate(ejemplares_detectados_nombres[:17], start=1):
+                                                ejemplares_reindexados[f"{idx} - {nombre_puro}"] = {"jugador": "Sin Postor", "monto": 0.0}
+                                            carreras_estructuradas[carrera_actual] = ejemplares_reindexados
+                                            ejemplares_detectados_nombres = []
                                         
                                         match_carr = re.search(r'(\d+)', texto_upper)
                                         if match_carr:
@@ -478,18 +507,17 @@ with tab6:
                                     for celda in fila_texto:
                                         match_ej = re.match(r'^(\d{1,2})[\.\-\)]?$', celda)
                                         if match_ej:
-                                            num_ej = match_ej.group(1).zfill(2)
                                             celdas_restantes = [c for c in fila_texto if c != celda]
                                             if celdas_restantes:
-                                                nombre_ej = celdas_restantes[0].title()
-                                                jinete_ej = celdas_restantes[1].title() if len(celdas_restantes) > 1 else "Sin Jinete"
+                                                nombre_bruto = celdas_restantes[0]
+                                                # Limpieza extrema: remover cualquier número o símbolo inicial para dejar SOLO el nombre
+                                                nombre_puro = re.sub(r'^\d+[\s\-\.\)]*', '', nombre_bruto).strip().title()
                                                 
-                                                formato_llave = f"{int(num_ej)} - {nombre_ej} ({jinete_ej})"
-                                                if formato_llave not in ejemplares_detectados and len(ejemplares_detectados) < 17:
-                                                    ejemplares_detectados[formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
-                                                # Guardar automáticamente en el banco histórico
-                                                if formato_llave not in st.session_state.banco_ejemplares:
-                                                    st.session_state.banco_ejemplares.append(formato_llave)
+                                                if nombre_puro and len(nombre_puro) > 2 and nombre_puro not in ejemplares_detectados_nombres:
+                                                    if len(ejemplares_detectados_nombres) < 17:
+                                                        ejemplares_detectados_nombres.append(nombre_puro)
+                                                        if nombre_puro not in st.session_state.banco_ejemplares:
+                                                            st.session_state.banco_ejemplares.append(nombre_puro)
                                             break
 
                         texto_pag = page.extract_text()
@@ -498,24 +526,27 @@ with tab6:
                             for linea in lineas:
                                 match_linea = re.match(r'^(\d{1,2})[\.\-\)]?\s+([A-ZÁÉÍÓÚÑa-záéíóúñ\s]{3,})', linea)
                                 if match_linea:
-                                    num_ej = match_linea.group(1).zfill(2)
-                                    nombre_ej = match_linea.group(2).strip().title()
-                                    formato_llave = f"{int(num_ej)} - {nombre_ej} (Sin Jinete)"
-                                    if formato_llave not in ejemplares_detectados and len(ejemplares_detectados) < 17:
-                                        ejemplares_detectados[formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
-                                    if formato_llave not in st.session_state.banco_ejemplares:
-                                        st.session_state.banco_ejemplares.append(formato_llave)
+                                    nombre_bruto = match_linea.group(2).strip()
+                                    nombre_puro = re.sub(r'^\d+[\s\-\.\)]*', '', nombre_bruto).strip().title()
+                                    
+                                    if nombre_puro and len(nombre_puro) > 2 and nombre_puro not in ejemplares_detectados_nombres:
+                                        if len(ejemplares_detectados_nombres) < 17:
+                                            ejemplares_detectados_nombres.append(nombre_puro)
+                                            if nombre_puro not in st.session_state.banco_ejemplares:
+                                                st.session_state.banco_ejemplares.append(nombre_puro)
 
-                if ejemplares_detectados:
-                    claves_carr = list(ejemplares_detectados.keys())[:17]
-                    carreras_estructuradas[carrera_actual] = {k: ejemplares_detectados[k] for k in claves_carr}
+                if ejemplares_detectados_nombres:
+                    ejemplares_reindexados = {}
+                    for idx, nombre_puro in enumerate(ejemplares_detectados_nombres[:17], start=1):
+                        ejemplares_reindexados[f"{idx} - {nombre_puro}"] = {"jugador": "Sin Postor", "monto": 0.0}
+                    carreras_estructuradas[carrera_actual] = ejemplares_reindexados
 
                 if not carreras_estructuradas:
                     for c in range(1, 11):
                         carreras_estructuradas[f"Carrera {c}"] = {f"{j} - Ejemplar": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 12)}
 
                 st.session_state.remates = carreras_estructuradas
-                st.success("¡Lectura y almacenamiento en el banco histórico completados con éxito!")
+                st.success("¡Extracción de nombres puros y almacenamiento en el banco completados con éxito!")
                 st.balloons()
                 st.rerun()
 
