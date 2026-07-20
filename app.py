@@ -699,11 +699,11 @@ with tab2:
                 st.rerun()
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETA PRO (DINÁMICO, SIN DUPLICADOS ESTRICTOS Y BLOQUEABLE)
+# PESTAÑA 3: MÓDULO DE DUPLETA PRO (SIN SELECCIONES DE EJEMPLAR IGUALES EN NINGÚN TICKET)
 # ==========================================
 with tab3:
     st.title("🎟️ Módulo de Dupletas Pro")
-    st.markdown("Configura y registra jugadas combinadas (dupletas). **El pozo total de la dupleta se calcula sumando exactamente el valor de todos los tickets vendidos.** Los ejemplares se cargan dinámicamente según las carreras habilitadas, **ningún jugador puede repetir las mismas combinaciones**, y puedes **bloquear/desbloquear** el registro desde la barra lateral.")
+    st.markdown("Configura y registra jugadas combinadas (dupletas). **El pozo total de la dupleta se calcula sumando exactamente el valor de todos los tickets vendidos.** Los ejemplares se cargan dinámicamente según las carreras habilitadas, **no se permiten tickets con selecciones de ejemplares iguales** (independientemente del jugador), y puedes **bloquear/desbloquear** el registro desde la barra lateral.")
 
     carreras_habilitadas = st.session_state.carreras_habilitadas_dupleta
 
@@ -741,17 +741,15 @@ with tab3:
                     leg_1_str = f"{carrera_leg_1} ({caballo_leg_1})"
                     leg_2_str = f"{carrera_leg_2} ({caballo_leg_2})"
                     
-                    # --- VALIDACIÓN ESTRICTA: NINGÚN JUGADOR PUEDE REPETIR LAS COMBINACIONES ---
-                    duplicado_encontrado = False
+                    # --- VALIDACIÓN ESTRICTA: NO PUEDE HABER TICKETS CON SELECCIONES DE EJEMPLAR IGUALES ---
+                    duplicado_ejemplares = False
                     for t in st.session_state.dupletas_tickets:
-                        if (t.get("Jugador") == jugador_dupleta and 
-                            t.get("Leg_1") == leg_1_str and 
-                            t.get("Leg_2") == leg_2_str):
-                            duplicado_encontrado = True
+                        if (t.get("Leg_1") == leg_1_str and t.get("Leg_2") == leg_2_str):
+                            duplicado_ejemplares = True
                             break
                     
-                    if duplicado_encontrado:
-                        st.error("⚠️ **¡Combinación Repetida!** Ningún jugador puede repetir las combinaciones de la dupleta. Este usuario ya tiene registrada exactamente esta misma combinación.")
+                    if duplicado_ejemplares:
+                        st.error("⚠️ **¡Selección de Ejemplares Duplicada!** Ya existe un ticket registrado con exactamente esta misma combinación de ejemplares para ambas válidas. No se permiten selecciones de ejemplares iguales en ningún ticket.")
                     else:
                         ticket_nuevo = {
                             "Jugador": jugador_dupleta,
