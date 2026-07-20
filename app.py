@@ -3,14 +3,15 @@ import pandas as pd
 import io
 import os
 import re
+from datetime import datetime, time, timedelta
 from pypdf import PdfReader, PdfWriter
 from streamlit_autorefresh import st_autorefresh
 
 # Configuración de la página web
 st.set_page_config(page_title="Sistema de Remates, Dupletas y PDF en Vivo", layout="wide", page_icon="🏇")
 
-# --- AUTOREFRESH PARA TIEMPO REAL ---
-st_autorefresh(interval=3000, key="datarefresh_en_vivo")
+# --- AUTOREFRESH PARA TIEMPO REAL (1 SEGUNDO PARA PRECISIÓN DE CONTEO) ---
+st_autorefresh(interval=1000, key="datarefresh_en_vivo")
 
 # --- ESCALA OFICIAL DE PUJAS CONDICIONADAS (AMPLIADA HASTA EL INFINITO DE 1000 EN 1000) ---
 ESCALA_PUJAS = [
@@ -26,7 +27,7 @@ def obtener_siguientes_montos(monto_actual):
         siguientes = [ultimo + i * 1000 for i in range(1, 50)]
     return siguientes
 
-# --- ESTILOS CSS PARA AMPLIAR LA TABLA Y OPTIMIZAR ESPACIO ---
+# --- ESTILOS CSS PARA ALERTAS Y TEMPORIZADOR ---
 st.markdown("""
     <style>
     .subasta-header {
@@ -35,9 +36,16 @@ st.markdown("""
         color: #f1f2f6;
         margin-bottom: 2px;
     }
-    div[data-testid="stVerticalBlock"] > div[style*="border"] {
-        padding: 8px !important;
-        border-radius: 6px;
+    .timer-box {
+        background-color: #1e1e2f;
+        border: 2px solid #ff4757;
+        padding: 10px;
+        border-radius: 8px;
+        text-align: center;
+        font-size: 20px;
+        font-weight: bold;
+        color: #ff4757;
+        margin-bottom: 10px;
     }
     .block-container {
         padding-top: 1.2rem;
@@ -64,7 +72,6 @@ if 'lista_jugadores' not in st.session_state:
 if 'remates' not in st.session_state:
     st.session_state.remates = {}
 
-# BANCO / HISTORIAL DE EJEMPLARES FRECUENTES (SÓLO NOMBRES)
 if 'banco_ejemplares' not in st.session_state:
     st.session_state.banco_ejemplares = [
         "Gran Alex", "Rey David", "Sombra Negra", 
@@ -76,6 +83,17 @@ if 'historial_ganadores' not in st.session_state:
 
 if 'carreras_cerradas_remate' not in st.session_state:
     st.session_state.carreras_cerradas_remate = {}
+
+# --- NUEVOS ESTADOS PARA HORA DE CIERRE Y CONTEO REGRESIVO INTELIGENTE ---
+if 'horas_cierre_remate' not in st.session_state:
+    st.session_state.horas_cierre_remate = {}
+
+if 'estado_conteo_carrera' not in st.session_state:
+    # Estados posibles: "INACTIVO", "CONTEO_10S", "ESPERA_POST_PUJA", "CERRADO"
+    st.session_state.estado_conteo_carrera = {}
+
+if 'tiempo_inicio_conteo' not in st.session_state:
+    st.session_state.tiempo_inicio_conteo = {}
 
 if 'cuentas' not in st.session_state:
     st.session_state.cuentas = {j: {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0} for j in st.session_state.lista_jugadores}
@@ -92,7 +110,6 @@ if 'dupletas_tickets' not in st.session_state:
 if 'archivos_subidos' not in st.session_state:
     st.session_state.archivos_subidos = []
 
-# --- ESTADOS DINÁMICOS PARA LA DUPLETA ---
 if 'dup_carrera_1' not in st.session_state:
     st.session_state.dup_carrera_1 = None
 if 'dup_caballo_1' not in st.session_state:
@@ -102,11 +119,9 @@ if 'dup_carrera_2' not in st.session_state:
 if 'dup_caballo_2' not in st.session_state:
     st.session_state.dup_caballo_2 = None
 
-# --- ESTADO DE CONFIGURACIÓN DEL ADMINISTRADOR PARA LAS DUPLETAS ---
 if 'carreras_habilitadas_dupleta' not in st.session_state:
     st.session_state.carreras_habilitadas_dupleta = []
 
-# --- FORMATO DE MONEDA VENEZOLANA (Bs.) ---
 def formatear_bs(monto):
     return f"Bs. {monto:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
@@ -114,7 +129,7 @@ def formatear_bs(monto):
 # ⚙️ CONTROL LATERAL Y CARGA DE PROGRAMA
 # ==========================================
 st.sidebar.header("⚙️ Control de Carrera en Vivo")
-st.sidebar.caption("🔄 Sincronización en tiempo real activa (3s)")
+st.sidebar.caption("🔄 Sincronización en tiempo real activa (1s)")
 
 def cargar_programa_automatico():
     archivo_fijo = "programa_del_dia.xlsx" 
@@ -148,7 +163,6 @@ if not st.session_state.remates:
 
 lista_carreras_disponibles = list(st.session_state.remates.keys())
 
-# Inicializar carreras habilitadas si está vacío por primera vez
 if not st.session_state.carreras_habilitadas_dupleta and lista_carreras_disponibles:
     st.session_state.carreras_habilitadas_dupleta = list(lista_carreras_disponibles)
 
@@ -163,6 +177,25 @@ if len(st.session_state.remates[carrera_actual]) > 17:
     st.session_state.remates[carrera_actual] = {k: st.session_state.remates[carrera_actual][k] for k in claves_limitadas}
 
 todos_los_caballos = sorted(list({cab for carr in st.session_state.remates.values() for cab in carr.keys()}))
+
+# --- PANEL DE CONFIGURACIÓN DE HORA DE CIERRE AUTOMÁTICO (ADMIN) ---
+st.sidebar.markdown("---")
+with st.sidebar.expander("⏰ Hora de Cierre Automático", expanded=True):
+    st.markdown(f"Configurar para: **{carrera_actual}**")
+    
+    hora_actual_def = datetime.now().time()
+    hora_seleccionada = st.sidebar.time_input(
+        "Hora Límite de Cierre", 
+        value=st.session_state.horas_cierre_remate.get(carrera_actual, time(hora_actual_def.hour, hora_actual_def.minute + 5)),
+        key=f"time_input_{carrera_actual}"
+    )
+    
+    if st.sidebar.button("💾 Guardar Hora de Cierre", key=f"btn_save_hora_{carrera_actual}", use_container_width=True):
+        st.session_state.horas_cierre_remate[carrera_actual] = hora_seleccionada
+        # Reiniciar estado de conteo para esta carrera al programar nueva hora
+        st.session_state.estado_conteo_carrera[carrera_actual] = "INACTIVO"
+        st.toast(f"✅ ¡Hora de cierre programada para las {hora_seleccionada.strftime('%H:%M:%S')} en {carrera_actual}!")
+        st.rerun()
 
 # --- PANEL DE ADMINISTRADOR DE DUPLETAS EN LA BARRA LATERAL ---
 st.sidebar.markdown("---")
@@ -179,7 +212,6 @@ with st.sidebar.expander("🛠️ Admin: Carreras de Dupleta", expanded=False):
         st.toast("✅ ¡Carreras de dupleta actualizadas por el administrador!")
         st.rerun()
 
-# --- BOTONES DE PÁNICO Y GESTIÓN DE BANCO EN SIDEBAR ---
 st.sidebar.markdown("---")
 if st.sidebar.button("🗑️ Reiniciar Jornada Global", use_container_width=True, type="secondary"):
     for key in list(st.session_state.keys()):
@@ -204,11 +236,62 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 ])
 
 # ==========================================
-# PESTAÑA 1: REMATE ADELANTADO (ANTERIORMENTE SUBASTA EN VIVO)
+# PESTAÑA 1: REMATE ADELANTADO (CON LÓGICA DE TIEMPO AUTOMÁTICO Y 10S / 3S)
 # ==========================================
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 Remate Adelantado: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
     
+    # --- LÓGICA DEL TEMPORIZADOR Y CIERRE AUTOMÁTICO EN TIEMPO REAL ---
+    hora_limite = st.session_state.horas_cierre_remate.get(carrera_actual)
+    carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carrera_actual, False)
+    estado_conteo = st.session_state.estado_conteo_carrera.get(carrera_actual, "INACTIVO")
+    
+    ahora_dt = datetime.now()
+    
+    if hora_limite and not carrera_cerrada:
+        # Combinar la hora límite configurada con la fecha actual
+        dt_limite = datetime.combine(ahora_dt.date(), hora_limite)
+        diferencia_segundos = (dt_limite - ahora_dt).total_seconds()
+        
+        if estado_conteo == "INACTIVO":
+            if diferencia_segundos <= 10 and diferencia_segundos > 0:
+                # Comienza el conteo de 10 segundos
+                st.session_state.estado_conteo_carrera[carrera_actual] = "CONTEO_10S"
+                st.session_state.tiempo_inicio_conteo[carrera_actual] = ahora_dt
+                st.rerun()
+            elif diferencia_segundos <= 0:
+                # Llegó la hora directamente sin pasar por los 10s previos
+                st.session_state.carreras_cerradas_remate[carrera_actual] = True
+                st.session_state.estado_conteo_carrera[carrera_actual] = "CERRADO"
+                st.rerun()
+                
+        elif estado_conteo == "CONTEO_10S":
+            tiempo_inicio = st.session_state.tiempo_inicio_conteo.get(carrera_actual, ahora_dt)
+            tiempo_transcurrido = (ahora_dt - tiempo_inicio).total_seconds()
+            restantes_10s = max(0, 10 - int(tiempo_transcurrido))
+            
+            if restantes_10s > 0:
+                st.markdown(f"<div class='timer-box'>⚠️ ¡ATENCIÓN! Faltan {restantes_10s} segundos para el cierre del Remate Adelantado</div>", unsafe_allow_html=True)
+            else:
+                # Se acabaron los 10 segundos iniciales sin pujas, pasamos a la espera de 3 segundos post-conteo
+                st.session_state.estado_conteo_carrera[carrera_actual] = "ESPERA_POST_PUJA"
+                st.session_state.tiempo_inicio_conteo[carrera_actual] = ahora_dt
+                st.rerun()
+                
+        elif estado_conteo == "ESPERA_POST_PUJA":
+            tiempo_inicio = st.session_state.tiempo_inicio_conteo.get(carrera_actual, ahora_dt)
+            tiempo_transcurrido = (ahora_dt - tiempo_inicio).total_seconds()
+            restantes_3s = max(0, 3 - int(tiempo_transcurrido))
+            
+            if restantes_3s > 0:
+                st.markdown(f"<div class='timer-box'>🔒 Conteo finalizado. Cerrando en {restantes_3s}s (Cualquier puja reinicia el conteo)...</div>", unsafe_allow_html=True)
+            else:
+                # Pasaron los 3 segundos completos sin pujas: CIERRE AUTOMÁTICO
+                st.session_state.carreras_cerradas_remate[carrera_actual] = True
+                st.session_state.estado_conteo_carrera[carrera_actual] = "CERRADO"
+                st.toast(f"🔒 ¡El remate para {carrera_actual} se ha cerrado automáticamente!")
+                st.rerun()
+
     col_izq_tabla, col_der_pujas = st.columns([1.5, 1], gap="medium")
     
     with col_izq_tabla:
@@ -270,7 +353,15 @@ with tab1:
                         st.error(f"Debe ser mayor a {formatear_bs(puja_actual)}")
                     else:
                         st.session_state.remates[carrera_actual][caballo] = {"jugador": jugador, "monto": monto_puja}
-                        st.toast(f"✅ {caballo} ➡️ {jugador} ({formatear_bs(monto_puja)})")
+                        
+                        # --- REINICIO AUTOMÁTICO DEL CONTEO SI HAY UNA PUJA DURANTE EL CIERRE ---
+                        if estado_conteo in ["CONTEO_10S", "ESPERA_POST_PUJA"]:
+                            st.session_state.estado_conteo_carrera[carrera_actual] = "CONTEO_10S"
+                            st.session_state.tiempo_inicio_conteo[carrera_actual] = datetime.now()
+                            st.toast("⚡ ¡Nueva puja registrada! El conteo regresivo se ha reiniciado por 10 segundos.")
+                        else:
+                            st.toast(f"✅ {caballo} ➡️ {jugador} ({formatear_bs(monto_puja)})")
+                            
                         st.rerun()
 
         with st.container(border=True):
@@ -279,12 +370,14 @@ with tab1:
             if not carrera_cerrada:
                 if st.button("🔒 Cerrar Remate de esta Carrera", key=f"btn_cerrar_remate_{carrera_actual}", use_container_width=True, type="secondary"):
                     st.session_state.carreras_cerradas_remate[carrera_actual] = True
+                    st.session_state.estado_conteo_carrera[carrera_actual] = "CERRADO"
                     st.toast(f"🔒 ¡El remate para {carrera_actual} ha sido cerrado exitosamente!")
                     st.rerun()
             else:
                 st.success("🔒 El remate de esta carrera está cerrado.")
                 if st.button("🔓 Reabrir Remate", key=f"btn_reabrir_remate_{carrera_actual}", use_container_width=True):
                     st.session_state.carreras_cerradas_remate[carrera_actual] = False
+                    st.session_state.estado_conteo_carrera[carrera_actual] = "INACTIVO"
                     st.toast(f"🔓 Remate reabierto para {carrera_actual}.")
                     st.rerun()
             
@@ -429,12 +522,10 @@ with tab3:
     st.title("🎟️ Módulo de Dupletas")
     st.markdown("Selecciona tu combinación de ejemplares para la dupleta basándote exclusivamente en las carreras autorizadas por el administrador desde la **barra lateral**.")
 
-    # Validar qué carreras están disponibles para los jugadores según el admin
     carreras_permitidas = st.session_state.carreras_habilitadas_dupleta
     if not carreras_permitidas:
         st.warning("⚠️ El administrador aún no ha seleccionado ninguna carrera habilitada para las dupletas en la barra lateral. Por favor, despliegue el menú izquierdo y seleccione al menos dos carreras.")
     else:
-        # Selección del Jugador y Monto Principal
         col_j_m1, col_j_m2 = st.columns([2, 1])
         with col_j_m1:
             jugador_dupleta = st.selectbox("👤 Jugador / Comprador de la Dupleta", st.session_state.lista_jugadores, key="sel_jugador_dupleta")
@@ -445,7 +536,6 @@ with tab3:
         
         col_paso_1, col_paso_2 = st.columns(2, gap="large")
 
-        # --- SELECTOR DE LA 1RA VÁLIDA (SOLO PERMITIDAS) ---
         with col_paso_1:
             with st.container(border=True):
                 st.markdown("#### 1️⃣ Primera Válida (Habilitada)")
@@ -465,7 +555,6 @@ with tab3:
                 else:
                     st.warning("⚠️ Esta carrera no tiene ejemplares cargados.")
 
-        # --- SELECTOR DE LA 2DA VÁLIDA (SOLO PERMITIDAS) ---
         with col_paso_2:
             with st.container(border=True):
                 st.markdown("#### 2️⃣ Segunda Válida (Habilitada)")
@@ -487,7 +576,6 @@ with tab3:
 
         st.markdown("---")
 
-        # --- RESUMEN Y BOTÓN DE EMISIÓN DE TICKET ---
         c_res_info, c_res_btn = st.columns([2, 1])
         
         with c_res_info:
@@ -505,7 +593,6 @@ with tab3:
                     sel_1_str = f"{st.session_state.dup_carrera_1} - {st.session_state.dup_caballo_1}"
                     sel_2_str = f"{st.session_state.dup_carrera_2} - {st.session_state.dup_caballo_2}"
                     
-                    # VALIDACIÓN ESTRICTA ANTIDUPLICADOS
                     ticket_duplicado = False
                     for t in st.session_state.dupletas_tickets:
                         if t["1era Selección"] == sel_1_str and t["2da Selección"] == sel_2_str:
@@ -540,7 +627,6 @@ with tab3:
 
     st.markdown("---")
     
-    # --- LISTA DE TICKETS Y BOTÓN DE LIMPIEZA ---
     c_t_list, c_b_limp = st.columns([2, 1])
     with c_t_list:
         st.subheader("📋 Tickets de Dupletas Emitidos")
@@ -658,7 +744,7 @@ with tab6:
                                     nombre_puro = re.sub(r'^\d+[\s\-\.\)]*', '', nombre_bruto).strip().title()
                                     
                                     palabras_nombre = nombre_puro.split()
-                                    contiene_palabra_prohibida = any(p.lower() in palabras_prohibidas_precio for p in palabras_nombre)
+                                    contiene_palabra_prohibida = any(p.lower() in palabras_pofibidas_precio if 'palabras_prohibidas_precio' in locals() else any(p.lower() in ['bs', 'usd', '$', 'precio', 'pote', 'premio', 'valor', 'mt', 'pago', 'but'] for p in palabras_nombre))
                                     tiene_precio_o_invalido = contiene_palabra_prohibida or bool(re.search(r'\d{3,}', nombre_puro))
                                     
                                     if nombre_puro and len(nombre_puro) > 2 and not tiene_precio_o_invalido and nombre_puro not in ejemplares_detectados_nombres:
