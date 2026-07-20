@@ -736,7 +736,7 @@ with tab3:
 
                 if st.button("🎟️ Emitir Dupleta", use_container_width=True, type="primary"):
                     if not bloqueo_carrera_repetida:
-                        st.error("⚠️ No puedes seleccionar la misma carrera dos veces en una misma combinada.")
+                        st.error("⚠️ No puedes seleccionar la misma carrera two veces en una misma combinada.")
                     else:
                         # VERIFICAR BLOQUEO DE COMBINACIÓN EXACTAMENTE IGUAL
                         combinacion_actual_clave = tuple(sorted([(p["Carrera"], p["Ejemplar"]) for p in picks_actuales]))
@@ -969,4 +969,4 @@ with tab7:
                     st.warning("⚠️ No se pudieron estructurar datos automáticos del PDF.")
                     
         except Exception as e:
-            st.error(f5"Error procesando el documento PDF: {e}")
+            st.error(f"Error procesando el documento PDF: {e}")
