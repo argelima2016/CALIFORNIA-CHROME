@@ -26,7 +26,7 @@ def obtener_siguientes_montos(monto_actual):
         siguientes = [ultimo + i * 1000 for i in range(1, 50)]
     return siguientes
 
-# --- ESTILOS CSS ULTRACAMPACTS Y DISEÑO LADO A LADO ---
+# --- ESTILOS CSS PARA AMPLIAR LA TABLA Y OPTIMIZAR ESPACIO ---
 st.markdown("""
     <style>
     .subasta-header {
@@ -39,9 +39,8 @@ st.markdown("""
         padding: 8px !important;
         border-radius: 6px;
     }
-    /* Reducir espacios en blanco generales de la app para máxima compacidad */
     .block-container {
-        padding-top: 1.5rem;
+        padding-top: 1.2rem;
         padding-bottom: 1rem;
     }
     </style>
@@ -105,7 +104,7 @@ def cargar_programa_automatico():
                     if carr_name not in st.session_state.remates:
                         st.session_state.remates[carr_name] = {}
                     caballos_carrera = df_prog[df_prog["Carrera"] == carr]["Caballo"].tolist()
-                    for cab in caballos_carrera:
+                    for cab in caballos_carrera[:17]:  # Limitado a máximo 17 caballos por carrera
                         nombre_caballo = str(cab).strip()
                         if nombre_caballo not in st.session_state.remates[carr_name]:
                             st.session_state.remates[carr_name][nombre_caballo] = {"jugador": "Sin Postor", "monto": 0.0}
@@ -119,7 +118,7 @@ if not st.session_state.remates:
     if not exito_carga:
         for i in range(1, 11):
             carr_nombre = f"Carrera {i}"
-            st.session_state.remates[carr_nombre] = {f"{j} - Ejemplar (Jinete)": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 11)}
+            st.session_state.remates[carr_nombre] = {f"{j} - Ejemplar (Jinete)": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 12)}
 
 lista_carreras_disponibles = list(st.session_state.remates.keys())
 
@@ -128,6 +127,11 @@ porcentaje_casa = st.sidebar.slider("Retención de la Casa (%)", 0, 50, 30, key=
 
 if carrera_actual not in st.session_state.remates or not st.session_state.remates[carrera_actual]:
     st.session_state.remates[carrera_actual] = {f"{i} - Caballo": {"jugador": "Sin Postor", "monto": 0.0} for i in range(1, 11)}
+
+# Asegurarse de que el diccionario de la carrera actual respete el límite estricto de máximo 17 ejemplares
+if len(st.session_state.remates[carrera_actual]) > 17:
+    claves_limitadas = list(st.session_state.remates[carrera_actual].keys())[:17]
+    st.session_state.remates[carrera_actual] = {k: st.session_state.remates[carrera_actual][k] for k in claves_limitadas}
 
 todos_los_caballos = sorted(list({cab for carr in st.session_state.remates.values() for cab in carr.keys()}))
 
@@ -149,23 +153,23 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # ==========================================
-# PESTAÑA 1: SUBASTA EN VIVO (DISEÑO COMPACTO LADO A LADO)
+# PESTAÑA 1: SUBASTA EN VIVO (TABLA MÁS GRANDE Y LADO A LADO)
 # ==========================================
 with tab1:
-    st.markdown(f"<div class='subasta-header'>🎯 Subasta en Vivo: {carrera_actual}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='subasta-header'>🎯 Subasta en Vivo: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
     
-    # DISTRIBUCIÓN PRINCIPAL LADO A LADO: Izquierda Tabla (55%), Derecha Consola de Pujas (45%)
-    col_izq_tabla, col_der_pujas = st.columns([1.25, 1], gap="medium")
+    # DISTRIBUCIÓN LADO A LADO: Izquierda Tabla Aumentada (60%), Derecha Consola de Pujas (40%)
+    col_izq_tabla, col_der_pujas = st.columns([1.5, 1], gap="medium")
     
     with col_izq_tabla:
-        # 1. TABLERO DE SUBASTA
+        # 1. TABLERO DE SUBASTA CON ALTURA AMPLIADA (height=420 para visualizar más filas sin scroll excesivo)
         datos_tabla = []
         total_pote = 0.0
         for cab, info in st.session_state.remates[carrera_actual].items():
             datos_tabla.append({"Ejemplar": cab, "Comprador": info['jugador'], "Monto": formatear_bs(info['monto'])})
             total_pote += info['monto']
         
-        st.dataframe(pd.DataFrame(datos_tabla), use_container_width=True, hide_index=True, height=240, key=f"tabla_remates_{carrera_actual}")
+        st.dataframe(pd.DataFrame(datos_tabla), use_container_width=True, hide_index=True, height=420, key=f"tabla_remates_{carrera_actual}")
         
         monto_casa = total_pote * (porcentaje_casa / 100)
         pote_neto_base = total_pote - monto_casa
@@ -192,7 +196,7 @@ with tab1:
             
             c_cab, c_jug = st.columns(2)
             with c_cab:
-                caballo = st.selectbox("Ejemplar", list(st.session_state.remates[carrera_actual].keys()), key=f"sel_caballo_{carrera_actual}")
+                caballo = st.selectbox("Ejemplar (Máx. 17)", list(st.session_state.remates[carrera_actual].keys()), key=f"sel_caballo_{carrera_actual}")
             with c_jug:
                 jugador = st.selectbox("Jugador", st.session_state.lista_jugadores, key=f"sel_jugador_{carrera_actual}")
             
@@ -340,11 +344,11 @@ with tab4:
         st.info("Aún no se han registrado transacciones en el historial.")
 
 # ==========================================
-# PESTAÑA 5: LECTOR DE PDF CON PDFPLUMBER (TABLAS)
+# PESTAÑA 5: LECTOR DE PDF CON PDFPLUMBER (TABLAS) - MÁXIMO 17 EJEMPLARES
 # ==========================================
 with tab5:
     st.title("📄 Lector Avanzado de Tablas (Pdfplumber)")
-    st.markdown("Este módulo utiliza extracción matricial para leer el 100% de las tablas, ejemplares y jinetes del programa oficial sin omisiones.")
+    st.markdown("Este módulo utiliza extracción matricial para leer el programa oficial, limitando automáticamente a un **máximo de 17 ejemplares** por carrera.")
 
     archivo_pdf_plumber = st.file_uploader(
         "Sube el programa oficial en PDF", 
@@ -355,7 +359,7 @@ with tab5:
     if archivo_pdf_plumber is not None:
         st.success("¡Archivo PDF cargado correctamente!")
         
-        if st.button("🚀 Extraer con Pdfplumber (Modo Completo)", type="primary", use_container_width=True):
+        if st.button("🚀 Extraer con Pdfplumber (Máx. 17 Ejemplares)", type="primary", use_container_width=True):
             try:
                 import pdfplumber
                 carreras_estructuradas = {}
@@ -379,7 +383,9 @@ with tab5:
 
                                     if "CARRERA" in texto_upper or "VÁLIDA" in texto_upper or "VALIDA" in texto_upper:
                                         if ejemplares_detectados:
-                                            carreras_estructuradas[carrera_actual] = ejemplares_detectados
+                                            # Limitar a máximo 17 ejemplares antes de guardar la carrera anterior
+                                            claves_carr = list(ejemplares_detectados.keys())[:17]
+                                            carreras_estructuradas[carrera_actual] = {k: ejemplares_detectados[k] for k in claves_carr}
                                             ejemplares_detectados = {}
                                         
                                         match_carr = re.search(r'(\d+)', texto_upper)
@@ -401,7 +407,7 @@ with tab5:
                                                 jinete_ej = celdas_restantes[1].title() if len(celdas_restantes) > 1 else "Sin Jinete"
                                                 
                                                 formato_llave = f"{int(num_ej)} - {nombre_ej} ({jinete_ej})"
-                                                if formato_llave not in ejemplares_detectados:
+                                                if formato_llave not in ejemplares_detectados and len(ejemplares_detectados) < 17:
                                                     ejemplares_detectados[formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
                                             break
 
@@ -414,18 +420,19 @@ with tab5:
                                     num_ej = match_linea.group(1).zfill(2)
                                     nombre_ej = match_linea.group(2).strip().title()
                                     formato_llave = f"{int(num_ej)} - {nombre_ej} (Sin Jinete)"
-                                    if formato_llave not in ejemplares_detectados:
+                                    if formato_llave not in ejemplares_detectados and len(ejemplares_detectados) < 17:
                                         ejemplares_detectados[formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
 
                 if ejemplares_detectados:
-                    carreras_estructuradas[carrera_actual] = ejemplares_detectados
+                    claves_carr = list(ejemplares_detectados.keys())[:17]
+                    carreras_estructuradas[carrera_actual] = {k: ejemplares_detectados[k] for k in claves_carr}
 
                 if not carreras_estructuradas:
                     for c in range(1, 11):
-                        carreras_estructuradas[f"Carrera {c}"] = {f"{j} - Ejemplar (Jinete)": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 11)}
+                        carreras_estructuradas[f"Carrera {c}"] = {f"{j} - Ejemplar (Jinete)": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 12)}
 
                 st.session_state.remates = carreras_estructuradas
-                st.success("¡Lectura completa y profunda realizada con Pdfplumber!")
+                st.success("¡Lectura y limitación a máximo 17 ejemplares completada con éxito!")
                 st.balloons()
                 st.rerun()
 
