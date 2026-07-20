@@ -24,13 +24,13 @@ def obtener_hora_venezuela():
     try:
         zona_venezuela = ZoneInfo("America/Caracas")
         dt_zonificado = datetime.now(zona_venezuela).replace(tzinfo=None)
-        return dt_zonificado, True
+        return dt_zonificado
     except Exception:
         pass
     
     tz_venezuela = timezone(timedelta(hours=-4))
     dt_venezuela = datetime.now(tz_venezuela).replace(tzinfo=None)
-    return dt_venezuela, False
+    return dt_venezuela
 
 # --- ESCALA OFICIAL DE PUJAS CONDICIONADAS ---
 ESCALA_PUJAS = [
@@ -155,7 +155,7 @@ def formatear_bs(monto):
 # ==========================================
 st.sidebar.header("⚙️ Control de Carrera en Vivo")
 
-ahora_dt, conexion_local = obtener_hora_venezuela()
+ahora_dt = obtener_hora_venezuela()
 
 def cargar_programa_automatico():
     archivo_fijo = "programa_del_dia.xlsx" 
@@ -284,7 +284,7 @@ with tab1:
     estado_conteo = st.session_state.estado_conteo_carrera.get(carrera_actual, "INACTIVO")
     
     if hora_limite:
-        st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta para <b>{carrera_actual}</b>: <b>{hora_limite.strftime('%H:%M:%S')}</b> (Hora de Venezuela)</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta para <b>{carrera_actual}</b>: <b>{hora_limite.strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
     else:
         st.markdown(f"<div class='cierre-info-box'>⚠️ Sin hora de cierre estricta configurada para <b>{carrera_actual}</b></div>", unsafe_allow_html=True)
 
