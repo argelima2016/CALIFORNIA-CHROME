@@ -8,7 +8,7 @@ from pypdf import PdfReader
 from streamlit_autorefresh import st_autorefresh
 
 # Configuración de la página web optimizada para móviles
-st.set_page_config(page_title="Sistema de Remates Móvil", layout="centered", page_icon="🏇")
+st.set_page_config(page_title="Sistema de Remates Móvil con Banco", layout="centered", page_icon="🏇")
 
 # --- AUTOREFRESH OPTIMIZADO (3 SEGUNDOS) ---
 st_autorefresh(interval=3000, key="datarefresh_en_vivo")
@@ -109,7 +109,6 @@ st.markdown("""
         padding-right: 0.8rem;
     }
     
-    /* Botones más grandes para uso táctil */
     .stButton button {
         width: 100%;
         border-radius: 6px;
@@ -134,11 +133,11 @@ def cargar_jugadores_base():
 if 'lista_jugadores' not in st.session_state:
     st.session_state.lista_jugadores = cargar_jugadores_base()
 
+if 'banco_caballos_por_carrera' not in st.session_state:
+    st.session_state.banco_caballos_por_carrera = {}
+
 if 'remates' not in st.session_state:
     st.session_state.remates = {}
-
-if 'banco_ejemplares' not in st.session_state:
-    st.session_state.banco_ejemplares = ["Gran Alex", "Rey David", "Sombra Negra", "Rayo Veloz", "Catire Bory", "Doña Rosa"]
 
 if 'historial_ganadores' not in st.session_state:
     st.session_state.historial_ganadores = {}
@@ -187,6 +186,68 @@ st.sidebar.header("⚙️ Menú de Control")
 ahora_dt = obtener_hora_venezuela_local()
 st.sidebar.markdown(f"🕒 **Hora:** `{ahora_dt.strftime('%I:%M:%S %p')}`")
 
+def procesar_programa_pdf(archivo_pdf):
+    try:
+        lector_pdf = PdfReader(archivo_pdf)
+        texto_extraido = ""
+        for pagina in lector_pdf.pages:
+            t_pag = pagina.extract_text()
+            if t_pag:
+                texto_extraido += t_pag + "\n"
+        
+        lineas = texto_extraido.split('\n')
+        carrera_actual_detectada = None
+        banco_temporal = {}
+        
+        patron_carrera = re.compile(r'(?:carrera|primera|segunda|tercera|cuarta|quinta|sexta|septima|octava|novena|decima|\d+)\s*(?:ª|º|\.)?\s*carrera', re.IGNORECASE)
+        
+        for linea in lineas:
+            linea_limpia = linea.strip()
+            if not linea_limpia:
+                continue
+                
+            match_carr = patron_carrera.search(linea_limpia)
+            if match_carr or "carrera" in linea_limpia.lower() and len(linea_limpia) < 30:
+                for c_n in range(1, 15):
+                    if str(c_n) in linea_limpia or f"carrera {c_n}" in linea_limpia.lower():
+                        carrera_actual_detectada = f"Carrera {c_n}"
+                        if carrera_actual_detectada not in banco_temporal:
+                            banco_temporal[carrera_actual_detectada] = []
+                        break
+            
+            if carrera_actual_detectada:
+                match_ejemplar = re.match(r'^(\d{1,2})[\s\-\.\)]+(.*)', linea_limpia)
+                if match_ejemplar:
+                    num_ej = match_ejemplar.group(1)
+                    nom_ej = match_ejemplar.group(2).strip()
+                    if len(nom_ej) > 2 and not any(palabra in nom_ej.lower() for palabra in ['ret Eirado', 'jinete', 'entrenador', 'distancia', 'pista']):
+                        formato_ej = f"{num_ej} - {nom_ej.title()}"
+                        if formato_ej not in banco_temporal[carrera_actual_detectada]:
+                            banco_temporal[carrera_actual_detectada].append(formato_ej)
+
+        if not banco_temporal:
+            match_simple_carr = re.findall(r'(\d+)\s*[-]?\s*([A-ZÁÉÍÓÚÑa-zñ\s]{3,})', texto_extraido)
+            if match_simple_carr:
+                carrera_generica = "Carrera 1"
+                banco_temporal[carrera_generica] = []
+                for num, nom in match_simple_carr[:15]:
+                    b_item = f"{num.strip()} - {nom.strip().title()}"
+                    if b_item not in banco_temporal[carrera_generica]:
+                        banco_temporal[carrera_generica].append(b_item)
+
+        if banco_temporal:
+            st.session_state.banco_caballos_por_carrera = banco_temporal
+            for c_key, c_vals in banco_temporal.items():
+                if c_key not in st.session_state.remates:
+                    st.session_state.remates[c_key] = {}
+                for ev in c_vals[:17]:
+                    if ev not in st.session_state.remates[c_key]:
+                        st.session_state.remates[c_key][ev] = {"jugador": "Sin Postor", "monto": 0.0}
+            return True
+    except Exception as e:
+        st.sidebar.error(f"Error procesando PDF: {e}")
+    return False
+
 def cargar_programa_automatico():
     archivo_fijo = "programa_del_dia.xlsx" 
     if os.path.exists(archivo_fijo):
@@ -194,17 +255,25 @@ def cargar_programa_automatico():
             df_prog = pd.read_excel(archivo_fijo)
             if "Carrera" in df_prog.columns and "Caballo" in df_prog.columns:
                 carreras_detectadas = sorted(df_prog["Carrera"].unique(), key=lambda x: int(''.join(filter(str.isdigit, str(x))) or 0))
+                banco_temp = {}
                 for carr in carreras_detectadas:
                     carr_name = str(carr) if "Carrera" in str(carr) else f"Carrera {carr}"
-                    if carr_name not in st.session_state.remates:
-                        st.session_state.remates[carr_name] = {}
+                    banco_temp[carr_name] = []
                     caballos_carrera = df_prog[df_prog["Carrera"] == carr]["Caballo"].tolist()
                     for idx, cab in enumerate(caballos_carrera[:17], start=1):
                         nombre_limpio = str(cab).strip()
                         nombre_limpio = re.sub(r'^\d+[\s\-\.\)]*', '', nombre_limpio).strip().title()
                         formato_llave = f"{idx} - {nombre_limpio}"
-                        if formato_llave not in st.session_state.remates[carr_name]:
-                            st.session_state.remates[carr_name][formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
+                        if formato_llave not in banco_temp[carr_name]:
+                            banco_temp[carr_name].append(formato_llave)
+                            
+                st.session_state.banco_caballos_por_carrera = banco_temp
+                for c_k, c_v in banco_temp.items():
+                    if c_k not in st.session_state.remates:
+                        st.session_state.remates[c_k] = {}
+                    for ev in c_v:
+                        if ev not in st.session_state.remates[c_k]:
+                            st.session_state.remates[c_k][ev] = {"jugador": "Sin Postor", "monto": 0.0}
                 return True
         except Exception:
             pass
@@ -215,7 +284,8 @@ if not st.session_state.remates:
     if not exito_carga:
         for i in range(1, 11):
             carr_nombre = f"Carrera {i}"
-            st.session_state.remates[carr_nombre] = {f"{j} - Ejemplar": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 11)}
+            st.session_state.banco_caballos_por_carrera[carr_nombre] = [f"{j} - Ejemplar {j}" for j in range(1, 11)]
+            st.session_state.remates[carr_nombre] = {f"{j} - Ejemplar {j}": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 11)}
 
 lista_carreras_disponibles = list(st.session_state.remates.keys())
 
@@ -289,7 +359,7 @@ with st.sidebar.expander("🔒 Estado Dupletas", expanded=False):
 
 if st.sidebar.button("🗑️ Reiniciar Jornada", use_container_width=True):
     for key in list(st.session_state.keys()):
-        if key != 'banco_ejemplares':
+        if key != 'banco_caballos_por_carrera':
             del st.session_state[key]
     st.toast("🚨 Jornada reiniciada.")
     st.rerun()
@@ -297,7 +367,7 @@ if st.sidebar.button("🗑️ Reiniciar Jornada", use_container_width=True):
 # --- INTERFAZ DE PESTAÑAS (OPTIMIZADAS PARA MÓVIL) ---
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remate", 
-    "✍️ Manual", 
+    "✍️ Banco", 
     "🎟️ Dupletas", 
     "🏁 Cierre", 
     "📊 Cuentas", 
@@ -343,18 +413,17 @@ with tab1:
                 st.session_state.tiempo_inicio_conteo[carrera_actual] = ahora_dt
                 st.rerun()
 
-    # Formato vertical optimizado para móviles (primero panel de puja rápido, luego la tabla)
     with st.container(border=True):
         st.markdown("⚡ **Registro Rápido de Puja**")
         lista_caballos_activos = list(st.session_state.remates[carrera_actual].keys())
         
         if not lista_caballos_activos:
-            st.warning("Sin ejemplares.")
+            st.warning("Sin ejemplares. Agrégalos en la pestaña Banco o sube un PDF.")
         else:
             if f"caballo_seleccionado_click_{carrera_actual}" not in st.session_state or st.session_state[f"caballo_seleccionado_click_{carrera_actual}"] not in lista_caballos_activos:
                 st.session_state[f"caballo_seleccionado_click_{carrera_actual}"] = lista_caballos_activos[0]
                 
-            cols_botones = st.columns(3) # 3 columnas de botones en móvil para mejor espacio
+            cols_botones = st.columns(3)
             for idx, cab_item in enumerate(lista_caballos_activos):
                 num_parte = cab_item.split(" - ")[0]
                 with cols_botones[idx % 3]:
@@ -400,29 +469,56 @@ with tab1:
     st.metric("🏆 Premio Total", formatear_bs(premio_total_calculado))
 
 # ==========================================
-# PESTAÑA 2: GESTIÓN MANUAL DE CABALLOS
+# PESTAÑA 2: BANCO DE CABALLOS POR CARRERA
 # ==========================================
 with tab2:
-    st.markdown("<div class='subasta-header'>✍️ Gestión Manual</div>", unsafe_allow_html=True)
-    nombre_nuevo_caballo = st.text_input("Nombre del Caballo", placeholder="Ej: Rayo de Luz", key="input_nuevo_caballo_manual")
-    if st.button("💾 Agregar Caballo", use_container_width=True, type="primary"):
-        nombre_limpio = nombre_nuevo_caballo.strip().title()
-        if nombre_limpio and len(st.session_state.remates[carrera_actual]) < 17:
-            nums = [int(re.match(r'^(\d+)', e).group(1)) for e in st.session_state.remates[carrera_actual].keys() if re.match(r'^(\d+)', e)]
-            siguiente_num = 1
-            while siguiente_num in nums and siguiente_num <= 17:
-                siguiente_num += 1
-            st.session_state.remates[carrera_actual][f"{siguiente_num} - {nombre_limpio}"] = {"jugador": "Sin Postor", "monto": 0.0}
-            st.rerun()
-            
-    st.markdown("---")
-    for cab_key in list(st.session_state.remates[carrera_actual].keys()):
-        col_info, col_del = st.columns([3, 1])
-        with col_info: st.text(cab_key)
-        with col_del:
-            if st.button("🗑️", key=f"del_cab_m_{carrera_actual}_{cab_key}", use_container_width=True):
-                del st.session_state.remates[carrera_actual][cab_key]
+    st.markdown("<div class='subasta-header'>✍️ Banco de Caballos por Carrera</div>", unsafe_allow_html=True)
+    st.markdown("Gestiona el banco de ejemplares de forma manual o impórtalos automáticamente desde el PDF en la última pestaña.")
+    
+    carr_banco_sel = st.selectbox("Seleccionar Carrera para Banco", lista_carreras_disponibles, key="sel_carrera_banco_gestion")
+    
+    if carr_banco_sel not in st.session_state.banco_caballos_por_carrera:
+        st.session_state.banco_caballos_por_carrera[carr_banco_sel] = []
+        
+    with st.container(border=True):
+        st.markdown(f"**Agregar Ejemplar a {carr_banco_sel}**")
+        nuevo_nom_banco = st.text_input("Nombre del Ejemplar", placeholder="Ej: Rey David", key=f"input_banco_nom_{carr_banco_sel}")
+        if st.button("💾 Agregar al Banco y Jornada", use_container_width=True, type="primary"):
+            nom_limp = nuevo_nom_banco.strip().title()
+            if nom_limp:
+                nums = [int(re.match(r'^(\d+)', e).group(1)) for e in st.session_state.banco_caballos_por_carrera[carr_banco_sel] if re.match(r'^(\d+)', e)]
+                sig_num = 1
+                while sig_num in nums and sig_num <= 17:
+                    sig_num += 1
+                formato_nuevo = f"{sig_num} - {nom_limp}"
+                
+                if formato_nuevo not in st.session_state.banco_caballos_por_carrera[carr_banco_sel]:
+                    st.session_state.banco_caballos_por_carrera[carr_banco_sel].append(formato_nuevo)
+                if carr_banco_sel not in st.session_state.remates:
+                    st.session_state.remates[carr_banco_sel] = {}
+                if formato_nuevo not in st.session_state.remates[carr_banco_sel]:
+                    st.session_state.remates[carr_banco_sel][formato_nuevo] = {"jugador": "Sin Postor", "monto": 0.0}
+                st.toast(f"✅ ¡{nom_limp} agregado a {carr_banco_sel}!")
                 st.rerun()
+
+    st.markdown("---")
+    st.subheader(f"📋 Ejemplares Registrados en {carr_banco_sel}")
+    ejemplares_actuales = st.session_state.banco_caballos_por_carrera[carr_banco_sel]
+    
+    if not ejemplares_actuales:
+        st.info("No hay ejemplares en este banco de carrera.")
+    else:
+        for idx_b, ej_item in enumerate(ejemplares_actuales):
+            col_ib1, col_ib2 = st.columns([3, 1])
+            with col_ib1:
+                st.text(ej_item)
+            with col_ib2:
+                if st.button("🗑️", key=f"del_banco_{carr_banco_sel}_{idx_b}", use_container_width=True):
+                    st.session_state.banco_caballos_por_carrera[carr_banco_sel].pop(idx_b)
+                    if carr_banco_sel in st.session_state.remates and ej_item in st.session_state.remates[carr_banco_sel]:
+                        del st.session_state.remates[carr_banco_sel][ej_item]
+                    st.toast("Ejemplar eliminado del banco.")
+                    st.rerun()
 
 # ==========================================
 # PESTAÑA 3: MÓDULO DE DUPLETA PRO
@@ -611,16 +707,19 @@ with tab6:
         st.dataframe(pd.DataFrame(st.session_state.historial_transacciones), use_container_width=True, hide_index=True)
 
 # ==========================================
-# PESTAÑA 7: LECTOR TABULAR PDF
+# PESTAÑA 7: LECTOR TABULAR PDF (ALIMENTADOR DE BANCO)
 # ==========================================
 with tab7:
-    st.markdown("<div class='subasta-header'>📄 Lector PDF</div>", unsafe_allow_html=True)
-    pdf_subido = st.file_uploader("Sube el PDF", type=["pdf"])
+    st.markdown("<div class='subasta-header'>📄 Lector PDF e Importador al Banco</div>", unsafe_allow_html=True)
+    st.markdown("Sube el programa oficial en formato PDF. El sistema extraerá los ejemplares y los organizará automáticamente dentro del **Banco de Caballos** por cada carrera.")
+    
+    pdf_subido = st.file_uploader("Sube el programa en PDF", type=["pdf"])
     if pdf_subido is not None:
-        try:
-            lector_pdf = PdfReader(pdf_subido)
-            texto_extraido = "".join([p.extract_text() + "\n" for p in lector_pdf.pages if p.extract_text()])
-            st.success("¡PDF leído!")
-            st.text_area("Contenido", texto_extraido, height=200)
-        except Exception as e:
-            st.error(f"Error: {e}")
+        if st.button("🚀 Procesar e Importar al Banco", use_container_width=True, type="primary"):
+            exito_pdf = procesar_programa_pdf(pdf_subido)
+            if exito_pdf:
+                st.success("¡Programa procesado e incorporado al banco de caballos con éxito!")
+                st.balloons()
+                st.rerun()
+            else:
+                st.error("No se pudieron extraer carreras y ejemplares automáticamente de este PDF.")
