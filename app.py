@@ -400,7 +400,7 @@ with tab2:
     st.write(list(st.session_state.remates[carrera_actual].keys()))
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETAS
+# PESTAÑA 3: MÓDULO DE DUPLETAS (ANTIDUPLICADOS ESTRICTO)
 # ==========================================
 with tab3:
     st.title("🎟️ Módulo de Dupletas")
@@ -482,6 +482,7 @@ with tab3:
                     sel_1_str = f"{st.session_state.dup_carrera_1} - {st.session_state.dup_caballo_1}"
                     sel_2_str = f"{st.session_state.dup_carrera_2} - {st.session_state.dup_caballo_2}"
                     
+                    # VALIDACIÓN ESTRICTA ANTIDUPLICADOS
                     ticket_duplicado = False
                     for t in st.session_state.dupletas_tickets:
                         if t["1era Selección"] == sel_1_str and t["2da Selección"] == sel_2_str:
@@ -489,7 +490,7 @@ with tab3:
                             break
                     
                     if ticket_duplicado:
-                        st.error("⚠️ **¡Ticket Duplicado!** Esta combinación exacta ya fue registrada.")
+                        st.error("🚫 **¡TICKET RECHAZADO!** Esta combinación exacta de ejemplares y carreras ya fue registrada previamente en el sistema. No se permiten tickets repetidos.")
                     else:
                         nuevo_ticket = {
                             "ID": len(st.session_state.dupletas_tickets) + 1,
