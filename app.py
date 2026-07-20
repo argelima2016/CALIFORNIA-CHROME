@@ -161,6 +161,21 @@ if len(st.session_state.remates[carrera_actual]) > 17:
 
 todos_los_caballos = sorted(list({cab for carr in st.session_state.remates.values() for cab in carr.keys()}))
 
+# --- PANEL DE ADMINISTRADOR DE DUPLETAS EN LA BARRA LATERAL ---
+st.sidebar.markdown("---")
+with st.sidebar.expander("🛠️ Admin: Carreras de Dupleta", expanded=False):
+    st.markdown("Selecciona las carreras habilitadas:")
+    seleccion_admin = []
+    for carr in lista_carreras_disponibles:
+        default_val = carr in st.session_state.carreras_habilitadas_dupleta
+        if st.checkbox(carr, value=default_val, key=f"chk_admin_carr_side_{carr}"):
+            seleccion_admin.append(carr)
+    
+    if st.button("💾 Guardar Selección", key="btn_save_admin_side", use_container_width=True):
+        st.session_state.carreras_habilitadas_dupleta = seleccion_admin
+        st.toast("✅ ¡Carreras de dupleta actualizadas por el administrador!")
+        st.rerun()
+
 # --- BOTONES DE PÁNICO Y GESTIÓN DE BANCO EN SIDEBAR ---
 st.sidebar.markdown("---")
 if st.sidebar.button("🗑️ Reiniciar Jornada Global", use_container_width=True, type="secondary"):
@@ -385,35 +400,16 @@ with tab2:
     st.write(list(st.session_state.remates[carrera_actual].keys()))
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETAS CON CONFIGURACIÓN DE ADMINISTRADOR
+# PESTAÑA 3: MÓDULO DE DUPLETAS
 # ==========================================
 with tab3:
-    st.title("🎟️ Módulo de Dupletas (Control de Administrador)")
-    st.markdown("El administrador define primero qué carreras están habilitadas para las dupletas. Los usuarios solo podrán elegir entre esas carreras permitidas.")
-
-    # --- SECCIÓN EXCLUSIVA DE ADMINISTRADOR ---
-    with st.expander("🛠️ Panel del Administrador: Habilitar Carreras para Dupleta", expanded=False):
-        st.markdown("Selecciona únicamente las carreras oficiales que formarán parte de la dupleta de hoy:")
-        
-        seleccion_admin = []
-        c_cols = st.columns(4)
-        for i, carr in enumerate(lista_carreras_disponibles):
-            with c_cols[i % 4]:
-                default_val = carr in st.session_state.carreras_habilitadas_dupleta
-                if st.checkbox(carr, value=default_val, key=f"chk_admin_carr_{carr}"):
-                    seleccion_admin.append(carr)
-        
-        if st.button("💾 Guardar Configuración de Carreras", type="primary", use_container_width=True):
-            st.session_state.carreras_habilitadas_dupleta = seleccion_admin
-            st.success("✅ ¡Configuración de carreras para dupleta guardada con éxito!")
-            st.rerun()
-
-    st.markdown("---")
+    st.title("🎟️ Módulo de Dupletas")
+    st.markdown("Selecciona tu combinación de ejemplares para la dupleta basándote exclusivamente en las carreras autorizadas por el administrador desde la **barra lateral**.")
 
     # Validar qué carreras están disponibles para los jugadores según el admin
     carreras_permitidas = st.session_state.carreras_habilitadas_dupleta
     if not carreras_permitidas:
-        st.warning("⚠️ El administrador aún no ha seleccionado ninguna carrera habilitada para las dupletas. Por favor, despliegue el panel superior y seleccione al menos dos carreras.")
+        st.warning("⚠️ El administrador aún no ha seleccionado ninguna carrera habilitada para las dupletas en la barra lateral. Por favor, despliegue el menú izquierdo y seleccione al menos dos carreras.")
     else:
         # Selección del Jugador y Monto Principal
         col_j_m1, col_j_m2 = st.columns([2, 1])
@@ -429,7 +425,7 @@ with tab3:
         # --- SELECTOR DE LA 1RA VÁLIDA (SOLO PERMITIDAS) ---
         with col_paso_1:
             with st.container(border=True):
-                st.markdown("#### 1️⃣ Primera Válida (Habilitada por Admin)")
+                st.markdown("#### 1️⃣ Primera Válida (Habilitada)")
                 carr_sel_1 = st.selectbox("Carrera 1", carreras_permitidas, key="dinamico_carr_1")
                 
                 ejemplares_dict_1 = st.session_state.remates.get(carr_sel_1, {})
@@ -449,7 +445,7 @@ with tab3:
         # --- SELECTOR DE LA 2DA VÁLIDA (SOLO PERMITIDAS) ---
         with col_paso_2:
             with st.container(border=True):
-                st.markdown("#### 2️⃣ Segunda Válida (Habilitada por Admin)")
+                st.markdown("#### 2️⃣ Segunda Válida (Habilitada)")
                 carr_sel_2 = st.selectbox("Carrera 2", carreras_permitidas, key="dinamico_carr_2")
                 
                 ejemplares_dict_2 = st.session_state.remates.get(carr_sel_2, {})
