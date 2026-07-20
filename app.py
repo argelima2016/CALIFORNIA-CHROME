@@ -37,7 +37,7 @@ def obtener_siguientes_montos(monto_actual):
         siguientes = [ultimo + i * 1000 for i in range(1, 50)]
     return siguientes
 
-# --- PALETA DE COLORES E INYECCIÓN DE ESTILOS CSS (ANCHO COMPLETO Y MEJORA VISUAL) ---
+# --- PALETA DE COLORES E INYECCIÓN DE ESTILOS CSS (ANCHO COMPLETO Y MÁXIMA LEGIBILIDAD) ---
 st.markdown("""
     <style>
     :root {
@@ -55,13 +55,51 @@ st.markdown("""
         color: var(--text-primary);
     }
     
-    /* Ampliar el contenedor principal para aprovechar toda la pantalla sin restricciones */
+    /* Ampliar el contenedor principal para aprovechar toda la pantalla */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 2rem !important;
         padding-left: 2rem !important;
         padding-right: 2rem !important;
         max-width: 100% !important;
+    }
+    
+    /* ==========================================
+       MEJORAS DE LEGIBILIDAD EN BARRAS Y SELECTORES
+       ========================================== */
+    
+    /* Forzar texto blanco y claro en todos los selectores desplegables y cajas de texto */
+    div[data-baseweb="select"] > div, div[data-testid="stSelectbox"] div, input {
+        background-color: var(--bg-card) !important;
+        color: var(--text-primary) !important;
+        border-color: var(--border-color) !important;
+    }
+
+    /* Color de texto dentro de las opciones desplegables flotantes */
+    div[data-baseweb="popover"] div, ul[data-baseweb="menu"] li {
+        background-color: var(--bg-card) !important;
+        color: var(--text-primary) !important;
+    }
+
+    /* Etiquetas de los campos de formulario y selectores */
+    label, .stRadio label, .stCheckbox label, .stSelectbox label {
+        color: var(--text-primary) !important;
+        font-weight: 600 !important;
+    }
+
+    /* Pestañas principales de navegación */
+    button[data-baseweb="tab"] {
+        background-color: var(--bg-card) !important;
+        color: var(--text-primary) !important;
+        font-weight: 700 !important;
+        border-radius: 6px 6px 0px 0px !important;
+        padding: 10px 16px !important;
+    }
+    
+    button[data-baseweb="tab"][aria-selected="true"] {
+        background-color: var(--border-color) !important;
+        color: var(--accent-gold) !important;
+        border-bottom: 3px solid var(--accent-gold) !important;
     }
     
     .subasta-header {
