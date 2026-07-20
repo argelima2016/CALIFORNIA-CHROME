@@ -124,6 +124,9 @@ if 'historial_ganadores' not in st.session_state:
 if 'carreras_cerradas_remate' not in st.session_state:
     st.session_state.carreras_cerradas_remate = {}
 
+if 'remates_cargados_en_cuentas' not in st.session_state:
+    st.session_state.remates_cargados_en_cuentas = {}
+
 if 'horas_cierre_remate' not in st.session_state:
     st.session_state.horas_cierre_remate = {}
 
@@ -285,16 +288,31 @@ with st.sidebar.expander("🏁 Gestión de Cierre y Liquidación", expanded=True
     
     carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carrera_actual, False)
     
+    def procesar_cierre_remate(carr):
+        if not st.session_state.remates_cargados_en_cuentas.get(carr, False):
+            for cab, info in st.session_state.remates[carr].items():
+                if info['jugador'] != "Sin Postor" and info['monto'] > 0:
+                    if info['jugador'] not in st.session_state.cuentas:
+                        st.session_state.cuentas[info['jugador']] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                    st.session_state.cuentas[info['jugador']]['Pujas'] += info['monto']
+                    st.session_state.historial_transacciones.append({
+                        "Carrera": carr, "Jugador": info['jugador'], 
+                        "Tipo": "Cargo (Compra)", "Detalle": f"Adjudicación de {cab}", "Monto (Bs.)": -info['monto']
+                    })
+            st.session_state.remates_cargados_en_cuentas[carr] = True
+
     if not carrera_cerrada:
         if st.button("🔒 Cerrar Remate", key=f"btn_cerrar_remate_side_{carrera_actual}", use_container_width=True, type="secondary"):
             st.session_state.carreras_cerradas_remate[carrera_actual] = True
             st.session_state.estado_conteo_carrera[carrera_actual] = "CERRADO"
-            st.toast(f"🔒 ¡El remate para {carrera_actual} ha sido cerrado exitosamente!")
+            procesar_cierre_remate(carrera_actual)
+            st.toast(f"🔒 ¡El remate para {carrera_actual} ha sido cerrado y cargado a las cuentas!")
             st.rerun()
     else:
-        st.success("🔒 Remate cerrado.")
+        st.success("🔒 Remate cerrado y cargado.")
         if st.button("🔓 Reabrir Remate", key=f"btn_reabrir_remate_side_{carrera_actual}", use_container_width=True):
             st.session_state.carreras_cerradas_remate[carrera_actual] = False
+            st.session_state.remates_cargados_en_cuentas[carrera_actual] = False
             st.session_state.estado_conteo_carrera[carrera_actual] = "INACTIVO"
             st.toast(f"🔓 Remate reabierto para {carrera_actual}.")
             st.rerun()
@@ -313,15 +331,13 @@ with st.sidebar.expander("🏁 Gestión de Cierre y Liquidación", expanded=True
         if carrera_actual in st.session_state.historial_ganadores:
             st.warning("Esta carrera ya fue liquidada.")
         else:
-            for cab, info in st.session_state.remates[carrera_actual].items():
-                if info['jugador'] != "Sin Postor" and info['monto'] > 0:
-                    st.session_state.cuentas[info['jugador']]['Pujas'] += info['monto']
-                    st.session_state.historial_transacciones.append({
-                        "Carrera": carrera_actual, "Jugador": info['jugador'], 
-                        "Tipo": "Cargo (Compra)", "Detalle": f"Adjudicación de {cab}", "Monto (Bs.)": -info['monto']
-                    })
+            if not st.session_state.remates_cargados_en_cuentas.get(carrera_actual, False):
+                procesar_cierre_remate(carrera_actual)
+            
             info_ganador = st.session_state.remates[carrera_actual][caballo_ganador_side]
             if info_ganador['jugador'] != "Sin Postor":
+                if info_ganador['jugador'] not in st.session_state.cuentas:
+                    st.session_state.cuentas[info_ganador['jugador']] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
                 st.session_state.cuentas[info_ganador['jugador']]['Premios'] += premio_total_calculado_side
                 st.session_state.historial_transacciones.append({
                     "Carrera": carrera_actual, "Jugador": info_ganador['jugador'], 
@@ -406,6 +422,17 @@ with tab1:
             elif diferencia_segundos <= 0:
                 st.session_state.carreras_cerradas_remate[carrera_actual] = True
                 st.session_state.estado_conteo_carrera[carrera_actual] = "CERRADO"
+                if not st.session_state.remates_cargados_en_cuentas.get(carrera_actual, False):
+                    for cab, info in st.session_state.remates[carrera_actual].items():
+                        if info['jugador'] != "Sin Postor" and info['monto'] > 0:
+                            if info['jugador'] not in st.session_state.cuentas:
+                                st.session_state.cuentas[info['jugador']] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                            st.session_state.cuentas[info['jugador']]['Pujas'] += info['monto']
+                            st.session_state.historial_transacciones.append({
+                                "Carrera": carrera_actual, "Jugador": info['jugador'], 
+                                "Tipo": "Cargo (Compra)", "Detalle": f"Adjudicación de {cab}", "Monto (Bs.)": -info['monto']
+                            })
+                    st.session_state.remates_cargados_en_cuentas[carrera_actual] = True
                 st.rerun()
                 
         elif estado_conteo == "CONTEO_10S":
@@ -430,7 +457,18 @@ with tab1:
             else:
                 st.session_state.carreras_cerradas_remate[carrera_actual] = True
                 st.session_state.estado_conteo_carrera[carrera_actual] = "CERRADO"
-                st.toast(f"🔒 ¡El remate para {carrera_actual} se ha cerrado estrictamente!")
+                if not st.session_state.remates_cargados_en_cuentas.get(carrera_actual, False):
+                    for cab, info in st.session_state.remates[carrera_actual].items():
+                        if info['jugador'] != "Sin Postor" and info['monto'] > 0:
+                            if info['jugador'] not in st.session_state.cuentas:
+                                st.session_state.cuentas[info['jugador']] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                            st.session_state.cuentas[info['jugador']]['Pujas'] += info['monto']
+                            st.session_state.historial_transacciones.append({
+                                "Carrera": carrera_actual, "Jugador": info['jugador'], 
+                                "Tipo": "Cargo (Compra)", "Detalle": f"Adjudicación de {cab}", "Monto (Bs.)": -info['monto']
+                            })
+                    st.session_state.remates_cargados_en_cuentas[carrera_actual] = True
+                st.toast(f"🔒 ¡El remate para {carrera_actual} se ha cerrado estrictamente y cargado a cuentas!")
                 st.rerun()
 
     col_izq_tabla, col_der_pujas = st.columns([1.5, 1], gap="medium")
