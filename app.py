@@ -700,7 +700,6 @@ with tab3:
                 
                 jugador_dup_pro = st.selectbox("Comprador / Jugador", st.session_state.lista_jugadores, key="sel_jugador_dupleta_pro")
                 
-                # Selector dinámico de carreras que participan en la dupleta / tripleta / parley
                 carreras_seleccionadas_pro = st.multiselect(
                     "Selecciona las Carreras en Orden",
                     options=carreras_dup_activas,
@@ -736,7 +735,6 @@ with tab3:
 
                 monto_dup_pro = st.number_input("Monto de la Jugada (Bs.)", min_value=50.0, value=500.0, step=50.0, key="input_monto_dupleta_pro")
                 
-                # Multiplicador progresivo (x2 por cada logro incorporado en la combinada)
                 cantidad_logros = len(carreras_seleccionadas_pro)
                 premio_estimado_pro = monto_dup_pro * (2 ** cantidad_logros) if cantidad_logros >= 2 else 0.0
                 
@@ -747,7 +745,6 @@ with tab3:
                     if not bloqueo_valido_pro or cantidad_logros < 2:
                         st.error("⚠️ Debes configurar una combinación válida de al menos 2 carreras.")
                     else:
-                        # VERIFICACIÓN DE SEGURIDAD CONTRA TICKET EXACTAMENTE DUPLICADO
                         combinacion_pro_clave = tuple(sorted([(p["Carrera"], p["Ejemplar"]) for p in picks_pro]))
                         
                         ticket_duplicado = False
@@ -771,7 +768,6 @@ with tab3:
                             }
                             st.session_state.dupletas_tickets.append(ticket_pro_nuevo)
                             
-                            # Cargo automático del monto a la cuenta del apostador
                             if jugador_dup_pro not in st.session_state.cuentas:
                                 st.session_state.cuentas[jugador_dup_pro] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
                             st.session_state.cuentas[jugador_dup_pro]['Pujas'] += monto_dup_pro
@@ -784,7 +780,7 @@ with tab3:
                             st.success("✅ ¡Ticket Pro emitido y cargado a cuentas exitosamente!")
                             st.rerun()
 
-        with col_dup_der := col_dup_tabla:
+        with col_dup_tabla:
             st.subheader("📋 Control y Seguimiento de Tickets")
             
             if not st.session_state.dupletas_tickets:
@@ -792,7 +788,6 @@ with tab3:
             else:
                 filtro_t_pro = st.selectbox("Filtrar Estado de Tickets", ["Todos", "En Curso", "Ganador", "Perdedor"], key="filtro_dupleta_pro")
                 
-                # Vista en tabla general para auditoría rápida
                 with st.expander("🔍 Resumen General de Tickets Activos", expanded=False):
                     datos_resumen_pro = []
                     for idx_res, tk_res in enumerate(st.session_state.dupletas_tickets):
