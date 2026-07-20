@@ -463,11 +463,11 @@ with tab5:
         st.info("Aún no se han registrado transacciones en el historial.")
 
 # ==========================================
-# PESTAÑA 6: LECTOR DE PDF (SÓLO NOMBRES PUROS, EXCLUSIÓN ESTRICTA DE PRECIOS/DATOS)
+# PESTAÑA 6: LECTOR DE PDF (SÓLO NOMBRES PUROS, EXCLUSIÓN ESTRICTA DE PRECIOS Y LA PALABRA "BUT")
 # ==========================================
 with tab6:
     st.title("📄 Lector Estricto de Nombres desde PDF")
-    st.markdown("Extrae **exclusivamente** los nombres de los ejemplares del PDF, filtrando y descartando de forma estricta cualquier precio, monto, valor numérico de apuestas, retenciones o datos de costos adicionales.")
+    st.markdown("Extrae **exclusivamente** los nombres de los ejemplares del PDF, filtrando y descartando estrictamente precios, montos, números de control y palabras no deseadas como **'but'**.")
 
     archivo_pdf_plumber = st.file_uploader(
         "Sube el programa oficial en PDF", 
@@ -478,7 +478,7 @@ with tab6:
     if archivo_pdf_plumber is not None:
         st.success("¡Archivo PDF cargado correctamente!")
         
-        if st.button("🚀 Extraer SÓLO Nombres (Ignorando Precios/Valores)", type="primary", use_container_width=True):
+        if st.button("🚀 Extraer SÓLO Nombres (Excluyendo 'But' y Precios)", type="primary", use_container_width=True):
             try:
                 import pdfplumber
                 carreras_estructuradas = {}
@@ -486,8 +486,8 @@ with tab6:
                 ejemplares_detectados_nombres = []
                 contador_carrera = 1
 
-                # Patrones estrictos para detectar y descartar líneas que contengan precios, monedas o montos numéricos de dinero
-                palabras_prohibidas_precio = ['bs', 'usd', '$', 'precio', 'pote', 'premio', 'valor', 'mt', 'pago']
+                # Palabras prohibidas incluyendo de forma estricta la palabra 'but' (en cualquier combinación de mayúsculas/minúsculas)
+                palabras_prohibidas_precio = ['bs', 'usd', '$', 'precio', 'pote', 'premio', 'valor', 'mt', 'pago', 'but']
 
                 with pdfplumber.open(archivo_pdf_plumber) as pdf:
                     for num_pag, page in enumerate(pdf.pages):
@@ -532,11 +532,14 @@ with tab6:
                                                 # Limpieza profunda para aislar el nombre puro
                                                 nombre_puro = re.sub(r'^\d+[\s\-\.\)]*', '', nombre_bruto).strip().title()
                                                 
-                                                # Filtro estricto: descartar si contiene símbolos monetarios, números grandes o palabras de precio
-                                                lower_nombre = nombre_puro.lower()
-                                                tiene_precio = any(p in lower_nombre for p in palabras_prohibidas_precio) or bool(re.search(r'\d{3,}', nombre_puro))
+                                                # Desglose en palabras individuales para verificar si contiene la palabra 'but' exacta o prohibida
+                                                palabras_nombre = nombre_puro.split()
+                                                contiene_palabra_prohibida = any(p.lower() in palabras_prohibidas_precio for p in palabras_nombre)
                                                 
-                                                if nombre_puro and len(nombre_puro) > 2 and not tiene_precio and nombre_puro not in ejemplares_detectados_nombres:
+                                                # Filtro estricto: descartar si contiene 'but', símbolos monetarios o números grandes
+                                                tiene_precio_o_invalido = contiene_palabra_prohibida or bool(re.search(r'\d{3,}', nombre_puro))
+                                                
+                                                if nombre_puro and len(nombre_puro) > 2 and not tiene_precio_o_invalido and nombre_puro not in ejemplares_detectados_nombres:
                                                     if len(ejemplares_detectados_nombres) < 17:
                                                         ejemplares_detectados_nombres.append(nombre_puro)
                                                         if nombre_puro not in st.session_state.banco_ejemplares:
@@ -553,10 +556,11 @@ with tab6:
                                     nombre_bruto = match_linea.group(2).strip()
                                     nombre_puro = re.sub(r'^\d+[\s\-\.\)]*', '', nombre_bruto).strip().title()
                                     
-                                    lower_nombre = nombre_puro.lower()
-                                    tiene_precio = any(p in lower_nombre for p in palabras_prohibidas_precio) or bool(re.search(r'\d{3,}', nombre_puro))
+                                    palabras_nombre = nombre_puro.split()
+                                    contiene_palabra_prohibida = any(p.lower() in palabras_prohibidas_precio for p in palabras_nombre)
+                                    tiene_precio_o_invalido = contiene_palabra_prohibida or bool(re.search(r'\d{3,}', nombre_puro))
                                     
-                                    if nombre_puro and len(nombre_puro) > 2 and not tiene_precio and nombre_puro not in ejemplares_detectados_nombres:
+                                    if nombre_puro and len(nombre_puro) > 2 and not tiene_precio_o_invalido and nombre_puro not in ejemplares_detectados_nombres:
                                         if len(ejemplares_detectados_nombres) < 17:
                                             ejemplares_detectados_nombres.append(nombre_puro)
                                             if nombre_puro not in st.session_state.banco_ejemplares:
@@ -573,7 +577,7 @@ with tab6:
                         carreras_estructuradas[f"Carrera {c}"] = {f"{j} - Ejemplar": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 12)}
 
                 st.session_state.remates = carreras_estructuradas
-                st.success("¡Extracción estricta completada con éxito (Sólo nombres puros incorporados al banco)!")
+                st.success("¡Extracción completada con éxito! (Se filtró y excluyó estrictamente la palabra 'but' y los precios).")
                 st.balloons()
                 st.rerun()
 
