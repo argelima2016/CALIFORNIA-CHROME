@@ -332,19 +332,24 @@ with tab5:
         
         nombre_salida = st.text_input("Nombre del archivo PDF resultante:", value="Programa_Completo_Carreras.pdf")
         
-       if st.button("Unificar PDFs"):
-        try:
-            merger = PdfWriter()
-            # Add your PDF files to the merger here
-            
-            output_pdf = "path_to_output.pdf" # Replace with your actual output mechanism/stream
-            st.success("¡Los archivos PDF se han unificado con éxito!")
-            st.download_button(
-                label="Descargar PDF unificado",
-                data=output_pdf,
-                file_name="archivo_unificado.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
-        except Exception as e:
-            st.error(f"Ocurrió un error al unificar los PDFs: {e}")
+        if st.button("Unificar PDFs"):
+            try:
+                merger = PdfWriter()
+                for file in st.session_state.archivos_subidos:
+                    merger.append(file)
+                
+                output_pdf = io.BytesIO()
+                merger.write(output_pdf)
+                merger.close()
+                output_pdf.seek(0)
+                
+                st.success("¡Los archivos PDF se han unificado con éxito!")
+                st.download_button(
+                    label="Descargar PDF unificado",
+                    data=output_pdf,
+                    file_name=nombre_salida if nombre_salida else "archivo_unificado.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"Ocurrió un error al unificar los PDFs: {e}")
