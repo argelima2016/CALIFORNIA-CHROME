@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 import os
+import re
 from pypdf import PdfReader, PdfWriter
 from streamlit_autorefresh import st_autorefresh
 
@@ -83,7 +84,7 @@ if not st.session_state.remates:
     if not exito_carga:
         for i in range(1, 11):
             carr_nombre = f"Carrera {i}"
-            st.session_state.remates[carr_nombre] = {f"Ejemplar {j}": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 11)}
+            st.session_state.remates[carr_nombre] = {f"{j} - Ejemplar": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 11)}
 
 lista_carreras_disponibles = list(st.session_state.remates.keys())
 
@@ -91,7 +92,7 @@ carrera_actual = st.sidebar.selectbox("Seleccionar Carrera Activa", lista_carrer
 porcentaje_casa = st.sidebar.slider("Retención de la Casa (%)", 0, 50, 30, key="slider_retencion_casa")
 
 if carrera_actual not in st.session_state.remates or not st.session_state.remates[carrera_actual]:
-    st.session_state.remates[carrera_actual] = {f"Caballo {i}": {"jugador": "Sin Postor", "monto": 0.0} for i in range(1, 11)}
+    st.session_state.remates[carrera_actual] = {f"{i} - Caballo": {"jugador": "Sin Postor", "monto": 0.0} for i in range(1, 11)}
 
 todos_los_caballos = sorted(list({cab for carr in st.session_state.remates.values() for cab in carr.keys()}))
 
@@ -109,7 +110,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🎟️ Módulo de Dupleta", 
     "📊 Cuentas por Jugador", 
     "🧾 Historial de Transacciones", 
-    "📄 Lector de Programa Semanal PDF"
+    "📄 Lector Ordenado PDF"
 ])
 
 # ==========================================
@@ -290,71 +291,91 @@ with tab4:
         st.info("Aún no se han registrado transacciones en el historial.")
 
 # ==========================================
-# PESTAÑA 5: LECTOR DE PROGRAMA SEMANAL PDF
+# PESTAÑA 5: LECTOR ORDENADO DE PDF (CARRERA N° Y EJEMPLAR)
 # ==========================================
 with tab5:
-    st.title("📄 Lector Inteligente del Programa Semanal PDF")
-    st.markdown("Sube el **PDF oficial de la semana** que contiene todas las carreras. El sistema analizará el documento de forma automática, segmentará cada carrera y extraerá los nombres de los ejemplares para configurar las subastas.")
+    st.title("📄 Extractor Ordenado por Carrera y Ejemplar (PDF)")
+    st.markdown("Sube el PDF del programa semanal. El sistema detectará automáticamente los bloques de **Carrera** (ej. *1ra. Carrera*, *2da Carrera*) y enlistará los ejemplares ordenados con su número correspondiente (ej. *1 - Nombre del Caballo*).")
 
-    archivo_pdf_semana = st.file_uploader(
-        "Selecciona el archivo PDF con el programa de las carreras de la semana", 
+    archivo_pdf_ordenado = st.file_uploader(
+        "Selecciona el programa oficial de carreras (PDF)", 
         type=["pdf"],
-        key="uploader_pdf_semanal"
+        key="uploader_pdf_ordenado_semana"
     )
 
-    if archivo_pdf_semana is not None:
-        st.success("¡Archivo PDF cargado correctamente!")
+    if archivo_pdf_ordenado is not None:
+        st.success("¡Archivo PDF cargado correctamente para análisis!")
         
-        if st.button("🚀 Procesar Programa Completo y Extraer Carreras", type="primary", use_container_width=True):
+        if st.button("🚀 Extraer Ordenadamente Carreras y Ejemplares", type="primary", use_container_width=True):
             try:
-                reader = PdfReader(archivo_pdf_semana)
-                texto_total = ""
+                reader = PdfReader(archivo_pdf_ordenado)
+                texto_completo = ""
                 for page in reader.pages:
-                    texto_pagina = page.extract_text()
-                    if texto_pagina:
-                        texto_total += texto_pagina + "\n"
+                    txt = page.extract_text()
+                    if txt:
+                        texto_completo += txt + "\n"
                 
-                lineas = [l.strip() for l in texto_total.split('\n') if l.strip()]
+                lineas = [l.strip() for l in texto_completo.split('\n') if l.strip()]
                 
-                carreras_extraidas = {}
-                carrera_actual_nombre = "Carrera 1"
-                caballos_temp = []
+                carreras_estructuradas = {}
+                carrera_actual = "Carrera 1"
+                ejemplares_detectados = {}
                 
-                palabras_excluir = ["HIPODROMO", "VALE", "PROGRAMA", "DIVIDENDO", "METROS", "PREMIO", "RETIRADO", "EJEMPLAR", "KILOS", "JINETE", "ENTRENADOR", "HARAS"]
+                # Expresión regular para detectar títulos de carrera (ej: "1RA. CARRERA", "2DA CARRERA", "TERCERA CARRERA")
+                patron_carrera = re.compile(r'(?:(\d+)\s*(?:RA|DA|TA|MA|VA)?\.?\s*CARRERA)|(?:CARRERA\s*N?[º°]?\s*(\d+))', re.IGNORECASE)
+                
+                # Expresión regular para detectar el número del ejemplar al inicio (ej: "1", "01", seguido de texto)
+                patron_ejemplar = re.compile(r'^(\d{1,2})[\.\-\)]\s+([A-ZÁÉÍÓÚÑ\s]{3,})')
+
+                palabras_basura = ["HIPODROMO", "VALE", "PROGRAMA", "DIVIDENDO", "METROS", "PREMIO", "RETIRADO", "EJEMPLAR", "KILOS", "JINETE", "ENTRENADOR", "HARAS", "APUESTAS", "LINGOTES"]
 
                 for linea in lineas:
-                    linea_upper = linea.upper()
-                    # Detectar si la línea indica una nueva carrera
-                    if "CARRERA" in linea_upper or "1ERA" in linea_upper or "2DA" in linea_upper or "3RA" in linea_upper or "4TA" in linea_upper or "5TA" in linea_upper or "6TA" in linea_upper:
-                        if caballos_temp and len(caballos_temp) >= 2:
-                            carreras_extraidas[carrera_actual_nombre] = {cab: {"jugador": "Sin Postor", "monto": 0.0} for cab in caballos_temp[:12]}
-                            caballos_temp = []
-                        carrera_actual_nombre = linea
-                    else:
-                        # Filtrar nombres posibles de ejemplares
-                        if len(linea) > 2 and not any(p in linea_upper for p in palabras_excluir) and not linea.isdigit():
-                            if linea not in caballos_temp:
-                                caballos_temp.append(linea)
-                
-                # Guardar el último grupo detectado
-                if caballos_temp:
-                    carreras_extraidas[carrera_actual_nombre] = {cab: {"jugador": "Sin Postor", "monto": 0.0} for cab in caballos_temp[:12]}
+                    linea_mayus = linea.upper()
+                    
+                    # Comprobar si la línea es un encabezado de carrera
+                    match_carr = patron_carrera.search(linea_mayus)
+                    if match_carr:
+                        # Si ya teníamos ejemplares en la carrera anterior, los guardamos
+                        if ejemplares_detectados:
+                            carreras_estructuradas[carrera_actual] = ejemplares_detectados
+                            ejemplares_detectados = {}
+                        
+                        # Extraer el número de carrera encontrado
+                        num_carr = next((g for g in match_carr.groups() if g is not None), "1")
+                        carrera_actual = f"Carrera {int(num_carr)}"
+                        continue
 
-                # Si no logró separar por nombres de carrera de forma limpia, creamos bloques secuenciales genéricos usando el texto
-                if not carreras_extraidas or len(carreras_extraidas) < 2:
-                    carreras_extraidas = {}
-                    chunks = [lineas[i:i + 10] for i in range(0, len(lineas), 10)]
-                    for idx, chunk in enumerate(chunks[:12]):
+                    # Comprobar si la línea es un ejemplar con su número respectivo
+                    match_ej = patron_ejemplar.match(linea)
+                    if match_ej:
+                        num_ej = match_ej.group(1).zfill(2)
+                        nombre_ej = match_ej.group(2).strip()
+                        
+                        # Filtrar falsos positivos
+                        if not any(p in nombre_ej for p in palabras_basura) and len(nombre_ej) > 2:
+                            formato_llave = f"{int(num_ej)} - {nombre_ej.title()}"
+                            if formato_llave not in ejemplares_detectados:
+                                ejemplares_detectados[formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
+
+                # Guardar el último bloque remanente
+                if ejemplares_detectados:
+                    carreras_estructuradas[carrera_actual] = ejemplares_detectados
+
+                # Respaldo automático por si el formato del PDF es distinto y no detecta líneas con números estrictos
+                if not carreras_estructuradas or len(carreras_estructuradas) == 0:
+                    carreras_estructuradas = {}
+                    bloques = [lineas[i:i + 12] for i in range(0, len(lineas), 12)]
+                    for idx, bloque in enumerate(bloques[:12]):
                         carr_nombre = f"Carrera {idx + 1}"
-                        carreras_extraidas[carr_nombre] = {c: {"jugador": "Sin Postor", "monto": 0.0} for c in chunk[:10]}
+                        carreras_estructuradas[carr_nombre] = {f"{i+1} - Ejemplar": {"jugador": "Sin Postor", "monto": 0.0} for i in range(len(bloque[:10]))}
 
-                if carreras_extraidas:
-                    st.session_state.remates = carreras_extraidas
-                    st.success(f"¡Se han extraído e interpretado {len(carreras_extraidas)} carreras del PDF con éxito!")
+                if carreras_estructuradas:
+                    st.session_state.remates = carreras_estructuradas
+                    st.success(f"¡Éxito! Se cargaron ordenadamente {len(carreras_estructuradas)} carreras con sus respectivos ejemplares.")
                     st.balloons()
                     st.rerun()
                 else:
-                    st.warning("No se pudieron aislar los ejemplares automáticamente. Comprueba que el PDF contenga texto seleccionable.")
+                    st.warning("No se pudo estructurar el contenido automáticamente. Verifique que el PDF posea texto seleccionable.")
 
             except Exception as e:
-                st.error(f"Ocurrió un error al procesar el PDF semanal: {e}")
+                st.error(f"Error procesando el PDF ordenado: {e}")
