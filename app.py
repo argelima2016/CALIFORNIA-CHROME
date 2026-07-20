@@ -220,14 +220,57 @@ todos_los_caballos = sorted(list({cab for carr in st.session_state.remates.value
 with st.sidebar.expander("⏰ ⚙️ Ajustar Hora de Cierre Estricta", expanded=False):
     st.markdown(f"Configurar para: **{carrera_actual}**")
     
-    hora_actual_def = ahora_dt.time()
     hora_guardada_actual = st.session_state.horas_cierre_remate.get(carrera_actual)
     
-    hora_seleccionada = st.sidebar.time_input(
-        "Modificar Hora Estricta", 
-        value=hora_guardada_actual if hora_guardada_actual else time(hora_actual_def.hour, min(59, hora_actual_def.minute + 5)),
-        key=f"time_input_{carrera_actual}"
-    )
+    # Selector de período (AM / PM)
+    periodo_opciones = ["AM", "PM"]
+    periodo_actual = "AM"
+    if hora_guardada_actual:
+        periodo_actual = "PM" if hora_guardada_actual.hour >= 12 else "AM"
+    
+    col_per_1, col_per_2 = st.columns(2)
+    with col_per_1:
+        periodo_sel = st.radio("Periodo", periodo_opciones, index=0 if periodo_actual == "AM" else 1, key=f"radio_periodo_{carrera_actual}", horizontal=True)
+    
+    # Hora 12h por defecto
+    hora_def_12 = 1
+    min_def = 0
+    if hora_guardada_actual:
+        h_24 = hora_guardada_actual.hour
+        if h_24 == 0:
+            hora_def_12 = 12
+        elif h_24 > 12:
+            hora_def_12 = h_24 - 12
+        else:
+            hora_def_12 = h_24
+        min_def = hora_guardada_actual.minute
+    else:
+        h_24_act = ahora_dt.hour
+        m_act = min(59, ahora_dt.minute + 5)
+        if m_act >= 60:
+            m_act = 59
+        if h_24_act == 0:
+            hora_def_12 = 12
+        elif h_24_act > 12:
+            hora_def_12 = h_24_act - 12
+        else:
+            hora_def_12 = h_24_act
+        min_def = m_act
+
+    col_h_sel_1, col_h_sel_2 = st.columns(2)
+    with col_h_sel_1:
+        hora_12 = st.selectbox("Hora (1-12)", list(range(1, 13)), index=int(hora_def_12) - 1, key=f"sel_h12_{carrera_actual}")
+    with col_h_sel_2:
+        minuto_sel = st.selectbox("Minutos (0-59)", list(range(0, 60)), index=int(min_def), key=f"sel_m12_{carrera_actual}")
+    
+    # Conversión a formato 24 horas interno
+    h_24_conv = int(hora_12)
+    if periodo_sel == "PM" and h_24_conv < 12:
+        h_24_conv += 12
+    elif periodo_sel == "AM" and h_24_conv == 12:
+        h_24_conv = 0
+        
+    hora_seleccionada = time(h_24_conv, int(minuto_sel))
     
     col_btn_h1, col_btn_h2 = st.sidebar.columns(2)
     with col_btn_h1:
@@ -235,7 +278,6 @@ with st.sidebar.expander("⏰ ⚙️ Ajustar Hora de Cierre Estricta", expanded=
             st.session_state.horas_cierre_remate[carrera_actual] = hora_seleccionada
             st.session_state.estado_conteo_carrera[carrera_actual] = "INACTIVO"
             
-            # Formato 12 horas para el mensaje toast
             dt_dummy = datetime.combine(datetime.today(), hora_seleccionada)
             hora_12h_str = dt_dummy.strftime('%I:%M:%S %p')
             st.toast(f"✅ ¡Hora estricta guardada a las {hora_12h_str} para {carrera_actual}!")
