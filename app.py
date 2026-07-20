@@ -681,11 +681,11 @@ with tab2:
             st.info("No hay ejemplares inscritos en esta carrera.")
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETA PRO (NUEVO MODELO DE SELECCIÓN MÚLTIPLE)
+# PESTAÑA 3: MÓDULO DE DUPLETA PRO (PREMIO = RECAUDADO POR TICKETS)
 # ==========================================
 with tab3:
     st.title("🎟️ Módulo de Dupletas Pro: Selección Múltiple y Parleys")
-    st.markdown("Arma tus tickets combinados seleccionando múltiples carreras y ejemplares simultáneamente con cálculo automático de pagos progresivos y protección anti-duplicados.")
+    st.markdown("Arma tus tickets combinados seleccionando múltiples carreras y ejemplares simultáneamente. El premio total a repartir corresponde exactamente a lo recaudado por la venta de los tickets.")
 
     carreras_dup_activas = st.session_state.carreras_habilitadas_dupleta
     
@@ -733,13 +733,15 @@ with tab3:
                         
                         picks_pro.append({"Carrera": carr_item, "Ejemplar": cab_elegido})
 
-                monto_dup_pro = st.number_input("Monto de la Jugada (Bs.)", min_value=50.0, value=500.0, step=50.0, key="input_monto_dupleta_pro")
+                monto_dup_pro = st.number_input("Monto del Ticket (Bs.)", min_value=50.0, value=500.0, step=50.0, key="input_monto_dupleta_pro")
                 
                 cantidad_logros = len(carreras_seleccionadas_pro)
-                premio_estimado_pro = monto_dup_pro * (2 ** cantidad_logros) if cantidad_logros >= 2 else 0.0
+                
+                # Cálculo dinámico del acumulado total recaudado por tickets para mostrar en tiempo real
+                recaudacion_total_tickets = sum([t.get("Monto", 0.0) for t in st.session_state.dupletas_tickets]) + monto_dup_pro
                 
                 if cantidad_logros >= 2:
-                    st.info(f"💡 **Logros:** `{cantidad_logros}` | 🏆 **Premio Estimado (X{2**cantidad_logros}):** `{formatear_bs(premio_estimado_pro)}`")
+                    st.info(f"💡 **Logros:** `{cantidad_logros}` | 🏆 **Pozo Total Recaudado (Premio Est.):** `{formatear_bs(recaudacion_total_tickets)}`")
 
                 if st.button("🚀 Emitir Ticket Pro Combinado", use_container_width=True, type="primary"):
                     if not bloqueo_valido_pro or cantidad_logros < 2:
@@ -762,7 +764,6 @@ with tab3:
                                 "Jugador": jugador_dup_pro,
                                 "Picks": picks_pro,
                                 "Monto": monto_dup_pro,
-                                "Premio": premio_estimado_pro,
                                 "Estado": "En Curso",
                                 "Fecha": ahora_dt.strftime('%I:%M:%S %p')
                             }
@@ -782,6 +783,10 @@ with tab3:
 
         with col_dup_tabla:
             st.subheader("📋 Control y Seguimiento de Tickets")
+            
+            recaudacion_actual_total = sum([t.get("Monto", 0.0) for t in st.session_state.dupletas_tickets])
+            st.markdown(f"💰 **Total Acumulado Recaudado (Pozo de Premios):** `{formatear_bs(recaudacion_actual_total)}`")
+            st.markdown("---")
             
             if not st.session_state.dupletas_tickets:
                 st.info("No hay tickets de dupleta registrados en esta sesión.")
@@ -809,7 +814,7 @@ with tab3:
                     
                     with st.container(border=True):
                         st.markdown(f"**Ticket Pro #{idx_tp + 1}** {badge_e} | **{ticket_item['Jugador']}**")
-                        st.markdown(f"💰 **Aporte:** `{formatear_bs(ticket_item['Monto'])}` | 🏆 **Premio Potencial:** `{formatear_bs(ticket_item['Premio'])}`")
+                        st.markdown(f"💰 **Aporte:** `{formatear_bs(ticket_item['Monto'])}`")
                         
                         for pk in ticket_item['Picks']:
                             st.caption(f"• **{pk['Carrera']}** ➡️ `{pk['Ejemplar']}`")
@@ -818,15 +823,18 @@ with tab3:
                         with col_btn_p1:
                             if st.button("✅ Ganador", key=f"btn_pro_ganador_{idx_tp}", use_container_width=True):
                                 if ticket_item['Estado'] != "Ganador":
+                                    # El premio corresponde al total recaudado por todos los tickets emitidos
+                                    premio_recaudado_total = sum([t.get("Monto", 0.0) for t in st.session_state.dupletas_tickets])
+                                    
                                     st.session_state.dupletas_tickets[idx_tp]['Estado'] = "Ganador"
                                     if ticket_item['Jugador'] not in st.session_state.cuentas:
                                         st.session_state.cuentas[ticket_item['Jugador']] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
-                                    st.session_state.cuentas[ticket_item['Jugador']]['Premios'] += ticket_item['Premio']
+                                    st.session_state.cuentas[ticket_item['Jugador']]['Premios'] += premio_recaudado_total
                                     st.session_state.historial_transacciones.append({
                                         "Carrera": "Dupleta Pro", "Jugador": ticket_item['Jugador'],
-                                        "Tipo": "Abono (Premio Dupleta Pro)", "Detalle": f"Ticket Pro #{idx_tp + 1} acertado", "Monto (Bs.)": ticket_item['Premio']
+                                        "Tipo": "Abono (Premio Dupleta Pro)", "Detalle": f"Ticket Pro #{idx_tp + 1} acertado (Pozo total recaudado)", "Monto (Bs.)": premio_recaudado_total
                                     })
-                                    st.success("¡Premio abonado exitosamente al jugador!")
+                                    st.success(f"¡Premio de {formatear_bs(premio_recaudado_total)} abonado exitosamente al jugador!")
                                     st.rerun()
                         with col_btn_p2:
                             if st.button("❌ Perdedor", key=f"btn_pro_perdedor_{idx_tp}", use_container_width=True):
