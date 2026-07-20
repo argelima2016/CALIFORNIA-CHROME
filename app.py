@@ -674,7 +674,7 @@ with tab2:
 # ==========================================
 with tab3:
     st.title("🎟️ Módulo de Dupleta Pro")
-    st.markdown("Arma tus tickets combinando ganadores de las carreras habilitadas.")
+    st.markdown("Arma tus tickets combinando ganadores de las carreras habilitadas. (No se permiten tickets con combinaciones idénticas).")
 
     col_dup_1, col_dup_2 = st.columns([1, 1], gap="large")
 
@@ -699,28 +699,43 @@ with tab3:
                 if len(seleccion_etapas) < 2:
                     st.error("⚠️ Debes seleccionar al menos 2 ejemplares en diferentes carreras para armar una dupleta válida.")
                 else:
-                    nuevo_ticket = {
-                        "id": len(st.session_state.dupletas_tickets) + 1,
-                        "jugador": jugador_dupleta,
-                        "monto": monto_dupleta,
-                        "etapas": seleccion_etapas,
-                        "estado": "En Curso"
-                    }
-                    st.session_state.dupletas_tickets.append(nuevo_ticket)
-                    
-                    if jugador_dupleta not in st.session_state.cuentas:
-                        st.session_state.cuentas[jugador_dupleta] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
-                    st.session_state.cuentas[jugador_dupleta]['Pujas'] += monto_dupleta
-                    st.session_state.historial_transacciones.append({
-                        "Carrera": "Dupleta", "Jugador": jugador_dupleta,
-                        "Tipo": "Cargo (Dupleta)", "Detalle": f"Ticket #{nuevo_ticket['id']} emitido", "Monto (Bs.)": -monto_dupleta
-                    })
-                    
-                    st.success(f"✅ ¡Ticket de Dupleta #{nuevo_ticket['id']} emitido con éxito!")
-                    st.rerun()
+                    # Validar que no exista un ticket idéntico (misma combinación exacta de carreras y ejemplares)
+                    ticket_duplicado = False
+                    for t_existente in st.session_state.dupletas_tickets:
+                        if t_existente['etapas'] == seleccion_etapas:
+                            ticket_duplicado = True
+                            break
+
+                    if ticket_duplicado:
+                        st.error("⚠️ ¡Ya existe un ticket registrado con exactamente esta misma combinación de ejemplares y carreras!")
+                    else:
+                        nuevo_ticket = {
+                            "id": len(st.session_state.dupletas_tickets) + 1,
+                            "jugador": jugador_dupleta,
+                            "monto": monto_dupleta,
+                            "etapas": seleccion_etapas,
+                            "estado": "En Curso"
+                        }
+                        st.session_state.dupletas_tickets.append(nuevo_ticket)
+                        
+                        if jugador_dupleta not in st.session_state.cuentas:
+                            st.session_state.cuentas[jugador_dupleta] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                        st.session_state.cuentas[jugador_dupleta]['Pujas'] += monto_dupleta
+                        st.session_state.historial_transacciones.append({
+                            "Carrera": "Dupleta", "Jugador": jugador_dupleta,
+                            "Tipo": "Cargo (Dupleta)", "Detalle": f"Ticket #{nuevo_ticket['id']} emitido", "Monto (Bs.)": -monto_dupleta
+                        })
+                        
+                        st.success(f"✅ ¡Ticket de Dupleta #{nuevo_ticket['id']} emitido con éxito!")
+                        st.rerun()
 
     with col_dup_2:
-        st.subheader("📜 Tickets Registrados")
+        st.subheader("📜 Tickets Registrados y Premios")
+        # El premio es el acumulado total en tickets emitidos
+        pote_total_dupletas = sum([t['monto'] for t in st.session_state.dupletas_tickets])
+        st.metric("🏆 Premio Acumulado (Total Dupletas)", formatear_bs(pote_total_dupletas))
+        st.markdown("---")
+
         if not st.session_state.dupletas_tickets:
             st.info("No hay tickets de dupleta registrados.")
         else:
