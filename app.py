@@ -783,95 +783,125 @@ with tab3:
         st.info("No hay dupletas registradas en la sesión actual.")
 
 # ==========================================
-# PESTAÑA 4: RESUMEN DE REMATES CERRADOS Y DUPLETAS (LIQUIDACIÓN)
+# PESTAÑA 4: RESUMEN DE REMATES CERRADOS Y DUPLETAS (LIQUIDACIÓN DINÁMICA)
 # ==========================================
 with tab4:
     st.title("🏁 Central de Cierre, Remates Cerrados y Dupletas")
-    st.markdown("Desde este módulo puedes visualizar rápidamente qué remates están cerrados, liquidar sus ganadores y administrar las dupletas activas.")
+    st.markdown("Módulo dinámico optimizado: muestra únicamente las carreras cerradas y pendientes de liquidación para agilizar el proceso.")
 
-    st.markdown("---")
-    st.subheader("🎯 Estado y Liquidación de Remates por Carrera")
+    # Filtrar solo las carreras que están cerradas
+    carreras_cerradas_disp = [carr for carr in st.session_state.remates.keys() if st.session_state.carreras_cerradas_remate.get(carr, False)]
 
-    carreras_disp_liq = list(st.session_state.remates.keys())
-    carr_liq_sel = st.selectbox("Seleccionar Carrera para Liquidar", carreras_disp_liq, key="sel_carr_liq_central")
+    if not carreras_cerradas_disp:
+        st.info("ℹ️ No hay carreras cerradas en este momento. Cierra un remate desde la barra lateral o la pestaña de Remate Adelantado para habilitar la liquidación aquí.")
+    else:
+        # Selector dinámico solo con carreras cerradas
+        carr_liq_sel = st.selectbox("🎯 Seleccionar Carrera Cerrada para Liquidar", carreras_cerradas_disp, key="sel_carr_liq_central_dinamico")
 
-    is_cerrada = st.session_state.carreras_cerradas_remate.get(carr_liq_sel, False)
-    is_liquidada = carr_liq_sel in st.session_state.historial_ganadores
+        is_liquidada = carr_liq_sel in st.session_state.historial_ganadores
 
-    col_est_1, col_est_2 = st.columns(2)
-    with col_est_1:
-        st.markdown(f"**Estado del Remate:** {'🔒 Cerrado' if is_cerrada else '🟢 Abierto'}")
-    with col_est_2:
-        st.markdown(f"**Estado de Liquidación:** {'🏆 Ya Liquidada' if is_liquidada else '⏳ Pendiente de Liquidación'}")
-
-    if not is_liquidada:
+        # Métricas dinámicas en columnas
+        col_m_1, col_m_2, col_m_3 = st.columns(3)
         total_pote_liq = sum([info['monto'] for info in st.session_state.remates[carr_liq_sel].values()])
         monto_casa_liq = total_pote_liq * (porcentaje_casa / 100)
         pote_neto_liq = total_pote_liq - monto_casa_liq
         incentivo_liq = st.session_state.get(f"pote_incentivo_{carr_liq_sel}", 0.0)
         premio_final_liq = pote_neto_liq + incentivo_liq
 
-        st.info(f"💰 Pote Total: {formatear_bs(total_pote_liq)} | 🏠 Casa ({porcentaje_casa}%): {formatear_bs(monto_casa_liq)} | 🏆 Premio Neto: {formatear_bs(premio_final_liq)}")
+        with col_m_1:
+            st.metric("💰 Pote Total", formatear_bs(total_pote_liq))
+        with col_m_2:
+            st.metric(f"🏠 Casa ({porcentaje_casa}%)", formatear_bs(monto_casa_liq))
+        with col_m_3:
+            st.metric("🏆 Premio Neto", formatear_bs(premio_final_liq))
 
-        caballo_ganador_central = st.selectbox(
-            "Seleccionar Ejemplar Ganador", 
-            list(st.session_state.remates[carr_liq_sel].keys()), 
-            key=f"sel_ganador_central_{carr_liq_sel}"
-        )
+        st.markdown("---")
 
-        if st.button("🏆 Procesar y Liquidar Premio", key=f"btn_procesar_liq_{carr_liq_sel}", type="primary", use_container_width=True):
-            if not st.session_state.remates_cargados_en_cuentas.get(carr_liq_sel, False):
-                for cab, info in st.session_state.remates[carr_liq_sel].items():
-                    if info['jugador'] != "Sin Postor" and info['monto'] > 0:
-                        if info['jugador'] not in st.session_state.cuentas:
-                            st.session_state.cuentas[info['jugador']] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
-                        st.session_state.cuentas[info['jugador']]['Pujas'] += info['monto']
-                        st.session_state.historial_transacciones.append({
-                            "Carrera": carr_liq_sel, "Jugador": info['jugador'], 
-                            "Tipo": "Cargo (Compra)", "Detalle": f"Adjudicación de {cab}", "Monto (Bs.)": -info['monto']
-                        })
-                st.session_state.remates_cargados_en_cuentas[carr_liq_sel] = True
-
-            info_ganador_c = st.session_state.remates[carr_liq_sel][caballo_ganador_central]
-            if info_ganador_c['jugador'] != "Sin Postor":
-                if info_ganador_c['jugador'] not in st.session_state.cuentas:
-                    st.session_state.cuentas[info_ganador_c['jugador']] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
-                st.session_state.cuentas[info_ganador_c['jugador']]['Premios'] += premio_final_liq
-                st.session_state.historial_transacciones.append({
-                    "Carrera": carr_liq_sel, "Jugador": info_ganador_c['jugador'], 
-                    "Tipo": "Abono (Premio)", "Detalle": f"Ganador con {caballo_ganador_central}", "Monto (Bs.)": premio_final_liq
-                })
+        if not is_liquidada:
+            st.warning(f"⏳ La carrera **{carr_liq_sel}** está cerrada pero **pendiente de liquidación**.")
             
-            st.session_state.ganancia_casa += monto_casa_liq
-            st.session_state.historial_ganadores[carr_liq_sel] = {
-                "Ganador": info_ganador_c['jugador'], "Caballo": caballo_ganador_central, "Premio": formatear_bs(premio_final_liq)
-            }
-            st.balloons()
-            st.success(f"🎉 ¡Carrera liquidada con éxito! Ganador: {info_ganador_c['jugador']}")
-            st.rerun()
-    else:
-        st.success(f"✅ Esta carrera ya fue liquidada. Ganador registrado: {st.session_state.historial_ganadores[carr_liq_sel]['Ganador']}")
+            # Selector dinámico de ejemplar ganador (solo muestra los ejemplares con comprador o todos de la carrera)
+            caballos_carr_liq = list(st.session_state.remates[carr_liq_sel].keys())
+            
+            col_liq_1, col_liq_2 = st.columns([2, 1], vertical_alignment="bottom")
+            with col_liq_1:
+                caballo_ganador_central = st.selectbox(
+                    "🏆 Seleccionar Ejemplar Ganador Oficial", 
+                    caballos_carr_liq, 
+                    key=f"sel_ganador_central_{carr_liq_sel}"
+                )
+            with col_liq_2:
+                btn_liquidar_activo = st.button("🚀 Liquidar Premio Ahora", key=f"btn_procesar_liq_{carr_liq_sel}", type="primary", use_container_width=True)
+
+            if btn_liquidar_activo:
+                if not st.session_state.remates_cargados_en_cuentas.get(carr_liq_sel, False):
+                    for cab, info in st.session_state.remates[carr_liq_sel].items():
+                        if info['jugador'] != "Sin Postor" and info['monto'] > 0:
+                            if info['jugador'] not in st.session_state.cuentas:
+                                st.session_state.cuentas[info['jugador']] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                            st.session_state.cuentas[info['jugador']]['Pujas'] += info['monto']
+                            st.session_state.historial_transacciones.append({
+                                "Carrera": carr_liq_sel, "Jugador": info['jugador'], 
+                                "Tipo": "Cargo (Compra)", "Detalle": f"Adjudicación de {cab}", "Monto (Bs.)": -info['monto']
+                            })
+                    st.session_state.remates_cargados_en_cuentas[carr_liq_sel] = True
+
+                info_ganador_c = st.session_state.remates[carr_liq_sel][caballo_ganador_central]
+                if info_ganador_c['jugador'] != "Sin Postor":
+                    if info_ganador_c['jugador'] not in st.session_state.cuentas:
+                        st.session_state.cuentas[info_ganador_c['jugador']] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                    st.session_state.cuentas[info_ganador_c['jugador']]['Premios'] += premio_final_liq
+                    st.session_state.historial_transacciones.append({
+                        "Carrera": carr_liq_sel, "Jugador": info_ganador_c['jugador'], 
+                        "Tipo": "Abono (Premio)", "Detalle": f"Ganador con {caballo_ganador_central}", "Monto (Bs.)": premio_final_liq
+                    })
+                
+                st.session_state.ganancia_casa += monto_casa_liq
+                st.session_state.historial_ganadores[carr_liq_sel] = {
+                    "Ganador": info_ganador_c['jugador'], "Caballo": caballo_ganador_central, "Premio": formatear_bs(premio_final_liq)
+                }
+                st.balloons()
+                st.success(f"🎉 ¡Carrera {carr_liq_sel} liquidada con éxito! Ganador: {info_ganador_c['jugador']} ({caballo_ganador_central})")
+                st.rerun()
+        else:
+            ganador_info = st.session_state.historial_ganadores[carr_liq_sel]
+            st.success(f"✅ La carrera **{carr_liq_sel}** ya fue liquidada con éxito.\n* **Ejemplar Ganador:** {ganador_info['Caballo']}\n* **Propietario / Ganador:** {ganador_info['Ganador']}\n* **Premio Repartido:** {ganador_info['Premio']}")
 
     st.markdown("---")
-    st.subheader("🎟️ Control Rápido de Dupletas Activas")
+    st.subheader("🎟️ Control Rápido y Dinámico de Dupletas Activas")
 
     if st.session_state.dupletas_tickets:
-        df_dupl_activas = pd.DataFrame(st.session_state.dupletas_tickets)
-        st.dataframe(df_dupl_activas, use_container_width=True, hide_index=True)
+        # Pestañas o filtros rápidos por estado para mayor dinamismo
+        filtro_estado_dupl = st.radio("Filtrar Tickets de Dupleta:", ["Todos", "Pendientes ⏳", "Ganadores 🏆", "Perdedores ❌"], horizontal=True, key="filtro_estado_dupletas_central")
+        
+        tickets_filtrados = st.session_state.dupletas_tickets
+        if filtro_estado_dupl == "Pendientes ⏳":
+            tickets_filtrados = [t for t in st.session_state.dupletas_tickets if "Pendiente" in t["Estado"]]
+        elif filtro_estado_dupl == "Ganadores 🏆":
+            tickets_filtrados = [t for t in st.session_state.dupletas_tickets if "Ganador" in t["Estado"]]
+        elif filtro_estado_dupl == "Perdedor ❌":
+            tickets_filtrados = [t for t in st.session_state.dupletas_tickets if "Perdedor" in t["Estado"]]
 
-        col_d1, col_d2, col_d3 = st.columns(3)
-        with col_d1:
-            id_ticket_sel = st.selectbox("ID de Ticket a Modificar", [t["ID"] for t in st.session_state.dupletas_tickets], key="sel_id_dupl_central")
-        with col_d2:
-            nuevo_est_dupl = st.selectbox("Cambiar Estado", ["Pendiente ⏳", "Ganador 🏆", "Perdedor ❌"], key="sel_est_dupl_central")
-        with col_d3:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("💾 Actualizar Dupleta", use_container_width=True, type="secondary"):
-                for ticket in st.session_state.dupletas_tickets:
-                    if ticket["ID"] == id_ticket_sel:
-                        ticket["Estado"] = nuevo_est_dupl
-                        st.toast(f"✅ Ticket #{id_ticket_sel} actualizado correctamente.")
-                        st.rerun()
+        if tickets_filtrados:
+            df_dupl_activas = pd.DataFrame(tickets_filtrados)
+            st.dataframe(df_dupl_activas, use_container_width=True, hide_index=True)
+
+            st.markdown("⚡ **Acción Rápida de Actualización por ID de Ticket:**")
+            col_d1, col_d2, col_d3 = st.columns([1, 1, 1])
+            with col_d1:
+                id_ticket_sel = st.selectbox("ID de Ticket", [t["ID"] for t in tickets_filtrados], key="sel_id_dupl_central_dinamico")
+            with col_d2:
+                nuevo_est_dupl = st.selectbox("Cambiar Estado a", ["Pendiente ⏳", "Ganador 🏆", "Perdedor ❌"], key="sel_est_dupl_central_dinamico")
+            with col_d3:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("💾 Actualizar Dupleta al Instante", use_container_width=True, type="primary"):
+                    for ticket in st.session_state.dupletas_tickets:
+                        if ticket["ID"] == id_ticket_sel:
+                            ticket["Estado"] = nuevo_est_dupl
+                            st.toast(f"✅ ¡Ticket #{id_ticket_sel} actualizado a '{nuevo_est_dupl}' correctamente!")
+                            st.rerun()
+        else:
+            st.info(f"No hay tickets de dupletas que coincidan con el filtro: {filtro_estado_dupl}")
     else:
         st.info("No hay tickets de dupletas registrados en el sistema.")
 
