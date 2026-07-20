@@ -678,11 +678,13 @@ with tab2:
                 st.rerun()
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETA PRO (VALIDACIÓN ANTIDUPLICADOS)
+# PESTAÑA 3: MÓDULO DE DUPLETA PRO (DINÁMICO Y SIN DUPLICADOS)
 # ==========================================
 with tab3:
     st.title("🎟️ Módulo de Dupletas Pro")
-    st.markdown("Configura y registra jugadas combinadas (dupletas) seleccionando ejemplares de las carreras habilitadas. **El sistema prohíbe estrictamente tickets repetidos (misma combinación exacta de ejemplares y jugador).**")
+    st.markdown("Configura y registra jugadas combinadas (dupletas). **El pozo total de la dupleta se calcula sumando exactamente el valor de todos los tickets vendidos.** Los ejemplares se cargan dinámicamente según las carreras habilitadas, y **el sistema prohíbe de forma estricta tickets repetidos**.")
+
+    carreras_habilitadas = st.session_state.carreras_habilitadas_dupleta
 
     col_dup_1, col_dup_2 = st.columns([1, 1], gap="large")
 
@@ -692,27 +694,27 @@ with tab3:
         jugador_dupleta = st.selectbox("Jugador / Comprador", st.session_state.lista_jugadores, key="sel_jugador_dupleta")
         monto_dupleta = st.number_input("Monto de la Dupleta (Bs.)", min_value=50.0, value=100.0, step=50.0, key="input_monto_dupleta")
         
-        carreras_habilitadas = st.session_state.carreras_habilitadas_dupleta
-        
         if len(carreras_habilitadas) < 2:
             st.warning("⚠️ Se necesitan al menos 2 carreras habilitadas en el administrador lateral para armar dupletas.")
         else:
             carrera_leg_1 = st.selectbox("1ra Carrera de la Dupleta", carreras_habilitadas, key="sel_dup_carr_1")
             
+            # --- SELECCIÓN DINÁMICA DE EJEMPLARES (1RA VÁLIDA) ---
             caballos_carr_1 = list(st.session_state.remates.get(carrera_leg_1, {}).keys())
-            caballo_leg_1 = st.selectbox("Ejemplar 1ra Válida", caballos_carr_1 if caballos_carr_1 else ["Sin ejemplares"], key="sel_dup_cab_1")
+            caballo_leg_1 = st.selectbox("Ejemplar 1ra Válida (Dinámico)", caballos_carr_1 if caballos_carr_1 else ["Sin ejemplares"], key="sel_dup_cab_1")
             
             carreras_restantes = [c for c in carreras_habilitadas if c != carrera_leg_1]
             carrera_leg_2 = st.selectbox("2da Carrera de la Dupleta", carreras_restantes if carreras_restantes else [carrera_leg_1], key="sel_dup_carr_2")
             
+            # --- SELECCIÓN DINÁMICA DE EJEMPLARES (2DA VÁLIDA) ---
             caballos_carr_2 = list(st.session_state.remates.get(carrera_leg_2, {}).keys())
-            caballo_leg_2 = st.selectbox("Ejemplar 2da Válida", caballos_carr_2 if caballos_carr_2 else ["Sin ejemplares"], key="sel_dup_cab_2")
+            caballo_leg_2 = st.selectbox("Ejemplar 2da Válida (Dinámico)", caballos_carr_2 if caballos_carr_2 else ["Sin ejemplares"], key="sel_dup_cab_2")
             
             if st.button("💾 Guardar Ticket de Dupleta", use_container_width=True, type="primary"):
                 leg_1_str = f"{carrera_leg_1} ({caballo_leg_1})"
                 leg_2_str = f"{carrera_leg_2} ({caballo_leg_2})"
                 
-                # --- VALIDACIÓN ESTRICTA: NO PERMITIR TICKETS REPETIDOS ---
+                # --- VALIDACIÓN ESTRICTA: NINGÚN TICKET REPETIDO ---
                 duplicado_encontrado = False
                 for t in st.session_state.dupletas_tickets:
                     if (t.get("Jugador") == jugador_dupleta and 
@@ -722,7 +724,7 @@ with tab3:
                         break
                 
                 if duplicado_encontrado:
-                    st.error("⚠️ **¡Ticket Duplicado!** Este jugador ya tiene registrada exactamente esta misma combinación de ejemplares para esta dupleta.")
+                    st.error("⚠️ **¡Ticket Duplicado!** Este jugador ya tiene registrada exactamente esta misma combinación de ejemplares para esta dupleta. Ningún ticket puede ser igual.")
                 else:
                     ticket_nuevo = {
                         "Jugador": jugador_dupleta,
@@ -746,7 +748,13 @@ with tab3:
                     st.rerun()
 
     with col_dup_2:
-        st.subheader("📊 Tickets de Dupletas Activos")
+        st.subheader("📊 Tickets de Dupletas Activos y Pozo Total")
+        
+        # --- CÁLCULO DEL POZO COMO LA SUMA DE LOS TICKETS ---
+        pozo_total_dupletas = sum([t.get("Monto", 0.0) for t in st.session_state.dupletas_tickets])
+        st.metric("💰 Pozo AcUMulado de Dupletas (Suma de Tickets)", formatear_bs(pozo_total_dupletas))
+        st.markdown("---")
+
         if not st.session_state.dupletas_tickets:
             st.info("No hay tickets de dupleta registrados en esta jornada.")
         else:
@@ -756,8 +764,8 @@ with tab3:
                     "ID": idx + 1,
                     "Jugador": t.get("Jugador", "Desconocido"),
                     "Monto": formatear_bs(t.get("Monto", 0.0)),
-                    "1era Válida": t.get("Leg_1", t.get("1era Válida", "-")),
-                    "2da Válida": t.get("Leg_2", t.get("2da Válida", "-")),
+                    "1era Válida": t.get("Leg_1", "-"),
+                    "2da Válida": t.get("Leg_2", "-"),
                     "Estado": t.get("Estado", "En Curso")
                 })
             st.dataframe(pd.DataFrame(datos_dup_tabla), use_container_width=True, hide_index=True)
@@ -922,7 +930,7 @@ with tab5:
                 st.session_state.cuentas[jugador_abono] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
             st.session_state.cuentas[jugador_abono]['Abonos'] += monto_abono_elegido
             st.session_state.historial_transacciones.append({
-                "Carrera": "Caja", "Jugador": migrate_key if False else "Caja", "Jugador": jugador_abono,
+                "Carrera": "Caja", "Jugador": jugador_abono,
                 "Tipo": "Abono (Pago Parcial)", "Detalle": f"Abono rápido de {formatear_bs(monto_abono_elegido)}", "Monto (Bs.)": monto_abono_elegido
             })
             st.toast(f"✅ Abono de {formatear_bs(monto_abono_elegido)} registrado a {jugador_abono}.")
