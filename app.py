@@ -2,16 +2,13 @@ import streamlit as st
 import pandas as pd
 import io
 import os
-from pypdf import PdfWriter
-
-# Instala esto si no lo tienes: pip install streamlit-autorefresh pypdf
+from pypdf import PdfReader, PdfWriter
 from streamlit_autorefresh import st_autorefresh
 
 # Configuración de la página web
 st.set_page_config(page_title="Sistema de Remates, Dupletas y PDF en Vivo", layout="wide", page_icon="🏇")
 
 # --- AUTOREFRESH PARA TIEMPO REAL ---
-# Refresca la página automáticamente cada 3 segundos para sincronizar las terminales
 st_autorefresh(interval=3000, key="datarefresh_en_vivo")
 
 # --- CARGA INICIAL DE JUGADORES ---
@@ -112,7 +109,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🎟️ Módulo de Dupleta", 
     "📊 Cuentas por Jugador", 
     "🧾 Historial de Transacciones", 
-    "📄 Unir Programas PDF"
+    "📄 Unir y Leer Programas PDF"
 ])
 
 # ==========================================
@@ -293,11 +290,11 @@ with tab4:
         st.info("Aún no se han registrado transacciones en el historial.")
 
 # ==========================================
-# PESTAÑA 5: UNIR PROGRAMAS PDF
+# PESTAÑA 5: UNIR Y LEER PROGRAMAS PDF
 # ==========================================
 with tab5:
-    st.title("📄 Unificador de Programas PDF de Carreras")
-    st.markdown("Sube los archivos PDF correspondientes a los programas o boletines de cada carrera y únelos en un solo documento listo para imprimir o compartir.")
+    st.title("📄 Unificador y Lector Automático de Programas PDF")
+    st.markdown("Sube los archivos PDF de tus carreras. El sistema puede **unirlos** en un solo documento y además **leerlos automáticamente** para configurar los caballos de cada carrera para las pujas.")
 
     col_upload, col_preview = st.columns([1, 1])
 
@@ -318,7 +315,7 @@ with tab5:
     with col_preview:
         st.subheader("📋 Orden de los Archivos")
         if st.session_state.archivos_subidos:
-            st.info("Verifica el orden en el que se fusionarán los documentos:")
+            st.info("Verifica el orden de los documentos cargados:")
             lista_nombres = [f"{idx + 1}. {file.name}" for idx, file in enumerate(st.session_state.archivos_subidos)]
             for nombre in lista_nombres:
                 st.markdown(f"- {nombre}")
@@ -328,28 +325,69 @@ with tab5:
     st.markdown("---")
 
     if st.session_state.archivos_subidos:
-        st.subheader("⚙️ Generar Documento Consolidado")
+        col_accion1, col_accion2 = st.columns(2)
         
-        nombre_salida = st.text_input("Nombre del archivo PDF resultante:", value="Programa_Completo_Carreras.pdf")
-        
-        if st.button("Unificar PDFs"):
-            try:
-                merger = PdfWriter()
-                for file in st.session_state.archivos_subidos:
-                    merger.append(file)
-                
-                output_pdf = io.BytesIO()
-                merger.write(output_pdf)
-                merger.close()
-                output_pdf.seek(0)
-                
-                st.success("¡Los archivos PDF se han unificado con éxito!")
-                st.download_button(
-                    label="Descargar PDF unificado",
-                    data=output_pdf,
-                    file_name=nombre_salida if nombre_salida else "archivo_unificado.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-            except Exception as e:
-                st.error(f"Ocurrió un error al unificar los PDFs: {e}")
+        with col_accion1:
+            st.subheader("⚙️ 1. Unir PDFs")
+            nombre_salida = st.text_input("Nombre del archivo PDF resultante:", value="Programa_Completo_Carreras.pdf")
+            if st.button("Unificar PDFs en uno solo"):
+                try:
+                    merger = PdfWriter()
+                    for file in st.session_state.archivos_subidos:
+                        merger.append(file)
+                    
+                    output_pdf = io.BytesIO()
+                    merger.write(output_pdf)
+                    merger.close()
+                    output_pdf.seek(0)
+                    
+                    st.success("¡Los archivos PDF se han unificado con éxito!")
+                    st.download_button(
+                        label="Descargar PDF unificado",
+                        data=output_pdf,
+                        file_name=nombre_salida if nombre_salida else "archivo_unificado.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                except Exception as e:
+                    st.error(f"Ocurrió un error al unificar los PDFs: {e}")
+
+        with col_accion2:
+            st.subheader("🤖 2. Leer y Cargar para Pujas")
+            st.markdown("Extrae los textos de los PDFs cargados para organizar las carreras y sus ejemplares automáticamente en la subasta.")
+            
+            if st.button("🔄 Procesar PDFs para las Pujas", type="primary", use_container_width=True):
+                try:
+                    nuevos_remates = {}
+                    for idx, file in enumerate(st.session_state.archivos_subidos):
+                        file.seek(0)
+                        reader = PdfReader(file)
+                        texto_completo = ""
+                        for page in reader.pages:
+                            texto = page.extract_text()
+                            if texto:
+                                texto_completo += texto + "\n"
+                        
+                        carr_nombre = f"Carrera {idx + 1}"
+                        lineas = [l.strip() for l in texto_completo.split('\n') if l.strip()]
+                        
+                        caballos_encontrados = []
+                        for linea in lineas:
+                            if len(linea) > 2 and not any(palabra in linea.upper() for pal in ["HIPODROMO", "VALE", "CARRERA", "PROGRAMA", "DIVIDENDO", "METROS"]):
+                                if linea not in caballos_encontrados:
+                                    caballos_encontrados.append(linea)
+                        
+                        if caballos_encontrados:
+                            seleccion_caballos = caballos_encontrados[:12]
+                            nuevos_remates[carr_nombre] = {cab: {"jugador": "Sin Postor", "monto": 0.0} for cab in seleccion_caballos}
+                        else:
+                            nuevos_remates[carr_nombre] = {f"Ejemplar {i}": {"jugador": "Sin Postor", "monto": 0.0} for i in range(1, 9)}
+                    
+                    if nuevos_remates:
+                        st.session_state.remates = nuevos_remates
+                        st.success("¡Programas leídos y carreras organizadas con éxito para las pujas!")
+                        st.rerun()
+                    else:
+                        st.warning("No se pudo extraer texto estructurado de los PDFs. Asegúrate de que no sean imágenes escaneadas.")
+                except Exception as e:
+                    st.error(f"Error procesando los PDFs: {e}")
