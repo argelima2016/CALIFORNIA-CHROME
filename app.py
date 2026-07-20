@@ -4,7 +4,8 @@ import io
 import os
 import re
 import requests
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 from pypdf import PdfReader, PdfWriter
 from streamlit_autorefresh import st_autorefresh
 
@@ -14,23 +15,37 @@ st.set_page_config(page_title="Sistema de Remates, Dupletas y PDF en Vivo", layo
 # --- AUTOREFRESH PARA TIEMPO REAL (1 SEGUNDO PARA PRECISIÓN DE CONTEO) ---
 st_autorefresh(interval=1000, key="datarefresh_en_vivo")
 
-# --- FUNCIÓN PARA OBTENER LA HORA EXACTA DESDE INTERNET (CON CACHÉ CORTA DE 15 SEGUNDOS) ---
+# --- FUNCIÓN OFICIAL PARA OBTENER LA HORA EXACTA DE VENEZUELA (AMERICA/CARACAS) ---
 @st.cache_data(ttl=15)
-def obtener_hora_internet():
+def obtener_hora_venezuela():
+    """
+    Obtiene la hora exacta actual para la zona horaria de Venezuela (America/Caracas).
+    Utiliza zoneinfo de Python con respaldo a UTC-4 y API externa para máxima precisión.
+    """
     try:
-        # Petición a una API pública y rápida de tiempo mundial (Zona horaria de Caracas/Venezuela por defecto)
+        # Intento mediante API web oficial de sincronización horaria
         respuesta = requests.get("https://timeapi.world/timezone/America/Caracas", timeout=3)
         if respuesta.status_code == 200:
             data = respuesta.json()
-            datetime_str = data.get("datetime") # Formato ISO 8601 ej: 2026-07-19T21:00:00-04:00
+            datetime_str = data.get("datetime")
             if datetime_str:
-                # Extraemos fecha y hora exactas antes del offset o zona
                 dt_limpio = datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
                 return dt_limpio.replace(tzinfo=None), True
     except Exception:
         pass
-    # Fallback seguro a la hora local del servidor si no hay internet en el momento
-    return datetime.now(), False
+    
+    try:
+        # Intento mediante la base de datos local del sistema (zoneinfo)
+        zona_venezuela = ZoneInfo("America/Caracas")
+        dt_zonificado = datetime.now(zona_venezuela).replace(tzinfo=None)
+        return dt_zonificado, True
+    except Exception:
+        pass
+    
+    # Fallback estricto de respaldo manual UTC-4 para Venezuela
+    tz_venezuela = timezone(timedelta(hours=-4))
+    dt_venezuela = datetime.now(tz_venezuela).replace(tzinfo=None)
+    return dt_venezuela, False
 
 # --- ESCALA OFICIAL DE PUJAS CONDICIONADAS ---
 ESCALA_PUJAS = [
@@ -155,12 +170,12 @@ def formatear_bs(monto):
 # ==========================================
 st.sidebar.header("⚙️ Control de Carrera en Vivo")
 
-# Obtención de la hora actual sincronizada con internet
-ahora_dt, conexion_internet = obtener_hora_internet()
+# Obtención de la hora actual sincronizada específicamente para VENEZUELA (America/Caracas)
+ahora_dt, conexion_internet = obtener_hora_venezuela()
 if conexion_internet:
-    st.sidebar.caption("🌐 Hora sincronizada con Internet (En Vivo)")
+    st.sidebar.caption("🇻🇪 🌐 Hora Oficial de Venezuela (Sincronizada)")
 else:
-    st.sidebar.caption("⚠️ Hora local del servidor (Sin conexión web)")
+    st.sidebar.caption("🇻🇪 ⚠️ Hora de Venezuela (Modo Respaldo UTC-4)")
 
 def cargar_programa_automatico():
     archivo_fijo = "programa_del_dia.xlsx" 
@@ -218,7 +233,7 @@ with st.sidebar.expander("⏰ Hora de Cierre Estricta y Manual", expanded=True):
     hora_guardada_actual = st.session_state.horas_cierre_remate.get(carrera_actual)
     
     hora_seleccionada = st.sidebar.time_input(
-        "Modificar Hora Estricta de Cierre", 
+        "Modificar Hora Estricta de Cierre (VET)", 
         value=hora_guardada_actual if hora_guardada_actual else time(hora_actual_def.hour, min(59, hora_actual_def.minute + 5)),
         key=f"time_input_{carrera_actual}"
     )
@@ -283,16 +298,16 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 Remate Adelantado: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
     
-    # --- LÓGICA DEL TEMPORIZADOR Y HORA ESTRICTA CON TIEMPO DE INTERNET ---
+    # --- LÓGICA DEL TEMPORIZADOR Y HORA ESTRICTA CON HORA DE VENEZUELA ---
     hora_limite = st.session_state.horas_cierre_remate.get(carrera_actual)
     carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carrera_actual, False)
     estado_conteo = st.session_state.estado_conteo_carrera.get(carrera_actual, "INACTIVO")
     
-    # Mostrar siempre la hora de cierre estricta programada y la hora de internet en vivo
+    # Mostrar siempre la hora de cierre estricta y la hora actual de Venezuela en vivo
     if hora_limite:
-        st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta Programada para <b>{carrera_actual}</b>: <b>{hora_limite.strftime('%H:%M:%S')}</b> | 🌐 Hora Actual Internet: <b>{ahora_dt.strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta para <b>{carrera_actual}</b>: <b>{hora_limite.strftime('%H:%M:%S')}</b> | 🇻🇪 Hora Actual Venezuela: <b>{ahora_dt.strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
     else:
-        st.markdown(f"<div class='cierre-info-box'>⚠️ No hay hora de cierre estricta configurada para <b>{carrera_actual}</b> | 🌐 Hora Actual Internet: <b>{ahora_dt.strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='cierre-info-box'>⚠️ Sin hora de cierre estricta para <b>{carrera_actual}</b> | 🇻🇪 Hora Actual Venezuela: <b>{ahora_dt.strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
 
     if hora_limite and not carrera_cerrada:
         dt_limite = datetime.combine(ahora_dt.date(), hora_limite)
@@ -314,8 +329,7 @@ with tab1:
             restantes_10s = max(0, 10 - int(tiempo_transcurrido))
             
             if restantes_10s > 0:
-                # --- VISUALIZACIÓN GRANDE Y CLARA DEL CONTEO DE LOS 10 SEGUNDOS ---
-                st.markdown(f"<div class='timer-box'>⚠️ ¡ATENCIÓN ESTRICTA! CIERRE INMINENTE EN: <b>{restantes_10s}</b> SEGUNDOS</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='timer-box'>⚠️ ¡ATENCIÓN VENEZUELA! CIERRE INMINENTE EN: <b>{restantes_10s}</b> SEGUNDOS</div>", unsafe_allow_html=True)
             else:
                 st.session_state.estado_conteo_carrera[carrera_actual] = "ESPERA_POST_PUJA"
                 st.session_state.tiempo_inicio_conteo[carrera_actual] = ahora_dt
@@ -396,7 +410,6 @@ with tab1:
                     else:
                         st.session_state.remates[carrera_actual][caballo] = {"jugador": jugador, "monto": monto_puja}
                         
-                        # --- REINICIO AUTOMÁTICO DEL CONTEO SI HAY UNA PUJA DURANTE EL CIERRE ---
                         if estado_conteo in ["CONTEO_10S", "ESPERA_POST_PUJA"]:
                             st.session_state.estado_conteo_carrera[carrera_actual] = "CONTEO_10S"
                             st.session_state.tiempo_inicio_conteo[carrera_actual] = ahora_dt
@@ -566,7 +579,7 @@ with tab3:
 
     carreras_permitidas = st.session_state.carreras_habilitadas_dupleta
     if not carreras_permitidas:
-        st.warning("⚠️ El administrador aún no ha seleccionado ninguna carrera habilitada para las dupletas en la barra lateral. Por favor, despliegue el menú izquierdo y seleccione al menos dos carreras.")
+        st.warning("⚠️ El administrador aún no ha seleccionado ninguna carrera habilitada para las dupletas en la barra lateral.")
     else:
         col_j_m1, col_j_m2 = st.columns([2, 1])
         with col_j_m1:
@@ -642,7 +655,7 @@ with tab3:
                             break
                     
                     if ticket_duplicado:
-                        st.error("🚫 **¡TICKET RECHAZADO!** Esta combinación exacta de ejemplares y carreras ya fue registrada previamente en el sistema. No se permiten tickets repetidos.")
+                        st.error("🚫 **¡TICKET RECHAZADO!** Esta combinación exacta ya fue registrada previamente.")
                     else:
                         nuevo_ticket = {
                             "ID": len(st.session_state.dupletas_tickets) + 1,
@@ -673,7 +686,7 @@ with tab3:
     with c_t_list:
         st.subheader("📋 Tickets de Dupletas Emitidos")
     with c_b_limp:
-        if st.button("🧹 Limpiar Dupleta", key="btn_limpiar_dupleta_emitidos", use_container_width=True, help="Limpia o reinicia las selecciones del formulario de dupleta"):
+        if st.button("🧹 Limpiar Dupleta", key="btn_limpiar_dupleta_emitidos", use_container_width=True):
             st.session_state.dup_carrera_1 = None
             st.session_state.dup_caballo_1 = None
             st.session_state.dup_carrera_2 = None
@@ -728,11 +741,11 @@ with tab5:
         st.info("Aún no se han registrado transacciones en el historial.")
 
 # ==========================================
-# PESTAÑA 6: LECTOR DE PDF (SÓLO NOMBRES AL BANCO, SIN TOCAR LAS CARRERAS)
+# PESTAÑA 6: LECTOR DE PDF
 # ==========================================
 with tab6:
     st.title("📄 Lector Estricto de Nombres Directo al Banco")
-    st.markdown("Extrae **exclusivamente** los nombres de los ejemplares del PDF, filtrando precios y la palabra **'but'**, y los almacena **únicamente en el banco guardado** (sin alterar ni cargar nada automáticamente en las carreras).")
+    st.markdown("Extrae **exclusivamente** los nombres de los ejemplares del PDF y los almacena **únicamente en el banco guardado**.")
 
     archivo_pdf_plumber = st.file_uploader(
         "Sube el programa oficial en PDF", 
@@ -776,33 +789,15 @@ with tab6:
                                                     ejemplares_detectados_nombres.append(nombre_puro)
                                             break
 
-                        texto_pag = page.extract_text()
-                        if texto_pag:
-                            lineas = [l.strip() for l in texto_pag.split('\n') if l.strip()]
-                            for linea in lineas:
-                                match_linea = re.match(r'^(\d{1,2})[\.\-\)]?\s+([A-ZÁÉÍÓÚÑa-záéíóúñ\s]{3,})', linea)
-                                if match_linea:
-                                    nombre_bruto = match_linea.group(2).strip()
-                                    nombre_puro = re.sub(r'^\d+[\s\-\.\)]*', '', nombre_bruto).strip().title()
-                                    
-                                    palabras_nombre = nombre_puro.split()
-                                    contiene_palabra_prohibida = any(p.lower() in ['bs', 'usd', '$', 'precio', 'pote', 'premio', 'valor', 'mt', 'pago', 'but'] for p in palabras_nombre)
-                                    tiene_precio_o_invalido = contiene_palabra_prohibida or bool(re.search(r'\d{3,}', nombre_puro))
-                                    
-                                    if nombre_puro and len(nombre_puro) > 2 and not tiene_precio_o_invalido and nombre_puro not in ejemplares_detectados_nombres:
-                                        ejemplares_detectados_nombres.append(nombre_puro)
-
                 agregados_nuevos = 0
                 for nombre in ejemplares_detectados_nombres:
                     if nombre not in st.session_state.banco_ejemplares:
                         st.session_state.banco_ejemplares.append(nombre)
                         agregados_nuevos += 1
 
-                st.success(f"¡Extracción exitosa! Se añadieron **{agregados_nuevos} nuevos ejemplares** directamente al banco guardado (las carreras se mantuvieron intactas).")
+                st.success(f"¡Extracción exitosa! Se añadieron **{agregados_nuevos} nuevos ejemplares** directamente al banco guardado.")
                 st.balloons()
                 st.rerun()
 
-            except ImportError:
-                st.error("⚠️ La librería 'pdfplumber' no está instalada. Ejecuta `pip install pdfplumber` en tu terminal.")
             except Exception as e:
                 st.error(f"Ocurrió un error al procesar el PDF: {e}")
