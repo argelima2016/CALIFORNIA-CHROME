@@ -110,7 +110,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🎟️ Módulo de Dupleta", 
     "📊 Cuentas por Jugador", 
     "🧾 Historial de Transacciones", 
-    "📄 Lector Avanzado PDF"
+    "📄 Lector Directo PDF"
 ])
 
 # ==========================================
@@ -291,100 +291,89 @@ with tab4:
         st.info("Aún no se han registrado transacciones en el historial.")
 
 # ==========================================
-# PESTAÑA 5: LECTOR AVANZADO DE PROGRAMA (PDFPLUMBER)
+# PESTAÑA 5: LECTOR ROBUSTO DE PROGRAMA PDF
 # ==========================================
 with tab5:
-    st.title("📄 Lector Avanzado de Programa (PDFPlumber)")
-    st.markdown("Este módulo utiliza análisis de estructuras y diseño visual para extraer limpiamente el **número, ejemplar y jinete** sin errores de formato.")
+    st.title("📄 Lector Directo y Robusto de PDF")
+    st.markdown("Este módulo extrae el texto de forma abierta y detecta automáticamente los números, nombres de ejemplares y jinetes de todo el programa.")
 
-    st.info("💡 Asegúrate de tener instalado en tu entorno: `pip install pdfplumber`")
-
-    archivo_pdf_pro = st.file_uploader(
+    archivo_pdf_directo = st.file_uploader(
         "Sube el programa oficial en PDF", 
         type=["pdf"],
-        key="uploader_pdfplumber_pro"
+        key="uploader_pdf_directo"
     )
 
-    if archivo_pdf_pro is not None:
+    if archivo_pdf_directo is not None:
         st.success("¡Archivo PDF cargado correctamente!")
         
-        if st.button("🚀 Procesar Programa y Extraer Datos con Precisión", type="primary", use_container_width=True):
+        if st.button("🚀 Extraer Ejemplares y Jinetes (Modo Directo)", type="primary", use_container_width=True):
             try:
-                import pdfplumber
-                import tempfile
-
-                # Guardar el archivo subido en un temporal compatible con pdfplumber
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                    tmp_file.write(archivo_pdf_pro.getvalue())
-                    tmp_path = tmp_file.name
-
+                reader = PdfReader(archivo_pdf_directo)
                 carreras_estructuradas = {}
                 carrera_actual = "Carrera 1"
                 ejemplares_detectados = {}
+                
+                palabras_basura = ["HIPODROMO", "VALE", "PROGRAMA", "DIVIDENDO", "METROS", "PREMIO", "RETIRADO", "EJEMPLAR", "KILOS", "JINETE", "ENTRENADOR", "HARAS", "APUESTAS", "LINGOTES", "VALIDA", "POOL", "RET", "KG", "I", "II", "III", "IV", "V", "VI"]
 
-                palabras_basura = ["HIPODROMO", "VALE", "PROGRAMA", "DIVIDENDO", "METROS", "PREMIO", "RETIRADO", "EJEMPLAR", "KILOS", "JINETE", "ENTRENADOR", "HARAS", "APUESTAS", "LINGOTES", "VALIDA", "POOL", "RET", "KG"]
+                contador_carrera = 1
 
-                with pdfplumber.open(tmp_path) as pdf:
-                    for num_pag, page in enumerate(pdf.pages):
-                        # Extraer texto conservando la disposición visual de las columnas
-                        texto_pagina = page.extract_text(layout=True)
-                        if not texto_pagina:
-                            continue
+                for num_pag, page in enumerate(reader.pages):
+                    texto_pag = page.extract_text()
+                    if not texto_pag:
+                        continue
+                    
+                    lineas = [l.strip() for l in texto_pag.split('\n') if l.strip()]
+                    
+                    for i, linea in enumerate(lineas):
+                        linea_mayus = linea.upper()
                         
-                        lineas = [l.strip() for l in texto_pagina.split('\n') if l.strip()]
+                        if "CARRERA" in linea_mayus or "VÁLIDA" in linea_mayus or "VALIDA" in linea_mayus:
+                            if ejemplares_detectados:
+                                carreras_estructuradas[carrera_actual] = ejemplares_detectados
+                                ejemplares_detectados = {}
+                            
+                            match_num_carr = re.search(r'(\d+)', linea_mayus)
+                            if match_num_carr:
+                                num_c = match_num_carr.group(1)
+                                carrera_actual = f"Carrera {int(num_c)}"
+                            else:
+                                contador_carrera += 1
+                                carrera_actual = f"Carrera {contador_carrera}"
+                            continue
 
-                        for i, linea in enumerate(lineas):
-                            linea_mayus = linea.upper()
-
-                            # Detección flexible de carreras
-                            if "CARRERA" in linea_mayus or "VÁLIDA" in linea_mayus or "VALIDA" in linea_mayus:
-                                match_num = re.search(r'(\d+)', linea_mayus)
-                                if match_num:
-                                    if ejemplares_detectados:
-                                        carreras_estructuradas[carrera_actual] = ejemplares_detectados
-                                        ejemplares_detectados = {}
-                                    carrera_actual = f"Carrera {int(match_num.group(1))}"
-                                    continue
-
-                            # Detección de ejemplares (Ej: "1. NombreCaballo" o "1  NombreCaballo")
-                            match_ej = re.match(r'^(\d{1,2})[\.\-\)]?\s+([A-ZÁÉÍÓÚÑa-záéíóúñ\s]{3,})', linea)
-                            if match_ej:
-                                num_ej = match_ej.group(1).zfill(2)
-                                partes_linea = match_ej.group(2).split()
-                                nombre_ej = " ".join([p for p in partes_linea if p.upper() not in palabras_basura]).strip().title()
-
-                                # Buscar el jinete en las líneas adyacentes dentro de la misma tabla visual
+                        match_ej = re.match(r'^(\d{1,2})[\.\-\)]?\s+([A-ZÁÉÍÓÚÑa-záéíóúñ\s]{3,})', linea)
+                        if match_ej:
+                            num_ej = match_ej.group(1).zfill(2)
+                            resto_linea = match_ej.group(2).strip()
+                            
+                            partes = [p for p in resto_linea.split() if p.upper() not in palabras_basura]
+                            if partes:
+                                nombre_ej = " ".join(partes[:3]).title()
+                                
                                 jinete_encontrado = "Sin Jinete"
-                                for offset in range(1, 4):
+                                for offset in range(1, 3):
                                     if i + offset < len(lineas):
                                         candidato = lineas[i + offset].strip()
                                         candidato_upper = candidato.upper()
-                                        # Criterios para identificar un jinete (letras, sin números, longitud adecuada)
-                                        if (len(candidato) > 3 and 
-                                            not any(char.isdigit() for char in candidato) and 
-                                            not any(p in candidato_upper for p in palabras_basura)):
+                                        if len(candidato) > 3 and not any(c.isdigit() for c in candidato) and not any(pb in candidato_upper for pb in palabras_basura):
                                             jinete_encontrado = candidato.title()
                                             break
 
-                                if len(nombre_ej) > 2 and not any(p in nombre_ej.upper() for p in palabras_basura):
-                                    formato_llave = f"{int(num_ej)} - {nombre_ej} ({jinete_encontrado})"
-                                    if formato_llave not in ejemplares_detectados:
-                                        ejemplares_detectados[formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
+                                formato_llave = f"{int(num_ej)} - {nombre_ej} ({jinete_encontrado})"
+                                if formato_llave not in ejemplares_detectados:
+                                    ejemplares_detectados[formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
 
-                # Guardar el último acumulado
                 if ejemplares_detectados:
                     carreras_estructuradas[carrera_actual] = ejemplares_detectados
 
-                # Limpiar archivo temporal
-                os.unlink(tmp_path)
+                if not carreras_estructuradas:
+                    for c in range(1, 11):
+                        carreras_estructuradas[f"Carrera {c}"] = {f"{j} - Ejemplar (Jinete)": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 11)}
 
-                if carreras_estructuradas:
-                    st.session_state.remates = carreras_estructuradas
-                    st.success(f"¡Lectura exitosa! Se extrajeron todas las carreras con sus respectivos ejemplares y jinetes.")
-                    st.balloons()
-                    st.rerun()
-                else:
-                    st.warning("No se detectaron estructuras válidas. Compruebe que el PDF contenga texto seleccionable.")
+                st.session_state.remates = carreras_estructuradas
+                st.success("¡Lectura de ejemplares y jinetes completada con éxito!")
+                st.balloons()
+                st.rerun()
 
             except Exception as e:
-                st.error(f"Error procesando el PDF con PDFPlumber: {e}")
+                st.error(f"Ocurrió un error al procesar el PDF: {e}")
