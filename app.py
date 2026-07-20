@@ -463,28 +463,31 @@ with tab5:
         st.info("Aún no se han registrado transacciones en el historial.")
 
 # ==========================================
-# PESTAÑA 6: LECTOR DE PDF (SÓLO NOMBRES PURIFICADOS)
+# PESTAÑA 6: LECTOR DE PDF (SÓLO NOMBRES PUROS, EXCLUSIÓN ESTRICTA DE PRECIOS/DATOS)
 # ==========================================
 with tab6:
-    st.title("📄 Lector Avanzado de Tablas (Pdfplumber)")
-    st.markdown("Extrae únicamente los **nombres puros de los ejemplares** del PDF, descartando números de programa y datos sobrantes, asignando luego un correlativo limpio del 1 al 17.")
+    st.title("📄 Lector Estricto de Nombres desde PDF")
+    st.markdown("Extrae **exclusivamente** los nombres de los ejemplares del PDF, filtrando y descartando de forma estricta cualquier precio, monto, valor numérico de apuestas, retenciones o datos de costos adicionales.")
 
     archivo_pdf_plumber = st.file_uploader(
         "Sube el programa oficial en PDF", 
         type=["pdf"],
-        key="uploader_pdfplumber"
+        key="uploader_pdfplumber_estricto"
     )
 
     if archivo_pdf_plumber is not None:
         st.success("¡Archivo PDF cargado correctamente!")
         
-        if st.button("🚀 Extraer Sólo Nombres (Máx. 17 Ejemplares)", type="primary", use_container_width=True):
+        if st.button("🚀 Extraer SÓLO Nombres (Ignorando Precios/Valores)", type="primary", use_container_width=True):
             try:
                 import pdfplumber
                 carreras_estructuradas = {}
                 carrera_actual = "Carrera 1"
                 ejemplares_detectados_nombres = []
                 contador_carrera = 1
+
+                # Patrones estrictos para detectar y descartar líneas que contengan precios, monedas o montos numéricos de dinero
+                palabras_prohibidas_precio = ['bs', 'usd', '$', 'precio', 'pote', 'premio', 'valor', 'mt', 'pago']
 
                 with pdfplumber.open(archivo_pdf_plumber) as pdf:
                     for num_pag, page in enumerate(pdf.pages):
@@ -500,6 +503,7 @@ with tab6:
                                     texto_fila_unido = " ".join(fila_texto)
                                     texto_upper = texto_fila_unido.upper()
 
+                                    # Detección de cabeceras de carrera
                                     if "CARRERA" in texto_upper or "VÁLIDA" in texto_upper or "VALIDA" in texto_upper:
                                         if ejemplares_detectados_nombres:
                                             ejemplares_reindexados = {}
@@ -518,20 +522,28 @@ with tab6:
                                         continue
 
                                     for celda in fila_texto:
+                                        # Identificar si la celda es un número de programa válido (1 al 20)
                                         match_ej = re.match(r'^(\d{1,2})[\.\-\)]?$', celda)
                                         if match_ej:
                                             celdas_restantes = [c for c in fila_texto if c != celda]
                                             if celdas_restantes:
                                                 nombre_bruto = celdas_restantes[0]
+                                                
+                                                # Limpieza profunda para aislar el nombre puro
                                                 nombre_puro = re.sub(r'^\d+[\s\-\.\)]*', '', nombre_bruto).strip().title()
                                                 
-                                                if nombre_puro and len(nombre_puro) > 2 and nombre_puro not in ejemplares_detectados_nombres:
+                                                # Filtro estricto: descartar si contiene símbolos monetarios, números grandes o palabras de precio
+                                                lower_nombre = nombre_puro.lower()
+                                                tiene_precio = any(p in lower_nombre for p in palabras_prohibidas_precio) or bool(re.search(r'\d{3,}', nombre_puro))
+                                                
+                                                if nombre_puro and len(nombre_puro) > 2 and not tiene_precio and nombre_puro not in ejemplares_detectados_nombres:
                                                     if len(ejemplares_detectados_nombres) < 17:
                                                         ejemplares_detectados_nombres.append(nombre_puro)
                                                         if nombre_puro not in st.session_state.banco_ejemplares:
                                                             st.session_state.banco_ejemplares.append(nombre_puro)
                                             break
 
+                        # Extracción complementaria basada en texto plano de página
                         texto_pag = page.extract_text()
                         if texto_pag:
                             lineas = [l.strip() for l in texto_pag.split('\n') if l.strip()]
@@ -541,8 +553,11 @@ with tab6:
                                     nombre_bruto = match_linea.group(2).strip()
                                     nombre_puro = re.sub(r'^\d+[\s\-\.\)]*', '', nombre_bruto).strip().title()
                                     
-                                    if nombre_puro and len(nombre_puro) > 2 and nombre_puro not in ejemplares_detectados_nombres:
-                                        if len(ejemplares_detectados_nombies) < 17:
+                                    lower_nombre = nombre_puro.lower()
+                                    tiene_precio = any(p in lower_nombre for p in palabras_prohibidas_precio) or bool(re.search(r'\d{3,}', nombre_puro))
+                                    
+                                    if nombre_puro and len(nombre_puro) > 2 and not tiene_precio and nombre_puro not in ejemplares_detectados_nombres:
+                                        if len(ejemplares_detectados_nombres) < 17:
                                             ejemplares_detectados_nombres.append(nombre_puro)
                                             if nombre_puro not in st.session_state.banco_ejemplares:
                                                 st.session_state.banco_ejemplares.append(nombre_puro)
@@ -558,7 +573,7 @@ with tab6:
                         carreras_estructuradas[f"Carrera {c}"] = {f"{j} - Ejemplar": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 12)}
 
                 st.session_state.remates = carreras_estructuradas
-                st.success("¡Extracción de nombres puros y almacenamiento en el banco completados con éxito!")
+                st.success("¡Extracción estricta completada con éxito (Sólo nombres puros incorporados al banco)!")
                 st.balloons()
                 st.rerun()
 
