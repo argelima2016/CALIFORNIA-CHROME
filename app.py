@@ -13,16 +13,12 @@ import json
 # Configuración de la página web
 st.set_page_config(page_title="Sistema de Remates, Dupletas y PDF en Vivo", layout="wide", page_icon="🏇")
 
-# --- AUTOREFRESH PARA TIEMPO REAL (1 SEGUNDO PARA PRECISIÓN DE CONTEO) ---
-st_autorefresh(interval=1000, key="datarefresh_en_vivo")
+# --- AUTOREFRESH OPTIMIZADO (3 SEGUNDOS PARA EVITAR CONFLICTOS DOM DE REACT) ---
+st_autorefresh(interval=3000, key="datarefresh_en_vivo")
 
 # --- FUNCIÓN PARA OBTENER LA HORA DE VENEZUELA DESDE INTERNET ---
 @st.cache_data(ttl=15)
 def obtener_hora_venezuela_internet():
-    """
-    Obtiene la hora exacta actual de internet utilizando una API pública de zona horaria
-    para America/Caracas, con respaldo local a zoneinfo o UTC-4.
-    """
     try:
         url = "http://worldtimeapi.org/api/timezone/America/Caracas"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -35,7 +31,6 @@ def obtener_hora_venezuela_internet():
     except Exception:
         pass
 
-    # Respaldo 1: zoneinfo de Python
     try:
         zona_venezuela = ZoneInfo("America/Caracas")
         dt_zonificado = datetime.now(zona_venezuela).replace(tzinfo=None)
@@ -43,7 +38,6 @@ def obtener_hora_venezuela_internet():
     except Exception:
         pass
     
-    # Respaldo 2: UTC-4 fijo
     tz_venezuela = timezone(timedelta(hours=-4))
     dt_venezuela = datetime.now(tz_venezuela).replace(tzinfo=None)
     return dt_venezuela
@@ -211,7 +205,6 @@ if not st.session_state.carreras_habilitadas_dupleta and lista_carreras_disponib
 
 carrera_actual = st.sidebar.selectbox("Seleccionar Carrera Activa", lista_carreras_disponibles, key="selector_carrera_sidebar")
 
-# --- RETENCIÓN DE LA CASA OCULTA EN ICONO (EXPANDER) ---
 with st.sidebar.expander("🏠 ⚙️ Configuración de Retención de la Casa", expanded=False):
     porcentaje_casa = st.slider("Retención de la Casa (%)", 0, 50, 30, key="slider_retencion_casa")
 
@@ -224,7 +217,6 @@ if len(st.session_state.remates[carrera_actual]) > 17:
 
 todos_los_caballos = sorted(list({cab for carr in st.session_state.remates.values() for cab in carr.keys()}))
 
-# --- PANEL DE CONFIGURACIÓN DE HORA DE CIERRE ESTRICTA Y MANUAL OCULTO EN ICONO ---
 with st.sidebar.expander("⏰ ⚙️ Ajustar Hora de Cierre Estricta", expanded=False):
     st.markdown(f"Configurar para: **{carrera_actual}**")
     
@@ -253,7 +245,6 @@ with st.sidebar.expander("⏰ ⚙️ Ajustar Hora de Cierre Estricta", expanded=
             st.toast(f"🗑️ Hora programada removida para {carrera_actual}.")
             st.rerun()
 
-# --- PANEL LATERAL: GESTIÓN DE CIERRE Y LIQUIDACIÓN ---
 st.sidebar.markdown("---")
 with st.sidebar.expander("🏁 Gestión de Cierre y Liquidación", expanded=True):
     st.markdown(f"Acciones para: **{carrera_actual}**")
@@ -310,7 +301,6 @@ with st.sidebar.expander("🏁 Gestión de Cierre y Liquidación", expanded=True
             st.success(f"¡Liquidado! Ganador: {info_ganador['jugador']}")
             st.rerun()
 
-# --- PANEL DE ADMINISTRADOR DE DUPLETAS EN LA BARRA LATERAL ---
 st.sidebar.markdown("---")
 with st.sidebar.expander("🛠️ Admin: Carreras de Dupleta", expanded=False):
     st.markdown("Selecciona las carreras habilitadas:")
@@ -333,7 +323,6 @@ if st.sidebar.button("🗑️ Reiniciar Jornada Global", use_container_width=Tru
     st.toast("🚨 Jornada reiniciada (Banco de nombres conservado).")
     st.rerun()
 
-# --- REINICIO DE BANCO DE CABALLOS OCULTO EN ICONO ---
 with st.sidebar.expander("🐴 🗑️ Opciones Avanzadas del Banco", expanded=False):
     if st.button("🗑️ Reiniciar Banco de Caballos", use_container_width=True, type="secondary"):
         st.session_state.banco_ejemplares = []
@@ -351,7 +340,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 ])
 
 # ==========================================
-# PESTAÑA 1: REMATE ADELANTADO (CON HORA VISIBLE Y BOTONES RÁPIDOS)
+# PESTAÑA 1: REMATE ADELANTADO
 # ==========================================
 with tab1:
     col_t_title, col_t_clock = st.columns([2, 1])
@@ -496,7 +485,7 @@ with tab1:
                             st.rerun()
 
 # ==========================================
-# PESTAÑA 2: GESTIÓN MANUAL DE CABALLOS Y CORRELATIVO AUTOMÁTICO (1 A 17)
+# PESTAÑA 2: GESTIÓN MANUAL DE CABALLOS
 # ==========================================
 with tab2:
     st.title("✍️ Gestión Manual con Paginación Automática (1 al 17)")
