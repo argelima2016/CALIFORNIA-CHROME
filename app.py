@@ -367,7 +367,7 @@ with tab2:
     st.write(list(st.session_state.remates[carrera_actual].keys()))
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETAS (VALIDACIÓN ANTI-DUPLICADOS ESTRICTA)
+# PESTAÑA 3: MÓDULO DE DUPLETAS (VALIDACIÓN ANTI-DUPLICADOS + BOTÓN LIMPIAR)
 # ==========================================
 with tab3:
     st.title("🎟️ Control y Gestión de Dupletas (Antiduplicados)")
@@ -376,7 +376,19 @@ with tab3:
     col_dup_reg, col_dup_list = st.columns([1, 2])
     
     with col_dup_reg:
-        st.subheader("📝 Registrar Nueva Dupleta")
+        # Encabezado con título y botón pequeño para limpiar al lado
+        c_tit_dup, c_btn_limp = st.columns([2, 1])
+        with c_tit_dup:
+            st.subheader("📝 Registrar Nueva Dupleta")
+        with c_btn_limp:
+            if st.button("🧹 Limpiar", key="btn_limpiar_dupleta", use_container_width=True, help="Limpia o reinicia las selecciones del formulario de dupleta"):
+                # Limpiamos las llaves del session_state asociadas al formulario de dupletas
+                for k in ["sel_jugador_dupleta", "sel_carr_dup_1", "sel_cab_dup_1", "sel_carr_dup_2", "sel_cab_dup_2", "num_monto_dupleta"]:
+                    if k in st.session_state:
+                        del st.session_state[k]
+                st.toast("🧹 Formulario de dupleta limpiado.")
+                st.rerun()
+        
         jugador_dupleta = st.selectbox("Jugador / Comprador", st.session_state.lista_jugadores, key="sel_jugador_dupleta")
         
         carrera_dup_1 = st.selectbox("Primera Válida (Carrera 1)", lista_carreras_disponibles, key="sel_carr_dup_1")
@@ -391,7 +403,6 @@ with tab3:
             if carrera_dup_1 == carrera_dup_2:
                 st.error("⚠️ Las dos carreras de la dupleta deben ser distintas.")
             else:
-                # Validación estricta anti-duplicados por combinaciones de selecciones
                 sel_1_str = f"{carrera_dup_1} - {caballo_dup_1}"
                 sel_2_str = f"{carrera_dup_2} - {caballo_dup_2}"
                 
@@ -535,7 +546,7 @@ with tab6:
                                     tiene_precio_o_invalido = contiene_palabra_prohibida or bool(re.search(r'\d{3,}', nombre_puro))
                                     
                                     if nombre_puro and len(nombre_puro) > 2 and not tiene_precio_o_invalido and nombre_puro not in ejemplares_detectados_nombres:
-                                        ejemplares_detectados_nombres.append(nombre_puro)
+                                    	ejemplares_detectados_nombres.append(nombre_puro)
 
                 agregados_nuevos = 0
                 for nombre in ejemplares_detectados_nombres:
