@@ -358,6 +358,6 @@ if st.button("Unificar PDFs"):
             use_container_width=True
         )
                 
-            except Exception as e:
-                st.error(f"Ocurrió un error al intentar fusionar los archivos PDF: {e}")
+           except Exception as e:
+        st.error(f"Ocurrió un error al unificar los PDFs: {e}")
             
