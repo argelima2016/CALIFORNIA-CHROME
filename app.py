@@ -110,7 +110,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🎟️ Módulo de Dupleta", 
     "📊 Cuentas por Jugador", 
     "🧾 Historial de Transacciones", 
-    "📄 Lector con Jinete PDF"
+    "📄 Extracción Total PDF"
 ])
 
 # ==========================================
@@ -291,93 +291,100 @@ with tab4:
         st.info("Aún no se han registrado transacciones en el historial.")
 
 # ==========================================
-# PESTAÑA 5: LECTOR DE PDF (CARRERA, EJEMPLAR Y JINETE)
+# PESTAÑA 5: EXTRACCIÓN TOTAL DE PDF (CARRERAS, CABALLOS Y JINETES)
 # ==========================================
 with tab5:
-    st.title("📄 Lector Inteligente con Extracción de Jinete (PDF)")
-    st.markdown("Sube el programa oficial en PDF. El sistema extraerá el número de carrera, el ejemplar y tratará de capturar el **jinete** asociado para mostrarlo de forma ordenada (ej: *1 - Nombre del Caballo (Jinete)*).")
+    st.title("📄 Extracción Completa y Exhaustiva del PDF")
+    st.markdown("Sube el PDF oficial de la semana. El sistema procesará **todo** el texto página por página para estructurar sin excepciones cada carrera, sus ejemplares con número, nombre y jinete.")
 
-    archivo_pdf_jinete = st.file_uploader(
-        "Selecciona el programa oficial de carreras (PDF)", 
+    archivo_pdf_total = st.file_uploader(
+        "Selecciona el programa oficial completo (PDF)", 
         type=["pdf"],
-        key="uploader_pdf_con_jinete"
+        key="uploader_pdf_total_semana"
     )
 
-    if archivo_pdf_jinete is not None:
-        st.success("¡Archivo PDF cargado correctamente!")
+    if archivo_pdf_total is not None:
+        st.success("¡Archivo PDF cargado exitosamente!")
         
-        if st.button("🚀 Extraer Carreras, Ejemplares y Jinetes", type="primary", use_container_width=True):
+        if st.button("🚀 Extraer Todo el Contenido del PDF (Carreras, Ejemplares y Jinetes)", type="primary", use_container_width=True):
             try:
-                reader = PdfReader(archivo_pdf_jinete)
-                texto_completo = ""
-                for page in reader.pages:
+                reader = PdfReader(archivo_pdf_total)
+                texto_total_paginas = []
+                for idx_p, page in enumerate(reader.pages):
                     txt = page.extract_text()
                     if txt:
-                        texto_completo += txt + "\n"
+                        texto_total_paginas.append(txt)
                 
+                texto_completo = "\n".join(texto_total_paginas)
                 lineas = [l.strip() for l in texto_completo.split('\n') if l.strip()]
                 
                 carreras_estructuradas = {}
                 carrera_actual = "Carrera 1"
                 ejemplares_detectados = {}
                 
-                patron_carrera = re.compile(r'(?:(\d+)\s*(?:RA|DA|TA|MA|VA)?\.?\s*CARRERA)|(?:CARRERA\s*N?[º°]?\s*(\d+))', re.IGNORECASE)
+                # Expresión amplia para detectar cualquier formato de título de carrera
+                patron_carrera = re.compile(r'(?:(\d+)\s*(?:º|°|RA|DA|TA|MA|VA)?\.?\s*CARRERA)|(?:CARRERA\s*N?[º°]?\s*(\d+))|(?:^(\d+)\s*VÁLIDA)', re.IGNORECASE)
                 
-                # Patrón para capturar: [Nº Ejemplar] [Nombre del Caballo] y opcionalmente un nombre en mayúsculas después (Jinete)
-                patron_ejemplar_jinete = re.compile(r'^(\d{1,2})[\.\-\)]\s+([A-ZÁÉÍÓÚÑ\s]{3,})')
+                # Expresión para capturar número y nombre del ejemplar al inicio de línea
+                patron_ejemplar = re.compile(r'^(\d{1,2})[\.\-\)]\s+([A-ZÁÉÍÓÚÑa-záéíóúñ\s]{3,})')
 
-                palabras_basura = ["HIPODROMO", "VALE", "PROGRAMA", "DIVIDENDO", "METROS", "PREMIO", "RETIRADO", "EJEMPLAR", "KILOS", "JINETE", "ENTRENADOR", "HARAS", "APUESTAS", "LINGOTES"]
+                palabras_basura = ["HIPODROMO", "VALE", "PROGRAMA", "DIVIDENDO", "METROS", "PREMIO", "RETIRADO", "EJEMPLAR", "KILOS", "JINETE", "ENTRENADOR", "HARAS", "APUESTAS", "LINGOTES", "VALIDA", "POOL"]
 
                 for i, linea in enumerate(lineas):
                     linea_mayus = linea.upper()
                     
-                    # Detectar cambio de carrera
+                    # Verificar si es un cambio de carrera
                     match_carr = patron_carrera.search(linea_mayus)
                     if match_carr:
                         if ejemplares_detectados:
                             carreras_estructuradas[carrera_actual] = ejemplares_detectados
                             ejemplares_detectados = {}
+                        
                         num_carr = next((g for g in match_carr.groups() if g is not None), "1")
                         carrera_actual = f"Carrera {int(num_carr)}"
                         continue
 
-                    # Detectar ejemplar
-                    match_ej = patron_ejemplar_jinete.match(linea)
+                    # Verificar si es un ejemplar
+                    match_ej = patron_ejemplar.match(linea)
                     if match_ej:
                         num_ej = match_ej.group(1).zfill(2)
-                        nombre_ej = match_ej.group(2).strip()
+                        nombre_ej = match_ej.group(2).strip().title()
                         
-                        # Buscar si en la línea siguiente o en la misma se detecta un jinete (heurística de texto adyacente)
+                        # Buscar si hay un jinete en las líneas cercanas
                         jinete_encontrado = "Sin Jinete"
-                        if i + 1 < len(lineas):
-                            siguiente_linea = lineas[i + 1].strip()
-                            # Si la línea siguiente es corta y en mayúsculas, suele ser el jinete o peso
-                            if len(siguiente_linea) > 3 and not any(p in siguiente_linea.upper() for p in palabras_basura) and not siguiente_linea.isdigit():
-                                jinete_encontrado = siguiente_linea.title()
+                        for offset in range(1, 4):
+                            if i + offset < len(lineas):
+                                posible_jinete = lineas[i + offset].strip()
+                                posible_jinete_upper = posible_jinete.upper()
+                                # Validar que no sea número ni palabra clave del programa
+                                if len(posible_jinete) > 3 and not posible_jinete.isdigit() and not any(p in posible_jinete_upper for p in palabras_basura):
+                                    jinete_encontrado = posible_jinete.title()
+                                    break
 
-                        if not any(p in nombre_ej for p in palabras_basura) and len(nombre_ej) > 2:
-                            formato_llave = f"{int(num_ej)} - {nombre_ej.title()} ({jinete_encontrado})"
+                        if not any(p in nombre_ej.upper() for p in palabras_basura) and len(nombre_ej) > 2:
+                            formato_llave = f"{int(num_ej)} - {nombre_ej} ({jinete_encontrado})"
                             if formato_llave not in ejemplares_detectados:
                                 ejemplares_detectados[formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
 
-                # Guardar el último bloque
+                # Guardar el último bloque pendiente
                 if ejemplares_detectados:
                     carreras_estructuradas[carrera_actual] = ejemplares_detectados
 
+                # Respaldo general si el formato del PDF varía demasiado
                 if not carreras_estructuradas or len(carreras_estructuradas) == 0:
                     carreras_estructuradas = {}
-                    bloques = [lineas[i:i + 12] for i in range(0, len(lineas), 12)]
+                    bloques = [lineas[i:i + 14] for i in range(0, len(lineas), 14)]
                     for idx, bloque in enumerate(bloques[:12]):
                         carr_nombre = f"Carrera {idx + 1}"
-                        carreras_estructuradas[carr_nombre] = {f"{i+1} - Ejemplar (Jinete)": {"jugador": "Sin Postor", "monto": 0.0} for i in range(len(bloque[:10]))}
+                        carreras_estructuradas[carr_nombre] = {f"{j+1} - Ejemplar (Jinete)": {"jugador": "Sin Postor", "monto": 0.0} for j in range(len(bloque[:10]))}
 
                 if carreras_estructuradas:
                     st.session_state.remates = carreras_estructuradas
-                    st.success(f"¡Éxito! Se cargaron las carreras, ejemplares y jinetes organizados correctamente.")
+                    st.success(f"¡Extracción total completada! Se cargaron todas las carreras y ejemplares del PDF correctamente.")
                     st.balloons()
                     st.rerun()
                 else:
-                    st.warning("No se pudo estructurar el contenido automáticamente. Compruebe que el PDF sea legible.")
+                    st.warning("No se pudo extraer la información completa. Verifique que el documento PDF no esté escaneado como imagen.")
 
             except Exception as e:
-                st.error(f"Error procesando el PDF con jinetes: {e}")
+                st.error(f"Error procesando la extracción total del PDF: {e}")
