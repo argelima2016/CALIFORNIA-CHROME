@@ -118,7 +118,46 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # ==========================================
 with tab1:
     st.title(f"🎯 Subasta Activa en Directo: {carrera_actual}")
-    col_pujas, col_tablero = st.columns([1, 2])
+    
+    # 1. TABLERO DE SUBASTA EN VIVO (ARRIBA)
+    st.subheader("📋 Tablero de Subasta en Vivo")
+    
+    datos_tabla = []
+    total_pote = 0.0
+    for cab, info in st.session_state.remates[carrera_actual].items():
+        datos_tabla.append({"Ejemplar": cab, "Comprador": info['jugador'], "Monto": formatear_bs(info['monto'])})
+        total_pote += info['monto']
+    
+    st.dataframe(pd.DataFrame(datos_tabla), use_container_width=True, hide_index=True, key=f"tabla_remates_{carrera_actual}")
+    
+    monto_casa = total_pote * (porcentaje_casa / 100)
+    pote_neto_base = total_pote - monto_casa
+
+    st.markdown("---")
+
+    # 2. ABAJO: POTE INCENTIVO EDITABLE Y PREMIO TOTAL
+    st.subheader("💰 Configuración de Premios y Potes")
+    col_pote1, col_pote2, col_pote3 = st.columns(3)
+    
+    col_pote1.metric("💰 Pote Recaudado", formatear_bs(total_pote))
+    col_pote2.metric("🏠 Comisión Casa", formatear_bs(monto_casa))
+    
+    # Pote Incentivo Editable por el usuario
+    pote_incentivo_extra = st.number_input(
+        "🎁 Pote Incentivo / Adicional (Bs.)", 
+        min_value=0.0, 
+        value=0.0, 
+        step=50.0, 
+        key=f"pote_incentivo_{carrera_actual}"
+    )
+    
+    premio_total_calculado = pote_neto_base + pote_incentivo_extra
+    col_pote3.metric("🏆 Premio Total a Repartir", formatear_bs(premio_total_calculado))
+
+    st.markdown("---")
+
+    # 3. SELECCIONADOR DE CABALLO, PUJA Y MONTO ABAJO
+    col_pujas, col_cierre = st.columns(2)
 
     with col_pujas:
         st.subheader("🔨 Registrar Puja Instantánea")
@@ -148,30 +187,12 @@ with tab1:
                 st.toast(f"✅ ¡Puja transmitida! {caballo} ➡️ {jugador} ({formatear_bs(monto_puja)})")
                 st.rerun()
 
-    with col_tablero:
-        st.subheader("📋 Tablero Sincronizado en Vivo")
-        datos_tabla = []
-        total_pote = 0.0
-        for cab, info in st.session_state.remates[carrera_actual].items():
-            datos_tabla.append({"Ejemplar": cab, "Comprador": info['jugador'], "Monto": formatear_bs(info['monto'])})
-            total_pote += info['monto']
-        
-        st.dataframe(pd.DataFrame(datos_tabla), use_container_width=True, hide_index=True, key=f"tabla_remates_{carrera_actual}")
-        
-        monto_casa = total_pote * (porcentaje_casa / 100)
-        pote_ganador = total_pote - monto_casa
-        
-        c1, c2, c3 = st.columns(3)
-        c1.metric("💰 Pote Total", formatear_bs(total_pote))
-        c2.metric("🏠 Comisión Casa", formatear_bs(monto_casa))
-        c3.metric("🏆 Premio Neto", formatear_bs(pote_ganador))
-
-    st.markdown("---")
-    st.subheader("🏁 Cierre de Carrera")
-    col_c1, col_c2 = st.columns(2)
-    with col_c1:
+    with col_cierre:
+        st.subheader("🏁 Cierre de Carrera")
         caballo_ganador = st.selectbox("Ejemplar Ganador", list(st.session_state.remates[carrera_actual].keys()), key=f"sel_ganador_{carrera_actual}")
-        if st.button("🏆 Liquidar Carrera para Todos", key=f"btn_cerrar_{carrera_actual}", use_container_width=True):
+        st.write("") 
+        st.write("") 
+        if st.button("🏆 Liquidar Carrera para Todos", key=f"btn_cerrar_{carrera_actual}", use_container_width=True, type="primary"):
             if carrera_actual in st.session_state.historial_ganadores:
                 st.warning("Esta carrera ya fue liquidada.")
             else:
@@ -184,14 +205,14 @@ with tab1:
                         })
                 info_ganador = st.session_state.remates[carrera_actual][caballo_ganador]
                 if info_ganador['jugador'] != "Sin Postor":
-                    st.session_state.cuentas[info_ganador['jugador']]['Premios'] += pote_ganador
+                    st.session_state.cuentas[info_ganador['jugador']]['Premios'] += premio_total_calculado
                     st.session_state.historial_transacciones.append({
                         "Carrera": carrera_actual, "Jugador": info_ganador['jugador'], 
-                        "Tipo": "Abono (Premio)", "Detalle": f"Ganador con {caballo_ganador}", "Monto (Bs.)": pote_ganador
+                        "Tipo": "Abono (Premio)", "Detalle": f"Ganador con {caballo_ganador} (Incluye incentivo)", "Monto (Bs.)": premio_total_calculado
                     })
                 st.session_state.ganancia_casa += monto_casa
                 st.session_state.historial_ganadores[carrera_actual] = {
-                    "Ganador": info_ganador['jugador'], "Caballo": caballo_ganador, "Premio": formatear_bs(pote_ganador)
+                    "Ganador": info_ganador['jugador'], "Caballo": caballo_ganador, "Premio": formatear_bs(premio_total_calculado)
                 }
                 st.balloons()
                 st.success(f"¡Liquidado! Ganador: {info_ganador['jugador']}")
