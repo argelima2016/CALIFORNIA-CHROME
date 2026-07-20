@@ -37,7 +37,7 @@ def obtener_siguientes_montos(monto_actual):
         siguientes = [ultimo + i * 1000 for i in range(1, 50)]
     return siguientes
 
-# --- PALETA DE COLORES E INYECCIÓN DE ESTILOS CSS ---
+# --- PALETA DE COLORES E INYECCIÓN DE ESTILOS CSS (ANCHO COMPLETO Y MEJORA VISUAL) ---
 st.markdown("""
     <style>
     :root {
@@ -55,43 +55,52 @@ st.markdown("""
         color: var(--text-primary);
     }
     
+    /* Ampliar el contenedor principal para aprovechar toda la pantalla sin restricciones */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 2rem !important;
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
+        max-width: 100% !important;
+    }
+    
     .subasta-header {
-        font-size: 22px;
+        font-size: 20px;
         font-weight: 800;
         color: var(--accent-gold);
-        margin-bottom: 5px;
+        margin-bottom: 8px;
         border-bottom: 2px solid var(--accent-gold);
-        padding-bottom: 5px;
+        padding-bottom: 6px;
     }
     
     .timer-box {
         background-color: var(--bg-card);
         border: 2px solid var(--accent-red);
-        padding: 15px;
+        padding: 12px;
         border-radius: 8px;
         text-align: center;
-        font-size: 24px;
+        font-size: 20px;
         font-weight: bold;
         color: var(--accent-red);
-        margin-bottom: 15px;
+        margin-bottom: 12px;
         box-shadow: 0 0 15px rgba(255, 71, 87, 0.4);
     }
     
     .cierre-info-box {
         background-color: var(--bg-card);
         border: 1px solid var(--border-color);
-        padding: 10px;
+        padding: 8px 12px;
         border-radius: 6px;
         text-align: center;
-        font-size: 16px;
+        font-size: 15px;
         color: var(--text-primary);
-        margin-bottom: 15px;
+        margin-bottom: 12px;
     }
 
     div[data-testid="stMetric"] {
         background-color: var(--bg-card);
         border: 1px solid var(--border-color);
-        padding: 10px 15px;
+        padding: 8px 12px;
         border-radius: 8px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.2);
     }
@@ -99,11 +108,11 @@ st.markdown("""
     div[data-testid="stMetricValue"] {
         color: var(--accent-gold) !important;
         font-weight: 700;
+        font-size: 1.4rem !important;
     }
-
-    .block-container {
-        padding-top: 1.2rem;
-        padding-bottom: 1rem;
+    
+    div[data-testid="stVerticalBlock"] > div {
+        gap: 0.6rem;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -405,7 +414,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 ])
 
 # ==========================================
-# FRAGMENTO AISLADO PARA EL REMATE EN VIVO (ACTUALIZACIÓN CADA 3 SEG SIN RECARGAR TODA LA PÁGINA)
+# FRAGMENTO AISLADO PARA EL REMATE EN VIVO
 # ==========================================
 @st.fragment(run_every=3)
 def renderizar_remate_en_vivo(carrera_actual, ahora_dt, porcentaje_casa):
@@ -716,7 +725,6 @@ with tab3:
                 }
                 st.session_state.dupletas_tickets.append(ticket)
                 
-                # Cargar cargo en cuentas
                 if jugador_dupleta not in st.session_state.cuentas:
                     st.session_state.cuentas[jugador_dupleta] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
                 st.session_state.cuentas[jugador_dupleta]['Pujas'] += monto_dupleta
@@ -735,10 +743,12 @@ with tab3:
         else:
             for idx, t in enumerate(st.session_state.dupletas_tickets):
                 with st.container(border=True):
-                    st.markdown(f"**Ticket #{idx+1} - Jugador:** `{t['Jugador']}` | **Monto:** `{formatear_bs(t['Monto'])}`")
-                    st.markdown(f"📌 1️⃣ {t['Carrera 1']}: **{t['Ejemplar 1']}**")
-                    st.markdown(f"📌 2️⃣ {t['Carrera 2']}: **{t['Ejemplar 2']}**")
-                    st.markdown(f"Estado actual: **{t['Estado']}**")
+                    jugador_ticket = t.get('Jugador', 'Desconocido')
+                    monto_ticket = t.get('Monto', 0.0)
+                    st.markdown(f"**Ticket #{idx+1} - Jugador:** `{jugador_ticket}` | **Monto:** `{formatear_bs(monto_ticket)}`")
+                    st.markdown(f"📌 1️⃣ {t.get('Carrera 1', '-')}: **{t.get('Ejemplar 1', '-')}**")
+                    st.markdown(f"📌 2️⃣ {t.get('Carrera 2', '-')}: **{t.get('Ejemplar 2', '-')}**")
+                    st.markdown(f"Estado actual: **{t.get('Estado', 'Pendiente')}**")
 
 # ==========================================
 # PESTAÑA 4: CIERRE Y LIQUIDACIÓN
