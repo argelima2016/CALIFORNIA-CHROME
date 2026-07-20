@@ -536,10 +536,10 @@ with tab2:
                     st.rerun()
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETA PRO (SELECCIÓN LINEAL Y SIN LA PALABRA "LEGUA")
+# PESTAÑA 3: MÓDULO DE DUPLETA PRO (CON VALIDACIÓN ANTIDUPLICADOS)
 # ==========================================
 with tab3:
-    st.markdown("<div class='subasta-header'>🎟️ Módulo de Dupleta (Selector Lineal)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subasta-header'>🎟️ Módulo de Dupleta (Selector Lineal Antiduplicados)</div>", unsafe_allow_html=True)
 
     if st.session_state.dupleta_bloqueada:
         st.error("🔒 **BLOQUEADO:** El administrador cerró la emisión de tickets.")
@@ -564,7 +564,7 @@ with tab3:
             carreras_usadas_en_ticket = set()
             valido_legs = True
             
-            # Selector lineal compacto (Sin mencionar "Legua")
+            # Selector lineal compacto
             for i in range(num_legs):
                 col_carr, col_cab = st.columns([1, 1.2], gap="small")
                 
@@ -596,29 +596,46 @@ with tab3:
                 if not valido_legs:
                     st.error("⚠️ Corrige las carreras repetidas antes de emitir.")
                 else:
-                    ticket_id = f"DUP-{len(st.session_state.dupletas_tickets) + 1:04d}"
-                    nuevo_ticket = {
-                        "id": ticket_id,
-                        "jugador": jugador_dupleta,
-                        "monto": monto_dupleta,
-                        "legs": seleccion_legs,
-                        "estado": "Activa",
-                        "fecha": ahora_dt.strftime('%d/%m/%Y %I:%M %p')
-                    }
-                    st.session_state.dupletas_tickets.append(nuevo_ticket)
+                    # VERIFICAR SI EL TICKET YA EXISTE EXACTAMENTE EN LA JORNADA
+                    ticket_duplicado = False
+                    for t_existente in st.session_state.dupletas_tickets:
+                        legs_existentes = t_existente['legs']
+                        if len(legs_existentes) == len(seleccion_legs):
+                            coincide = True
+                            for l_nueva, l_ant in zip(seleccion_legs, legs_existentes):
+                                if l_nueva['carrera'] != l_ant['carrera'] or l_nueva['ejemplar'] != l_ant['ejemplar']:
+                                    coincide = False
+                                    break
+                            if coincide:
+                                ticket_duplicado = True
+                                break
                     
-                    if jugador_dupleta not in st.session_state.cuentas:
-                        st.session_state.cuentas[jugador_dupleta] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
-                    st.session_state.cuentas[jugador_dupleta]['Pujas'] += monto_dupleta
-                    
-                    st.session_state.historial_transacciones.append({
-                        "Carrera": "Múltiple", "Jugador": jugador_dupleta,
-                        "Tipo": "Cargo (Dupleta)", "Detalle": f"Ticket {ticket_id} ({num_legs} Carreras)", "Monto (Bs.)": -monto_dupleta
-                    })
-                    
-                    st.success(f"✅ ¡Ticket {ticket_id} emitido con éxito!")
-                    st.balloons()
-                    st.rerun()
+                    if ticket_duplicado:
+                        st.error("❌ **TICKET REPETIDO:** Esta combinación exacta de ejemplares ya fue jugada en otro ticket de la jornada. No se permiten dupletas idénticas.")
+                    else:
+                        ticket_id = f"DUP-{len(st.session_state.dupletas_tickets) + 1:04d}"
+                        nuevo_ticket = {
+                            "id": ticket_id,
+                            "jugador": jugador_dupleta,
+                            "monto": monto_dupleta,
+                            "legs": seleccion_legs,
+                            "estado": "Activa",
+                            "fecha": ahora_dt.strftime('%d/%m/%Y %I:%M %p')
+                        }
+                        st.session_state.dupletas_tickets.append(nuevo_ticket)
+                        
+                        if jugador_dupleta not in st.session_state.cuentas:
+                            st.session_state.cuentas[jugador_dupleta] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                        st.session_state.cuentas[jugador_dupleta]['Pujas'] += monto_dupleta
+                        
+                        st.session_state.historial_transacciones.append({
+                            "Carrera": "Múltiple", "Jugador": jugador_dupleta,
+                            "Tipo": "Cargo (Dupleta)", "Detalle": f"Ticket {ticket_id} ({num_legs} Carreras)", "Monto (Bs.)": -monto_dupleta
+                        })
+                        
+                        st.success(f"✅ ¡Ticket {ticket_id} emitido con éxito!")
+                        st.balloons()
+                        st.rerun()
 
     st.markdown("---")
     st.subheader("📋 Tickets Emitidos")
