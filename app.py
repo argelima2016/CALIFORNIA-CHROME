@@ -78,11 +78,9 @@ def cargar_programa_automatico():
             st.sidebar.error(f"Error al leer programa automático: {e}")
     return False
 
-# Cargar automáticamente si existe archivo Excel o inicializar carreras por defecto para evitar listas vacías
 if not st.session_state.remates:
     exito_carga = cargar_programa_automatico()
     if not exito_carga:
-        # Estructura por defecto de 10 carreras con 10 caballos para que NUNCA cargue vacío
         for i in range(1, 11):
             carr_nombre = f"Carrera {i}"
             st.session_state.remates[carr_nombre] = {f"Ejemplar {j}": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 11)}
@@ -111,7 +109,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🎟️ Módulo de Dupleta", 
     "📊 Cuentas por Jugador", 
     "🧾 Historial de Transacciones", 
-    "📄 Unir y Leer Programas PDF"
+    "📄 Lector de Programa Semanal PDF"
 ])
 
 # ==========================================
@@ -292,104 +290,71 @@ with tab4:
         st.info("Aún no se han registrado transacciones en el historial.")
 
 # ==========================================
-# PESTAÑA 5: UNIR Y LEER PROGRAMAS PDF
+# PESTAÑA 5: LECTOR DE PROGRAMA SEMANAL PDF
 # ==========================================
 with tab5:
-    st.title("📄 Unificador y Lector Automático de Programas PDF")
-    st.markdown("Sube los archivos PDF de tus carreras. El sistema puede **unirlos** en un solo documento y además **leerlos automáticamente** para configurar los caballos de cada carrera para las pujas.")
+    st.title("📄 Lector Inteligente del Programa Semanal PDF")
+    st.markdown("Sube el **PDF oficial de la semana** que contiene todas las carreras. El sistema analizará el documento de forma automática, segmentará cada carrera y extraerá los nombres de los ejemplares para configurar las subastas.")
 
-    col_upload, col_preview = st.columns([1, 1])
+    archivo_pdf_semana = st.file_uploader(
+        "Selecciona el archivo PDF con el programa de las carreras de la semana", 
+        type=["pdf"],
+        key="uploader_pdf_semanal"
+    )
 
-    with col_upload:
-        st.subheader("📤 Cargar Archivos PDF")
+    if archivo_pdf_semana is not None:
+        st.success("¡Archivo PDF cargado correctamente!")
         
-        uploaded_files = st.file_uploader(
-            "Selecciona o arrastra los archivos PDF en orden (Carrera 1, Carrera 2, etc.)", 
-            type=["pdf"], 
-            accept_multiple_files=True,
-            key="uploader_pdfs_carreras"
-        )
-        
-        if uploaded_files:
-            st.session_state.archivos_subidos = uploaded_files
-            st.success(f"¡Se han cargado {len(uploaded_files)} archivos PDF correctamente!")
+        if st.button("🚀 Procesar Programa Completo y Extraer Carreras", type="primary", use_container_width=True):
+            try:
+                reader = PdfReader(archivo_pdf_semana)
+                texto_total = ""
+                for page in reader.pages:
+                    texto_pagina = page.extract_text()
+                    if texto_pagina:
+                        texto_total += texto_pagina + "\n"
+                
+                lineas = [l.strip() for l in texto_total.split('\n') if l.strip()]
+                
+                carreras_extraidas = {}
+                carrera_actual_nombre = "Carrera 1"
+                caballos_temp = []
+                
+                palabras_excluir = ["HIPODROMO", "VALE", "PROGRAMA", "DIVIDENDO", "METROS", "PREMIO", "RETIRADO", "EJEMPLAR", "KILOS", "JINETE", "ENTRENADOR", "HARAS"]
 
-    with col_preview:
-        st.subheader("📋 Orden de los Archivos")
-        if st.session_state.archivos_subidos:
-            st.info("Verifica el orden de los documentos cargados:")
-            lista_nombres = [f"{idx + 1}. {file.name}" for idx, file in enumerate(st.session_state.archivos_subidos)]
-            for nombre in lista_nombres:
-                st.markdown(f"- {nombre}")
-        else:
-            st.warning("Aún no has cargado ningún archivo PDF.")
-
-    st.markdown("---")
-
-    if st.session_state.archivos_subidos:
-        col_accion1, col_accion2 = st.columns(2)
-        
-        with col_accion1:
-            st.subheader("⚙️ 1. Unir PDFs")
-            nombre_salida = st.text_input("Nombre del archivo PDF resultante:", value="Programa_Completo_Carreras.pdf")
-            if st.button("Unificar PDFs en uno solo"):
-                try:
-                    merger = PdfWriter()
-                    for file in st.session_state.archivos_subidos:
-                        merger.append(file)
-                    
-                    output_pdf = io.BytesIO()
-                    merger.write(output_pdf)
-                    merger.close()
-                    output_pdf.seek(0)
-                    
-                    st.success("¡Los archivos PDF se han unificado con éxito!")
-                    st.download_button(
-                        label="Descargar PDF unificado",
-                        data=output_pdf,
-                        file_name=nombre_salida if nombre_salida else "archivo_unificado.pdf",
-                        mime="application/pdf",
-                        use_container_width=True
-                    )
-                except Exception as e:
-                    st.error(f"Ocurrió un error al unificar los PDFs: {e}")
-
-        with col_accion2:
-            st.subheader("🤖 2. Leer y Cargar para Pujas")
-            st.markdown("Extrae los textos de los PDFs cargados para organizar las carreras y sus ejemplares automáticamente en la subasta.")
-            
-            if st.button("🔄 Procesar PDFs para las Pujas", type="primary", use_container_width=True):
-                try:
-                    nuevos_remates = {}
-                    for idx, file in enumerate(st.session_state.archivos_subidos):
-                        file.seek(0)
-                        reader = PdfReader(file)
-                        texto_completo = ""
-                        for page in reader.pages:
-                            texto = page.extract_text()
-                            if texto:
-                                texto_completo += texto + "\n"
-                        
-                        carr_nombre = f"Carrera {idx + 1}"
-                        lineas = [l.strip() for l in texto_completo.split('\n') if l.strip()]
-                        
-                        caballos_encontrados = []
-                        for linea in lineas:
-                            if len(linea) > 2 and not any(palabra in linea.upper() for pal in ["HIPODROMO", "VALE", "CARRERA", "PROGRAMA", "DIVIDENDO", "METROS"]):
-                                if linea not in caballos_encontrados:
-                                    caballos_encontrados.append(linea)
-                        
-                        if caballos_encontrados:
-                            seleccion_caballos = caballos_encontrados[:12]
-                            nuevos_remates[carr_nombre] = {cab: {"jugador": "Sin Postor", "monto": 0.0} for cab in seleccion_caballos}
-                        else:
-                            nuevos_remates[carr_nombre] = {f"Ejemplar {i}": {"jugador": "Sin Postor", "monto": 0.0} for i in range(1, 9)}
-                    
-                    if nuevos_remates:
-                        st.session_state.remates = nuevos_remates
-                        st.success("¡Programas leídos y carreras organizadas con éxito para las pujas!")
-                        st.rerun()
+                for linea in lineas:
+                    linea_upper = linea.upper()
+                    # Detectar si la línea indica una nueva carrera
+                    if "CARRERA" in linea_upper or "1ERA" in linea_upper or "2DA" in linea_upper or "3RA" in linea_upper or "4TA" in linea_upper or "5TA" in linea_upper or "6TA" in linea_upper:
+                        if caballos_temp and len(caballos_temp) >= 2:
+                            carreras_extraidas[carrera_actual_nombre] = {cab: {"jugador": "Sin Postor", "monto": 0.0} for cab in caballos_temp[:12]}
+                            caballos_temp = []
+                        carrera_actual_nombre = linea
                     else:
-                        st.warning("No se pudo extraer texto estructurado de los PDFs. Asegúrate de que no sean imágenes escaneadas.")
-                except Exception as e:
-                    st.error(f"Error procesando los PDFs: {e}")
+                        # Filtrar nombres posibles de ejemplares
+                        if len(linea) > 2 and not any(p in linea_upper for p in palabras_excluir) and not linea.isdigit():
+                            if linea not in caballos_temp:
+                                caballos_temp.append(linea)
+                
+                # Guardar el último grupo detectado
+                if caballos_temp:
+                    carreras_extraidas[carrera_actual_nombre] = {cab: {"jugador": "Sin Postor", "monto": 0.0} for cab in caballos_temp[:12]}
+
+                # Si no logró separar por nombres de carrera de forma limpia, creamos bloques secuenciales genéricos usando el texto
+                if not carreras_extraidas or len(carreras_extraidas) < 2:
+                    carreras_extraidas = {}
+                    chunks = [lineas[i:i + 10] for i in range(0, len(lineas), 10)]
+                    for idx, chunk in enumerate(chunks[:12]):
+                        carr_nombre = f"Carrera {idx + 1}"
+                        carreras_extraidas[carr_nombre] = {c: {"jugador": "Sin Postor", "monto": 0.0} for c in chunk[:10]}
+
+                if carreras_extraidas:
+                    st.session_state.remates = carreras_extraidas
+                    st.success(f"¡Se han extraído e interpretado {len(carreras_extraidas)} carreras del PDF con éxito!")
+                    st.balloons()
+                    st.rerun()
+                else:
+                    st.warning("No se pudieron aislar los ejemplares automáticamente. Comprueba que el PDF contenga texto seleccionable.")
+
+            except Exception as e:
+                st.error(f"Ocurrió un error al procesar el PDF semanal: {e}")
