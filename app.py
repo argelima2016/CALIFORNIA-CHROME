@@ -348,12 +348,14 @@ merger.close()
 # Re-type this section cleanly
 if st.button("Unificar PDFs"):
         st.success("¡Los archivos PDF se han unificado con éxito!")
-                
-                st.download_button(
-                    label="📥 Descargar PDF Unificado",
-                    data=pdf_output,
-                    file_name=nombre_salida,
-                    mime="application/pdf",
+if st.button("Unificar PDFs"):
+        st.success("¡Los archivos PDF se han unificado con éxito!")
+        st.download_button(
+            label="Descargar PDF unificado",
+            data=output_pdf,
+            file_name="archivo_unificado.pdf",
+            mime="application/pdf"
+        )
                     use_container_width=True
                 )
                 
