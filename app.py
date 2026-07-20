@@ -30,7 +30,6 @@ def obtener_hora_venezuela_internet():
             data = json.loads(response.read().decode())
             datetime_str = data.get("datetime")
             if datetime_str:
-                # El formato de la API es ISO 8601 (ej: 2026-07-19T22:58:00-04:00)
                 dt_internet = datetime.fromisoformat(datetime_str).replace(tzinfo=None)
                 return dt_internet
     except Exception:
@@ -291,10 +290,15 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 ])
 
 # ==========================================
-# PESTAÑA 1: REMATE ADELANTADO (CON BOTONES RÁPIDOS DE EJEMPLAR)
+# PESTAÑA 1: REMATE ADELANTADO (CON HORA VISIBLE Y BOTONES RÁPIDOS)
 # ==========================================
 with tab1:
-    st.markdown(f"<div class='subasta-header'>🎯 Remate Adelantado: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
+    # Encabezado con la Hora de Venezuela en tiempo real visible directamente en la pestaña
+    col_t_title, col_t_clock = st.columns([2, 1])
+    with col_t_title:
+        st.markdown(f"<div class='subasta-header'>🎯 Remate Adelantado: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
+    with col_t_clock:
+        st.markdown(f"<div style='text-align: right; font-size: 16px; font-weight: bold; background-color: #1e1e2f; padding: 6px 12px; border-radius: 6px; border: 1px solid #4f4f6f; color: #00d2d3;'>🕒 Hora Venezuela: {ahora_dt.strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
     
     # --- LÓGICA DEL TEMPORIZADOR Y HORA ESTRICTA ---
     hora_limite = st.session_state.horas_cierre_remate.get(carrera_actual)
@@ -379,7 +383,7 @@ with tab1:
         with st.container(border=True):
             st.markdown("⚡ **Registro Dinámico de Puja**")
             
-            # --- SELECCIÓN RÁPIDA DE EJEMPLAR EXCLUSIVAMENTE CON BOTONES (SIN BUSCADOR) ---
+            # --- SELECCIÓN RÁPIDA DE EJEMPLAR EXCLUSIVAMENTE CON BOTONES ---
             lista_caballos_activos = list(st.session_state.remates[carrera_actual].keys())
             
             if not lista_caballos_activos:
@@ -579,7 +583,7 @@ with tab2:
     st.write(list(st.session_state.remates[carrera_actual].keys()))
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETAS (ANTIDUPLICADOS ESTRICTO)
+# PESTAÑA 3: MÓDULO DE DUPLETAS
 # ==========================================
 with tab3:
     st.title("🎟️ Módulo de Dupletas")
