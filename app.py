@@ -836,32 +836,52 @@ with tab5:
     # --- SECCIÓN GESTIÓN FINANCIERA (PAGO TOTAL Y ABONO DE DEUDA) ---
     col_acc_1, col_acc_2 = st.columns(2, gap="large")
 
-    # Columna 1: Abono de Deuda (Pago Parcial)
+    # Columna 1: Abono de Deuda Simplificado
     with col_acc_1:
         with st.container(border=True):
             st.subheader("💵 Sección de Abono de Deuda")
-            st.markdown("Registra un abono parcial para disminuir la deuda del jugador.")
+            st.markdown("Aplica un abono rápido por monto fijo seleccionando el jugador.")
             
-            jugador_abono = st.selectbox("Jugador (Abono)", st.session_state.lista_jugadores, key="sel_jugador_abono_parcial")
-            monto_abono = st.number_input("Monto del Abono (Bs.)", min_value=0.0, value=50.0, step=50.0, key="input_monto_abono_parcial")
+            jugador_abono = st.selectbox("Jugador (Abono)", st.session_state.lista_jugadores, key="sel_jugador_abono_simple")
             
-            if st.button("➕ Registrar Abono Parcial", use_container_width=True, type="primary"):
-                if monto_abono <= 0:
-                    st.error("El monto debe ser mayor a cero.")
-                else:
-                    if jugador_abono not in st.session_state.cuentas:
-                        st.session_state.cuentas[jugador_abono] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
-                    
-                    st.session_state.cuentas[jugador_abono]['Abonos'] += monto_abono
-                    st.session_state.historial_transacciones.append({
-                        "Carrera": "Caja", 
-                        "Jugador": jugador_abono,
-                        "Tipo": "Abono (Pago Parcial)", 
-                        "Detalle": "Abono a cuenta de deuda", 
-                        "Monto (Bs.)": monto_abono
-                    })
-                    st.toast(f"✅ Abono de {formatear_bs(monto_abono)} registrado a {jugador_abono}.")
-                    st.rerun()
+            # Botones de selección rápida de monto de abono
+            col_b_ab1, col_b_ab2, col_b_ab3 = st.columns(3)
+            monto_abono_elegido = 100.0
+            if col_b_ab1.button("Bs. 50", key="btn_ab_50", use_container_width=True):
+                monto_abono_elegido = 50.0
+                if jugador_abono not in st.session_state.cuentas:
+                    st.session_state.cuentas[jugador_abono] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                st.session_state.cuentas[jugador_abono]['Abonos'] += monto_abono_elegido
+                st.session_state.historial_transacciones.append({
+                    "Carrera": "Caja", "Jugador": jugador_abono,
+                    "Tipo": "Abono (Pago Parcial)", "Detalle": f"Abono rápido de {formatear_bs(monto_abono_elegido)}", "Monto (Bs.)": monto_abono_elegido
+                })
+                st.toast(f"✅ Abono de {formatear_bs(monto_abono_elegido)} registrado a {jugador_abono}.")
+                st.rerun()
+                
+            if col_b_ab2.button("Bs. 100", key="btn_ab_100", use_container_width=True):
+                monto_abono_elegido = 100.0
+                if jugador_abono not in st.session_state.cuentas:
+                    st.session_state.cuentas[jugador_abono] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                st.session_state.cuentas[jugador_abono]['Abonos'] += monto_abono_elegido
+                st.session_state.historial_transacciones.append({
+                    "Carrera": "Caja", "Jugador": jugador_abono,
+                    "Tipo": "Abono (Pago Parcial)", "Detalle": f"Abono rápido de {formatear_bs(monto_abono_elegido)}", "Monto (Bs.)": monto_abono_elegido
+                })
+                st.toast(f"✅ Abono de {formatear_bs(monto_abono_elegido)} registrado a {jugador_abono}.")
+                st.rerun()
+                
+            if col_b_ab3.button("Bs. 200", key="btn_ab_200", use_container_width=True):
+                monto_abono_elegido = 200.0
+                if jugador_abono not in st.session_state.cuentas:
+                    st.session_state.cuentas[jugador_abono] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                st.session_state.cuentas[jugador_abono]['Abonos'] += monto_abono_elegido
+                st.session_state.historial_transacciones.append({
+                    "Carrera": "Caja", "Jugador": jugador_abono,
+                    "Tipo": "Abono (Pago Parcial)", "Detalle": f"Abono rápido de {formatear_bs(monto_abono_elegido)}", "Monto (Bs.)": monto_abono_elegido
+                })
+                st.toast(f"✅ Abono de {formatear_bs(monto_abono_elegido)} registrado a {jugador_abono}.")
+                st.rerun()
 
     # Columna 2: Opción de Pago Total
     with col_acc_2:
