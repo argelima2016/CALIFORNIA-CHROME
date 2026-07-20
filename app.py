@@ -699,11 +699,11 @@ with tab2:
                 st.rerun()
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETA PRO (DINÁMICO, SIN DUPLICADOS Y BLOQUEABLE)
+# PESTAÑA 3: MÓDULO DE DUPLETA PRO (DINÁMICO, SIN DUPLICADOS ESTRICTOS Y BLOQUEABLE)
 # ==========================================
 with tab3:
     st.title("🎟️ Módulo de Dupletas Pro")
-    st.markdown("Configura y registra jugadas combinadas (dupletas). **El pozo total de la dupleta se calcula sumando exactamente el valor de todos los tickets vendidos.** Los ejemplares se cargan dinámicamente según las carreras habilitadas, **el sistema prohíbe de forma estricta tickets repetidos**, y puedes **bloquear/desbloquear** el registro desde la barra lateral.")
+    st.markdown("Configura y registra jugadas combinadas (dupletas). **El pozo total de la dupleta se calcula sumando exactamente el valor de todos los tickets vendidos.** Los ejemplares se cargan dinámicamente según las carreras habilitadas, **ningún jugador puede repetir las mismas combinaciones**, y puedes **bloquear/desbloquear** el registro desde la barra lateral.")
 
     carreras_habilitadas = st.session_state.carreras_habilitadas_dupleta
 
@@ -741,7 +741,7 @@ with tab3:
                     leg_1_str = f"{carrera_leg_1} ({caballo_leg_1})"
                     leg_2_str = f"{carrera_leg_2} ({caballo_leg_2})"
                     
-                    # --- VALIDACIÓN ESTRICTA: NINGÚN TICKET REPETIDO ---
+                    # --- VALIDACIÓN ESTRICTA: NINGÚN JUGADOR PUEDE REPETIR LAS COMBINACIONES ---
                     duplicado_encontrado = False
                     for t in st.session_state.dupletas_tickets:
                         if (t.get("Jugador") == jugador_dupleta and 
@@ -751,7 +751,7 @@ with tab3:
                             break
                     
                     if duplicado_encontrado:
-                        st.error("⚠️ **¡Ticket Duplicado!** Este jugador ya tiene registrada exactamente esta misma combinación de ejemplares para esta dupleta. Ningún ticket puede ser igual.")
+                        st.error("⚠️ **¡Combinación Repetida!** Ningún jugador puede repetir las combinaciones de la dupleta. Este usuario ya tiene registrada exactamente esta misma combinación.")
                     else:
                         ticket_nuevo = {
                             "Jugador": jugador_dupleta,
