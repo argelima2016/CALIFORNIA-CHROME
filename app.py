@@ -84,7 +84,7 @@ if 'historial_ganadores' not in st.session_state:
 if 'carreras_cerradas_remate' not in st.session_state:
     st.session_state.carreras_cerradas_remate = {}
 
-# --- NUEVOS ESTADOS PARA HORA DE CIERRE Y CONTEO REGRESIVO INTELIGENTE ---
+# --- ESTADOS PARA HORA DE CIERRE ESTRICTA Y CONTEO REGRESIVO INTELIGENTE ---
 if 'horas_cierre_remate' not in st.session_state:
     st.session_state.horas_cierre_remate = {}
 
@@ -178,24 +178,36 @@ if len(st.session_state.remates[carrera_actual]) > 17:
 
 todos_los_caballos = sorted(list({cab for carr in st.session_state.remates.values() for cab in carr.keys()}))
 
-# --- PANEL DE CONFIGURACIÓN DE HORA DE CIERRE AUTOMÁTICO (ADMIN) ---
+# --- PANEL DE CONFIGURACIÓN DE HORA DE CIERRE ESTRICTA Y MANUAL (ADMIN) ---
 st.sidebar.markdown("---")
-with st.sidebar.expander("⏰ Hora de Cierre Automático", expanded=True):
+with st.sidebar.expander("⏰ Hora de Cierre Estricta y Manual", expanded=True):
     st.markdown(f"Configurar para: **{carrera_actual}**")
     
     hora_actual_def = datetime.now().time()
+    hora_guardada_actual = st.session_state.horas_cierre_remate.get(carrera_actual)
+    
+    # Campo para modificar la hora de cierre estrictamente de manera manual
     hora_seleccionada = st.sidebar.time_input(
-        "Hora Límite de Cierre", 
-        value=st.session_state.horas_cierre_remate.get(carrera_actual, time(hora_actual_def.hour, hora_actual_def.minute + 5)),
+        "Modificar Hora Estricta de Cierre", 
+        value=hora_guardada_actual if hora_guardada_actual else time(hora_actual_def.hour, hora_actual_def.minute + 5),
         key=f"time_input_{carrera_actual}"
     )
     
-    if st.sidebar.button("💾 Guardar Hora de Cierre", key=f"btn_save_hora_{carrera_actual}", use_container_width=True):
-        st.session_state.horas_cierre_remate[carrera_actual] = hora_seleccionada
-        # Reiniciar estado de conteo para esta carrera al programar nueva hora
-        st.session_state.estado_conteo_carrera[carrera_actual] = "INACTIVO"
-        st.toast(f"✅ ¡Hora de cierre programada para las {hora_seleccionada.strftime('%H:%M:%S')} en {carrera_actual}!")
-        st.rerun()
+    col_btn_h1, col_btn_h2 = st.sidebar.columns(2)
+    with col_btn_h1:
+        if st.button("💾 Guardar", key=f"btn_save_hora_{carrera_actual}", use_container_width=True):
+            st.session_state.horas_cierre_remate[carrera_actual] = hora_seleccionada
+            st.session_state.estado_conteo_carrera[carrera_actual] = "INACTIVO"
+            st.toast(f"✅ ¡Hora estricta guardada a las {hora_seleccionada.strftime('%H:%M:%S')} para {carrera_actual}!")
+            st.rerun()
+            
+    with col_btn_h2:
+        if st.button("🗑️ Borrar", key=f"btn_clear_hora_{carrera_actual}", use_container_width=True):
+            if carrera_actual in st.session_state.horas_cierre_remate:
+                del st.session_state.horas_cierre_remate[carrera_actual]
+            st.session_state.estado_conteo_carrera[carrera_actual] = "INACTIVO"
+            st.toast(f"🗑️ Hora programada removida para {carrera_actual}.")
+            st.rerun()
 
 # --- PANEL DE ADMINISTRADOR DE DUPLETAS EN LA BARRA LATERAL ---
 st.sidebar.markdown("---")
@@ -236,12 +248,12 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 ])
 
 # ==========================================
-# PESTAÑA 1: REMATE ADELANTADO (CON LÓGICA DE TIEMPO AUTOMÁTICO Y 10S / 3S)
+# PESTAÑA 1: REMATE ADELANTADO (CON HORA ESTRICTA, 10S, 3S Y MODIFICACIÓN MANUAL)
 # ==========================================
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 Remate Adelantado: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
     
-    # --- LÓGICA DEL TEMPORIZADOR Y CIERRE AUTOMÁTICO EN TIEMPO REAL ---
+    # --- LÓGICA DEL TEMPORIZADOR Y HORA ESTRICTA ---
     hora_limite = st.session_state.horas_cierre_remate.get(carrera_actual)
     carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carrera_actual, False)
     estado_conteo = st.session_state.estado_conteo_carrera.get(carrera_actual, "INACTIVO")
@@ -249,18 +261,16 @@ with tab1:
     ahora_dt = datetime.now()
     
     if hora_limite and not carrera_cerrada:
-        # Combinar la hora límite configurada con la fecha actual
         dt_limite = datetime.combine(ahora_dt.date(), hora_limite)
         diferencia_segundos = (dt_limite - ahora_dt).total_seconds()
         
         if estado_conteo == "INACTIVO":
             if diferencia_segundos <= 10 and diferencia_segundos > 0:
-                # Comienza el conteo de 10 segundos
                 st.session_state.estado_conteo_carrera[carrera_actual] = "CONTEO_10S"
                 st.session_state.tiempo_inicio_conteo[carrera_actual] = ahora_dt
                 st.rerun()
             elif diferencia_segundos <= 0:
-                # Llegó la hora directamente sin pasar por los 10s previos
+                # Cierre estricto cumplido
                 st.session_state.carreras_cerradas_remate[carrera_actual] = True
                 st.session_state.estado_conteo_carrera[carrera_actual] = "CERRADO"
                 st.rerun()
@@ -271,9 +281,8 @@ with tab1:
             restantes_10s = max(0, 10 - int(tiempo_transcurrido))
             
             if restantes_10s > 0:
-                st.markdown(f"<div class='timer-box'>⚠️ ¡ATENCIÓN! Faltan {restantes_10s} segundos para el cierre del Remate Adelantado</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='timer-box'>⚠️ ¡ATENCIÓN ESTRICTA! Faltan {restantes_10s} segundos para el cierre definitivo de {carrera_actual}</div>", unsafe_allow_html=True)
             else:
-                # Se acabaron los 10 segundos iniciales sin pujas, pasamos a la espera de 3 segundos post-conteo
                 st.session_state.estado_conteo_carrera[carrera_actual] = "ESPERA_POST_PUJA"
                 st.session_state.tiempo_inicio_conteo[carrera_actual] = ahora_dt
                 st.rerun()
@@ -286,10 +295,9 @@ with tab1:
             if restantes_3s > 0:
                 st.markdown(f"<div class='timer-box'>🔒 Conteo finalizado. Cerrando en {restantes_3s}s (Cualquier puja reinicia el conteo)...</div>", unsafe_allow_html=True)
             else:
-                # Pasaron los 3 segundos completos sin pujas: CIERRE AUTOMÁTICO
                 st.session_state.carreras_cerradas_remate[carrera_actual] = True
                 st.session_state.estado_conteo_carrera[carrera_actual] = "CERRADO"
-                st.toast(f"🔒 ¡El remate para {carrera_actual} se ha cerrado automáticamente!")
+                st.toast(f"🔒 ¡El remate para {carrera_actual} se ha cerrado estrictamente!")
                 st.rerun()
 
     col_izq_tabla, col_der_pujas = st.columns([1.5, 1], gap="medium")
@@ -345,7 +353,7 @@ with tab1:
             )
             
             if carrera_cerrada:
-                st.warning("🔒 Este remate está cerrado para nuevas pujas.")
+                st.warning("🔒 Este remate está cerrado estrictamente para nuevas pujas.")
                 st.button("🔨 Confirmar Puja", key=f"btn_pujar_{carrera_actual}", use_container_width=True, type="primary", disabled=True)
             else:
                 if st.button("🔨 Confirmar Puja", key=f"btn_pujar_{carrera_actual}", use_container_width=True, type="primary"):
@@ -588,7 +596,7 @@ with tab3:
                 if not st.session_state.dup_carrera_1 or not st.session_state.dup_caballo_1 or not st.session_state.dup_carrera_2 or not st.session_state.dup_caballo_2:
                     st.error("⚠️ Debes seleccionar ambos ejemplares de ambas carreras.")
                 elif st.session_state.dup_carrera_1 == st.session_state.dup_carrera_2:
-                    st.error("⚠️ Las dos carreras de la dupleta deben ser distintas.")
+                    st.error("⚠️ Las duas carreras de la dupleta deben ser distintas.")
                 else:
                     sel_1_str = f"{st.session_state.dup_carrera_1} - {st.session_state.dup_caballo_1}"
                     sel_2_str = f"{st.session_state.dup_carrera_2} - {st.session_state.dup_caballo_2}"
@@ -744,7 +752,7 @@ with tab6:
                                     nombre_puro = re.sub(r'^\d+[\s\-\.\)]*', '', nombre_bruto).strip().title()
                                     
                                     palabras_nombre = nombre_puro.split()
-                                    contiene_palabra_prohibida = any(p.lower() in palabras_pofibidas_precio if 'palabras_prohibidas_precio' in locals() else any(p.lower() in ['bs', 'usd', '$', 'precio', 'pote', 'premio', 'valor', 'mt', 'pago', 'but'] for p in palabras_nombre))
+                                    contiene_palabra_prohibida = any(p.lower() in ['bs', 'usd', '$', 'precio', 'pote', 'premio', 'valor', 'mt', 'pago', 'but'] for p in palabras_nombre)
                                     tiene_precio_o_invalido = contiene_palabra_prohibida or bool(re.search(r'\d{3,}', nombre_puro))
                                     
                                     if nombre_puro and len(nombre_puro) > 2 and not tiene_precio_o_invalido and nombre_puro not in ejemplares_detectados_nombres:
