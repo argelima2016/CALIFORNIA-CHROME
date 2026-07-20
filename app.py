@@ -346,7 +346,7 @@ with open("merged-output.pdf", "wb") as output_file:
     merger.write(output_file)
 merger.close()
 # Re-type this section cleanly
-    if st.button("Unificar PDFs"):
+if st.button("Unificar PDFs"):
         st.success("¡Los archivos PDF se han unificado con éxito!")
                 
                 st.download_button(
