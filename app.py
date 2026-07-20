@@ -797,6 +797,47 @@ with tab5:
     st.title("📊 Estado de Cuenta Consolidado por Jugador")
     st.markdown("Balance general detallado de cargos (pujas/compras), abonos (premios), pagos y saldo neto por cada participante.")
 
+    # --- LISTADO DE DEUDAS ACTIVAS DIRECTAS ---
+    st.subheader("🔴 Deudas Pendientes de Jugadores")
+    
+    # Filtrar solo jugadores con saldo neto negativo (deuda)
+    jugadores_con_deuda = []
+    for jugador, vals in st.session_state.cuentas.items():
+        pujas = vals.get('Pujas', 0.0)
+        premios = vals.get('Premios', 0.0)
+        abonos = vals.get('Abonos', 0.0)
+        neto = (premios + abonos) - pujas
+        if neto < 0:
+            jugadores_con_deuda.append((jugador, abs(neto)))
+
+    if not jugadores_con_deuda:
+        st.success("🎉 ¡Excelente! No hay jugadores con deudas pendientes en este momento.")
+    else:
+        st.markdown("Selecciona el jugador de la lista de deudores para aplicar su **Pago Total** de forma directa:")
+        
+        # Crear filas interactivas para cada deudor
+        for jug_deudor, monto_deuda in jugadores_con_deuda:
+            col_d1, col_d2, col_d3 = st.columns([2, 2, 1])
+            with col_d1:
+                st.markdown(f"👤 **{jug_deudor}**")
+            with col_d2:
+                st.markdown(f"Deuda: <span style='color: #ff4757; font-weight: bold;'>{formatear_bs(monto_deuda)}</span>", unsafe_allow_html=True)
+            with col_d3:
+                if st.button("✅ Pagar Total", key=f"btn_pago_directo_{jug_deudor}", use_container_width=True, type="primary"):
+                    st.session_state.cuentas[jug_deudor]['Abonos'] += monto_deuda
+                    st.session_state.historial_transacciones.append({
+                        "Carrera": "Caja", 
+                        "Jugador": jug_deudor,
+                        "Tipo": "Abono (Pago Total)", 
+                        "Detalle": f"Cancelación total de saldo pendiente ({formatear_bs(monto_deuda)})", 
+                        "Monto (Bs.)": monto_deuda
+                    })
+                    st.toast(f"🎉 ¡Pago total de {formatear_bs(monto_deuda)} aplicado directamente a {jug_deudor}!")
+                    st.rerun()
+        st.markdown("---")
+
+    # --- TABLA GENERAL DE CUENTAS ---
+    st.markdown("### 📋 Resumen General de Cuentas")
     datos_cuentas = []
     total_general_pujas = 0.0
     total_general_premios = 0.0
@@ -806,9 +847,7 @@ with tab5:
     for jugador, vals in st.session_state.cuentas.items():
         pujas = vals.get('Pujas', 0.0)
         premios = vals.get('Premios', 0.0)
-        abonos = vals.get('Abonos', 0.0) # Abonos / Pagos / Recargas
-        
-        # Saldo Neto: (Premios + Abonos) - Pujas
+        abonos = vals.get('Abonos', 0.0)
         neto = (premios + abonos) - pujas
         
         total_general_pujas += pujas
@@ -833,89 +872,49 @@ with tab5:
 
     st.markdown("---")
     
-    # --- SECCIÓN GESTIÓN FINANCIERA (PAGO TOTAL Y ABONO DE DEUDA) ---
-    col_acc_1, col_acc_2 = st.columns(2, gap="large")
-
-    # Columna 1: Abono de Deuda Simplificado
-    with col_acc_1:
-        with st.container(border=True):
-            st.subheader("💵 Sección de Abono de Deuda")
-            st.markdown("Aplica un abono rápido por monto fijo seleccionando el jugador.")
+    # --- SECCIÓN ABONO DE DEUDA SIMPLIFICADO ---
+    with st.container(border=True):
+        st.subheader("💵 Sección de Abono de Deuda Parcial")
+        st.markdown("Aplica un abono rápido por monto fijo seleccionando el jugador.")
+        
+        jugador_abono = st.selectbox("Jugador (Abono)", st.session_state.lista_jugadores, key="sel_jugador_abono_simple")
+        
+        col_b_ab1, col_b_ab2, col_b_ab3 = st.columns(3)
+        if col_b_ab1.button("Bs. 50", key="btn_ab_50", use_container_width=True):
+            monto_abono_elegido = 50.0
+            if jugador_abono not in st.session_state.cuentas:
+                st.session_state.cuentas[jugador_abono] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+            st.session_state.cuentas[jugador_abono]['Abonos'] += monto_abono_elegido
+            st.session_state.historial_transacciones.append({
+                "Carrera": "Caja", "Jugador": jugador_abono,
+                "Tipo": "Abono (Pago Parcial)", "Detalle": f"Abono rápido de {formatear_bs(monto_abono_elegido)}", "Monto (Bs.)": monto_abono_elegido
+            })
+            st.toast(f"✅ Abono de {formatear_bs(monto_abono_elegido)} registrado a {jugador_abono}.")
+            st.rerun()
             
-            jugador_abono = st.selectbox("Jugador (Abono)", st.session_state.lista_jugadores, key="sel_jugador_abono_simple")
-            
-            # Botones de selección rápida de monto de abono
-            col_b_ab1, col_b_ab2, col_b_ab3 = st.columns(3)
+        if col_b_ab2.button("Bs. 100", key="btn_ab_100", use_container_width=True):
             monto_abono_elegido = 100.0
-            if col_b_ab1.button("Bs. 50", key="btn_ab_50", use_container_width=True):
-                monto_abono_elegido = 50.0
-                if jugador_abono not in st.session_state.cuentas:
-                    st.session_state.cuentas[jugador_abono] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
-                st.session_state.cuentas[jugador_abono]['Abonos'] += monto_abono_elegido
-                st.session_state.historial_transacciones.append({
-                    "Carrera": "Caja", "Jugador": jugador_abono,
-                    "Tipo": "Abono (Pago Parcial)", "Detalle": f"Abono rápido de {formatear_bs(monto_abono_elegido)}", "Monto (Bs.)": monto_abono_elegido
-                })
-                st.toast(f"✅ Abono de {formatear_bs(monto_abono_elegido)} registrado a {jugador_abono}.")
-                st.rerun()
-                
-            if col_b_ab2.button("Bs. 100", key="btn_ab_100", use_container_width=True):
-                monto_abono_elegido = 100.0
-                if jugador_abono not in st.session_state.cuentas:
-                    st.session_state.cuentas[jugador_abono] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
-                st.session_state.cuentas[jugador_abono]['Abonos'] += monto_abono_elegido
-                st.session_state.historial_transacciones.append({
-                    "Carrera": "Caja", "Jugador": jugador_abono,
-                    "Tipo": "Abono (Pago Parcial)", "Detalle": f"Abono rápido de {formatear_bs(monto_abono_elegido)}", "Monto (Bs.)": monto_abono_elegido
-                })
-                st.toast(f"✅ Abono de {formatear_bs(monto_abono_elegido)} registrado a {jugador_abono}.")
-                st.rerun()
-                
-            if col_b_ab3.button("Bs. 200", key="btn_ab_200", use_container_width=True):
-                monto_abono_elegido = 200.0
-                if jugador_abono not in st.session_state.cuentas:
-                    st.session_state.cuentas[jugador_abono] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
-                st.session_state.cuentas[jugador_abono]['Abonos'] += monto_abono_elegido
-                st.session_state.historial_transacciones.append({
-                    "Carrera": "Caja", "Jugador": jugador_abono,
-                    "Tipo": "Abono (Pago Parcial)", "Detalle": f"Abono rápido de {formatear_bs(monto_abono_elegido)}", "Monto (Bs.)": monto_abono_elegido
-                })
-                st.toast(f"✅ Abono de {formatear_bs(monto_abono_elegido)} registrado a {jugador_abono}.")
-                st.rerun()
-
-    # Columna 2: Opción de Pago Total
-    with col_acc_2:
-        with st.container(border=True):
-            st.subheader("✅ Opción de Pago Total")
-            st.markdown("Liquida automáticamente el saldo pendiente del jugador dejándolo en balance cero.")
+            if jugador_abono not in st.session_state.cuentas:
+                st.session_state.cuentas[jugador_abono] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+            st.session_state.cuentas[jugador_abono]['Abonos'] += monto_abono_elegido
+            st.session_state.historial_transacciones.append({
+                "Carrera": "Caja", "Jugador": jugador_abono,
+                "Tipo": "Abono (Pago Parcial)", "Detalle": f"Abono rápido de {formatear_bs(monto_abono_elegido)}", "Monto (Bs.)": monto_abono_elegido
+            })
+            st.toast(f"✅ Abono de {formatear_bs(monto_abono_elegido)} registrado a {jugador_abono}.")
+            st.rerun()
             
-            jugador_pago_total = st.selectbox("Jugador (Pago Total)", st.session_state.lista_jugadores, key="sel_jugador_pago_total")
-            
-            # Calcular saldo actual del jugador seleccionado para mostrarlo de referencia
-            vals_sel = st.session_state.cuentas.get(jugador_pago_total, {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0})
-            neto_sel = (vals_sel.get('Premios', 0.0) + vals_sel.get('Abonos', 0.0)) - vals_sel.get('Pujas', 0.0)
-            
-            if neto_sel < 0:
-                deuda_pendiente = abs(neto_sel)
-                st.info(f"📌 Deuda pendiente de **{jugador_pago_total}**: `{formatear_bs(deuda_pendiente)}`")
-            else:
-                st.success(f"📌 **{jugador_pago_total}** no posee deuda pendiente (Saldo a favor o en 0).")
-                deuda_pendiente = 0.0
-
-            if st.button("💰 Ejecutar Pago Total de Deuda", use_container_width=True, type="secondary"):
-                if deuda_pendiente <= 0:
-                    st.warning(f"{jugador_pago_total} no tiene saldo pendiente por pagar.")
-                else:
-                    st.session_state.cuentas[jugador_pago_total]['Abonos'] += deuda_pendiente
-                    st.session_state.historial_transacciones.append({
-                        "Carrera": "Caja", 
-                        "Jugador": jugador_pago_total,
-                        "Tipo": "Abono (Pago Total)", 
-                        "Detalle": f"Cancelación total de saldo pendiente ({formatear_bs(deuda_pendiente)})", 
-                        "Monto (Bs.)": deuda_pendiente
-                    })
-                    st.toast(f"🎉 ¡Pago total de {formatear_bs(deuda_pendiente)} aplicado a {jugador_pago_total}!")
-                    st.rerun()
+        if col_b_ab3.button("Bs. 200", key="btn_ab_200", use_container_width=True):
+            monto_abono_elegido = 200.0
+            if jugador_abono not in st.session_state.cuentas:
+                st.session_state.cuentas[jugador_abono] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+            st.session_state.cuentas[jugador_abono]['Abonos'] += monto_abono_elegido
+            st.session_state.historial_transacciones.append({
+                "Carrera": "Caja", "Jugador": jugador_abono,
+                "Tipo": "Abono (Pago Parcial)", "Detalle": f"Abono rápido de {formatear_bs(monto_abono_elegido)}", "Monto (Bs.)": monto_abono_elegido
+            })
+            st.toast(f"✅ Abono de {formatear_bs(monto_abono_elegido)} registrado a {jugador_abono}.")
+            st.rerun()
 
 # ==========================================
 # PESTAÑA 6: HISTORIAL DE TRANSACCIONES
