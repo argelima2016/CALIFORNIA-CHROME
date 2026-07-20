@@ -682,11 +682,11 @@ with tab2:
             st.info("No hay ejemplares inscritos en esta carrera.")
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETA MODERNO Y DINÁMICO
+# PESTAÑA 3: MÓDULO DE DUPLETA MODERNO Y DIDÁCTICO
 # ==========================================
 with tab3:
-    st.markdown("<div class='subasta-header'>🎟️ Módulo de Dupleta Inteligente & Anti-Duplicados</div>", unsafe_allow_html=True)
-    st.markdown("Crea dupletas dinámicas seleccionando ejemplares por carrera. El sistema valida automáticamente que **no existan tickets idénticos** registrados para un mismo jugador.")
+    st.markdown("<div class='subasta-header'>🎟️ Módulo de Dupleta Didáctico & Anti-Duplicados</div>", unsafe_allow_html=True)
+    st.markdown("Arma tu dupleta paso a paso de forma visual. El sistema te guía de manera clara carrera por carrera y valida que **no existan tickets idénticos** activos.")
 
     carreras_habilitadas = st.session_state.carreras_habilitadas_dupleta
 
@@ -703,43 +703,67 @@ with tab3:
         
         st.markdown("---")
 
-        col_dup_1, col_dup_2 = st.columns([1.2, 1], gap="large")
+        col_dup_1, col_dup_2 = st.columns([1.3, 1], gap="large")
 
         with col_dup_1:
             with st.container(border=True):
-                st.markdown("### ⚡ Creador de Dupleta Dinámica")
+                st.markdown("### ⚡ Creador Didáctico de Dupleta")
                 
                 jugador_dupleta = st.selectbox(
-                    "👤 Seleccionar Comprador / Jugador", 
+                    "👤 1. Seleccionar Comprador / Jugador", 
                     st.session_state.lista_jugadores, 
-                    key="sel_jugador_dupleta_moderno"
+                    key="sel_jugador_dupleta_didactico"
                 )
                 
-                st.markdown("#### 🏇 Selecciona los Ejemplares por Carrera")
-                st.caption("*(Puedes dejar en '-- Omitir --' las carreras en las que no desees jugar)*")
+                st.markdown("---")
+                st.markdown("#### 🏇 2. Selección Guiada por Carrera")
+                st.caption("*(Despliega o revisa cada carrera. Elige un ejemplar o déjalo en '-- Omitir --' si no deseas jugar esa válida)*")
                 
                 seleccion_ejemplares_ticket = {}
                 
-                # Diseño en grillas por carrera para mayor dinamismo visual
+                # Enfoque didáctico: Mostrar el estado de selección en pestañas internas o expanders detallados por carrera
                 for carr_h in carreras_habilitadas:
                     caballos_carr = list(st.session_state.remates.get(carr_h, {}).keys())
-                    opciones_cab = ["-- Omitir / Sin selección --"] + caballos_carr
                     
-                    sel_c = st.selectbox(
-                        f"🔹 {carr_h}", 
-                        opciones_cab, 
-                        key=f"dup_moderno_sel_{carr_h}"
-                    )
-                    if sel_c != "-- Omitir / Sin selección --":
-                        seleccion_ejemplares_ticket[carr_h] = sel_c
+                    # Verificamos si ya hay un caballo seleccionado para mostrar un indicador visual dinámico en el título del expander
+                    sel_actual_previo = st.session_state.get(f"dup_didactico_sel_{carr_h}", "-- Omitir / Sin selección --")
+                    indicador_estado = "🟢" if sel_actual_previo != "-- Omitir / Sin selección --" else "⚪"
+                    
+                    with st.expander(f"{indicador_estado} {carr_h}", expanded=False):
+                        if not caballos_carr:
+                            st.info("No hay ejemplares cargados en esta carrera.")
+                        else:
+                            opciones_cab = ["-- Omitir / Sin selección --"] + caballos_carr
+                            
+                            sel_c = st.selectbox(
+                                f"Selecciona el ejemplar para {carr_h}:", 
+                                opciones_cab, 
+                                key=f"dup_didactico_sel_{carr_h}"
+                            )
+                            
+                            if sel_c != "-- Omitir / Sin selección --":
+                                seleccion_ejemplares_ticket[carr_h] = sel_c
+                                st.success(f"Seleccionado: **{sel_c}**")
+                            else:
+                                st.caption("Estado: Omitida en este ticket.")
+
+                st.markdown("---")
+                
+                # Panel Resumen Didáctico en tiempo real antes de emitir
+                st.markdown("#### 📝 Resumen de tu Selección Actual:")
+                if len(seleccion_ejemplares_ticket) > 0:
+                    for c_res, e_res in seleccion_ejemplares_ticket.items():
+                        st.markdown(f"• **{c_res}** ➡️ `{e_res}`")
+                else:
+                    st.info("Aún no has seleccionado ejemplares en ninguna carrera.")
 
                 st.markdown("---")
                 monto_dupleta = st.number_input(
-                    "💰 Monto de la Apuesta (Bs.)", 
+                    "💰 3. Monto de la Apuesta (Bs.)", 
                     min_value=50.0, 
                     value=500.0, 
                     step=50.0, 
-                    key="input_monto_dupleta_moderno"
+                    key="input_monto_dupleta_didactico"
                 )
 
                 if st.button("🚀 Emitir Dupleta Verificada", type="primary", use_container_width=True):
@@ -799,7 +823,7 @@ with tab3:
                             st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;• *{c_key}* ➡️ **{e_val}**")
                         
                         if tkt['Estado'] == "Activo":
-                            if st.button("🗑️ Anular Ticket", key=f"btn_anular_dup_moderno_{tkt['ID']}_{idx}", use_container_width=True):
+                            if st.button("🗑️ Anular Ticket", key=f"btn_anular_dup_didactico_{tkt['ID']}_{idx}", use_container_width=True):
                                 st.session_state.cuentas[tkt['Jugador']]['Pujas'] -= tkt['Monto']
                                 tkt['Estado'] = "Anulado"
                                 st.toast(f"🗑️ Ticket {tkt['ID']} anulado y saldo reintegrado a la cuenta.")
