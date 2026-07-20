@@ -118,7 +118,7 @@ if not st.session_state.remates:
     if not exito_carga:
         for i in range(1, 11):
             carr_nombre = f"Carrera {i}"
-            st.session_state.remates[carr_nombre] = {f"{j} - Ejemplar (Jinete)": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 12)}
+            st.session_state.remates[carr_nombre] = {f"{j} - Ejemplar (Jinete)": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 11)}
 
 lista_carreras_disponibles = list(st.session_state.remates.keys())
 
@@ -144,8 +144,9 @@ if st.sidebar.button("🗑️ Reiniciar Jornada Global", use_container_width=Tru
     st.rerun()
 
 # --- INTERFAZ DE PESTAÑAS ---
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🏇 Subasta en Vivo (Bs.)", 
+    "✍️ Gestión Manual (Caballos)", 
     "🎟️ Módulo de Dupleta", 
     "📊 Cuentas por Jugador", 
     "🧾 Historial de Transacciones", 
@@ -251,9 +252,54 @@ with tab1:
                     st.rerun()
 
 # ==========================================
-# PESTAÑA 2: MÓDULO DE DUPLETAS
+# PESTAÑA 2: GESTIÓN MANUAL DE CABALLOS
 # ==========================================
 with tab2:
+    st.title("✍️ Gestión Manual de Ejemplares")
+    st.markdown("Añada, edite o elimine caballos de forma manual para la carrera seleccionada (Límite: **17 ejemplares máximo**).")
+
+    col_man_1, col_man_2 = st.columns(2)
+
+    with col_man_1:
+        st.subheader("➕ Añadir Nuevo Ejemplar")
+        nombre_nuevo_caballo = st.text_input("Nombre del Caballo / Ejemplar", placeholder="Ej: 1 - Gran Alex (Jinete)", key="input_nuevo_caballo_manual")
+        
+        if st.button("➕ Agregar a la Carrera Activa", use_container_width=True, type="primary"):
+            nombre_limpio = nombre_nuevo_caballo.strip().title()
+            if not nombre_limpio:
+                st.error("⚠️ El nombre del ejemplar no puede estar vacío.")
+            elif len(st.session_state.remates[carrera_actual]) >= 17:
+                st.error("⚠️ Has alcanzado el límite máximo de 17 ejemplares permitidos para esta carrera.")
+            elif nombre_limpio in st.session_state.remates[carrera_actual]:
+                st.warning("⚠️ Este ejemplar ya se encuentra registrado en esta carrera.")
+            else:
+                st.session_state.remates[carrera_actual][nombre_limpio] = {"jugador": "Sin Postor", "monto": 0.0}
+                st.success(f"✅ Ejemplar '{nombre_limpio}' agregado exitosamente a {carrera_actual}.")
+                st.rerun()
+
+    with col_man_2:
+        st.subheader("🗑️ Eliminar Ejemplar Existente")
+        caballos_actuales_lista = list(st.session_state.remates[carrera_actual].keys())
+        if caballos_actuales_lista:
+            caballo_a_borrar = st.selectbox("Seleccione Ejemplar a Remover", caballos_actuales_lista, key="sel_borrar_caballo_manual")
+            if st.button("🗑️ Eliminar Ejemplar Seleccionado", use_container_width=True, type="secondary"):
+                if len(st.session_state.remates[carrera_actual]) <= 1:
+                    st.error("⚠️ Debe conservar al menos un ejemplar en la carrera.")
+                else:
+                    del st.session_state.remates[carrera_actual][caballo_a_borrar]
+                    st.success(f"🗑️ Ejemplar '{caballo_a_borrar}' eliminado correctamente.")
+                    st.rerun()
+        else:
+            st.info("No hay ejemplares registrados en esta carrera.")
+
+    st.markdown("---")
+    st.subheader(f"📋 Ejemplares Actuales en {carrera_actual} ({len(st.session_state.remates[carrera_actual])}/17)")
+    st.write(list(st.session_state.remates[carrera_actual].keys()))
+
+# ==========================================
+# PESTAÑA 3: MÓDULO DE DUPLETAS
+# ==========================================
+with tab3:
     st.title("🎟️ Control y Gestión de Dupletas")
     st.markdown("Registre y valide los tickets de dupletas jugados durante la jornada hípica.")
     
@@ -319,9 +365,9 @@ with tab2:
             st.info("No hay dupletas registradas en la sesión actual.")
 
 # ==========================================
-# PESTAÑA 3: CUENTAS POR JUGADOR
+# PESTAÑA 4: CUENTAS POR JUGADOR
 # ==========================================
-with tab3:
+with tab4:
     st.title("📊 Cuentas Generales en Directo")
     balance_data = []
     for jug in st.session_state.lista_jugadores:
@@ -334,9 +380,9 @@ with tab3:
     st.dataframe(pd.DataFrame(balance_data), use_container_width=True, hide_index=True)
 
 # ==========================================
-# PESTAÑA 4: HISTORIAL DE TRANSACCIONES
+# PESTAÑA 5: HISTORIAL DE TRANSACCIONES
 # ==========================================
-with tab4:
+with tab5:
     st.title("🧾 Historial Global")
     if st.session_state.historial_transacciones:
         st.dataframe(pd.DataFrame(st.session_state.historial_transacciones), use_container_width=True, hide_index=True)
@@ -344,9 +390,9 @@ with tab4:
         st.info("Aún no se han registrado transacciones en el historial.")
 
 # ==========================================
-# PESTAÑA 5: LECTOR DE PDF CON PDFPLUMBER (TABLAS) - MÁXIMO 17 EJEMPLARES
+# PESTAÑA 6: LECTOR DE PDF CON PDFPLUMBER (TABLAS) - MÁXIMO 17 EJEMPLARES
 # ==========================================
-with tab5:
+with tab6:
     st.title("📄 Lector Avanzado de Tablas (Pdfplumber)")
     st.markdown("Este módulo utiliza extracción matricial para leer el programa oficial, limitando automáticamente a un **máximo de 17 ejemplares** por carrera.")
 
@@ -383,7 +429,6 @@ with tab5:
 
                                     if "CARRERA" in texto_upper or "VÁLIDA" in texto_upper or "VALIDA" in texto_upper:
                                         if ejemplares_detectados:
-                                            # Limitar a máximo 17 ejemplares antes de guardar la carrera anterior
                                             claves_carr = list(ejemplares_detectados.keys())[:17]
                                             carreras_estructuradas[carrera_actual] = {k: ejemplares_detectados[k] for k in claves_carr}
                                             ejemplares_detectados = {}
