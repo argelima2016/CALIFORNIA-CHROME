@@ -89,6 +89,16 @@ if 'dupletas_tickets' not in st.session_state:
 if 'archivos_subidos' not in st.session_state:
     st.session_state.archivos_subidos = []
 
+# --- ESTADOS DINÁMICOS PARA LA DUPLETA ---
+if 'dup_carrera_1' not in st.session_state:
+    st.session_state.dup_carrera_1 = None
+if 'dup_caballo_1' not in st.session_state:
+    st.session_state.dup_caballo_1 = None
+if 'dup_carrera_2' not in st.session_state:
+    st.session_state.dup_carrera_2 = None
+if 'dup_caballo_2' not in st.session_state:
+    st.session_state.dup_caballo_2 = None
+
 # --- FORMATO DE MONEDA VENEZOLANA (Bs.) ---
 def formatear_bs(monto):
     return f"Bs. {monto:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -367,33 +377,84 @@ with tab2:
     st.write(list(st.session_state.remates[carrera_actual].keys()))
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETAS (VALIDACIÓN ANTI-DUPLICADOS + BOTÓN LIMPIAR EN TICKET EMITIDOS)
+# PESTAÑA 3: MÓDULO DE DUPLETAS DINÁMICO E INTERACTIVO
 # ==========================================
 with tab3:
-    st.title("🎟️ Control y Gestión de Dupletas (Antiduplicados)")
-    st.markdown("Registre y valide los tickets de dupletas jugados. El sistema impedirá registrar combinaciones idénticas de selecciones para evitar duplicados.")
+    st.title("🎟️ Armador Dinámico e Interactivo de Dupletas")
+    st.markdown("Selecciona de forma fluida las dos válidas y sus respectivos ejemplares con un diseño optimizado y rápido.")
+
+    # Selección del Jugador y Monto Principal
+    col_j_m1, col_j_m2 = st.columns([2, 1])
+    with col_j_m1:
+        jugador_dupleta = st.selectbox("👤 Jugador / Comprador de la Dupleta", st.session_state.lista_jugadores, key="sel_jugador_dupleta")
+    with col_j_m2:
+        monto_dupleta = st.number_input("💵 Monto (Bs.)", min_value=50.0, value=100.0, step=50.0, key="num_monto_dupleta")
+
+    st.markdown("---")
     
-    col_dup_reg, col_dup_list = st.columns([1, 2])
+    col_paso_1, col_paso_2 = st.columns(2, gap="large")
+
+    # --- SELECTOR DE LA 1RA VÁLIDA ---
+    with col_paso_1:
+        with st.container(border=True):
+            st.markdown("#### 1️⃣ Primera Válida")
+            carr_opts_1 = lista_carreras_disponibles
+            carr_sel_1 = st.selectbox("Carrera 1", carr_opts_1, key="dinamico_carr_1")
+            
+            ejemplares_dict_1 = st.session_state.remates.get(carr_sel_1, {})
+            lista_cab_1 = list(ejemplares_dict_1.keys())
+            
+            if lista_cab_1:
+                filtro_1 = st.text_input("🔍 Buscar ejemplar (Carrera 1)", placeholder="Ej: 3 o nombre...", key="filtro_cab_1")
+                filtrados_1 = [c for c in lista_cab_1 if filtro_1.lower() in c.lower()]
+                
+                cab_sel_1 = st.radio("Selecciona Ejemplar 1:", filtrados_1 if filtrados_1 else ["(Sin resultados)"], key="radio_cab_1")
+                if cab_sel_1 != "(Sin resultados)":
+                    st.session_state.dup_carrera_1 = carr_sel_1
+                    st.session_state.dup_caballo_1 = cab_sel_1
+            else:
+                st.warning("⚠️ Esta carrera no tiene ejemplares cargados.")
+
+    # --- SELECTOR DE LA 2DA VÁLIDA ---
+    with col_paso_2:
+        with st.container(border=True):
+            st.markdown("#### 2️⃣ Segunda Válida")
+            carr_opts_2 = lista_carreras_disponibles
+            carr_sel_2 = st.selectbox("Carrera 2", carr_opts_2, key="dinamico_carr_2")
+            
+            ejemplares_dict_2 = st.session_state.remates.get(carr_sel_2, {})
+            lista_cab_2 = list(ejemplares_dict_2.keys())
+            
+            if lista_cab_2:
+                filtro_2 = st.text_input("🔍 Buscar ejemplar (Carrera 2)", placeholder="Ej: 5 o nombre...", key="filtro_cab_2")
+                filtrados_2 = [c for c in lista_cab_2 if filtro_2.lower() in c.lower()]
+                
+                cab_sel_2 = st.radio("Selecciona Ejemplar 2:", filtrados_2 if filtrados_2 else ["(Sin resultados)"], key="radio_cab_2")
+                if cab_sel_2 != "(Sin resultados)":
+                    st.session_state.dup_carrera_2 = carr_sel_2
+                    st.session_state.dup_caballo_2 = cab_sel_2
+            else:
+                st.warning("⚠️ Esta carrera no tiene ejemplares cargados.")
+
+    st.markdown("---")
+
+    # --- RESUMEN Y BOTÓN DE EMISIÓN DE TICKET ---
+    c_res_info, c_res_btn = st.columns([2, 1])
     
-    with col_dup_reg:
-        st.subheader("📝 Registrar Nueva Dupleta")
-        
-        jugador_dupleta = st.selectbox("Jugador / Comprador", st.session_state.lista_jugadores, key="sel_jugador_dupleta")
-        
-        carrera_dup_1 = st.selectbox("Primera Válida (Carrera 1)", lista_carreras_disponibles, key="sel_carr_dup_1")
-        caballo_dup_1 = st.selectbox("Ejemplar 1", list(st.session_state.remates.get(carrera_dup_1, { "Sin ejemplares": {} }).keys()), key="sel_cab_dup_1")
-        
-        carrera_dup_2 = st.selectbox("Segunda Válida (Carrera 2)", lista_carreras_disponibles, key="sel_carr_dup_2")
-        caballo_dup_2 = st.selectbox("Ejemplar 2", list(st.session_state.remates.get(carrera_dup_2, { "Sin ejemplares": {} }).keys()), key="sel_cab_dup_2")
-        
-        monto_dupleta = st.number_input("Monto de la Dupleta (Bs.)", min_value=50.0, value=100.0, step=50.0, key="num_monto_dupleta")
-        
-        if st.button("💾 Emitir y Guardar Ticket de Dupleta", use_container_width=True, type="primary"):
-            if carrera_dup_1 == carrera_dup_2:
+    with c_res_info:
+        c1_res = st.session_state.dup_caballo_1 if st.session_state.dup_caballo_1 else "---"
+        c2_res = st.session_state.dup_caballo_2 if st.session_state.dup_caballo_2 else "---"
+        st.markdown(f"**📌 Combinación Armada:** `{st.session_state.dup_carrera_1 or 'Carrera X'} : {c1_res}` ➡️ `{st.session_state.dup_carrera_2 or 'Carrera Y'} : {c2_res}`")
+
+    with c_res_btn:
+        if st.button("🚀 Emitir Ticket de Dupleta", use_container_width=True, type="primary"):
+            if not st.session_state.dup_carrera_1 or not st.session_state.dup_caballo_1 or not st.session_state.dup_carrera_2 or not st.session_state.dup_caballo_2:
+                st.error("⚠️ Debes seleccionar ambos ejemplares de ambas carreras.")
+            elif st.session_state.dup_carrera_1 == st.session_state.dup_carrera_2:
                 st.error("⚠️ Las dos carreras de la dupleta deben ser distintas.")
             else:
-                sel_1_str = f"{carrera_dup_1} - {caballo_dup_1}"
-                sel_2_str = f"{carrera_dup_2} - {caballo_dup_2}"
+                sel_1_str = f"{st.session_state.dup_carrera_1} - {st.session_state.dup_caballo_1}"
+                sel_2_str = f"{st.session_state.dup_carrera_2} - {st.session_state.dup_caballo_2}"
                 
                 ticket_duplicado = False
                 for t in st.session_state.dupletas_tickets:
@@ -402,7 +463,7 @@ with tab3:
                         break
                 
                 if ticket_duplicado:
-                    st.error("⚠️ **¡Ticket Duplicado!** Ya existe una dupleta registrada exactamente con esta misma combinación de ejemplares y carreras.")
+                    st.error("⚠️ **¡Ticket Duplicado!** Esta combinación exacta ya fue registrada.")
                 else:
                     nuevo_ticket = {
                         "ID": len(st.session_state.dupletas_tickets) + 1,
@@ -424,39 +485,44 @@ with tab3:
                             "Monto (Bs.)": -monto_dupleta
                         })
                     
-                    st.toast(f"✅ Ticket #{nuevo_ticket['ID']} emitido con éxito para {jugador_dupleta}.")
+                    st.toast(f"✅ ¡Dupleta #{nuevo_ticket['ID']} emitida con éxito!")
                     st.rerun()
 
-    with col_dup_list:
-        # Encabezado de la sección de tickets emitidos junto con el botón pequeño de limpieza
-        c_t_list, c_b_limp = st.columns([2, 1])
-        with c_t_list:
-            st.subheader("📋 Tickets de Dupletas Emitidos")
-        with c_b_limp:
-            if st.button("🧹 Limpiar Dupleta", key="btn_limpiar_dupleta_emitidos", use_container_width=True, help="Limpia o reinicia las selecciones del formulario de dupleta"):
-                for k in ["sel_jugador_dupleta", "sel_carr_dup_1", "sel_cab_dup_1", "sel_carr_dup_2", "sel_cab_dup_2", "num_monto_dupleta"]:
-                    if k in st.session_state:
-                        del st.session_state[k]
-                st.toast("🧹 Formulario de dupleta limpiado con éxito.")
-                st.rerun()
+    st.markdown("---")
+    
+    # --- LISTA DE TICKETS Y BOTÓN DE LIMPIEZA ---
+    c_t_list, c_b_limp = st.columns([2, 1])
+    with c_t_list:
+        st.subheader("📋 Tickets de Dupletas Emitidos")
+    with c_b_limp:
+        if st.button("🧹 Limpiar Dupleta", key="btn_limpiar_dupleta_emitidos", use_container_width=True, help="Limpia o reinicia las selecciones del formulario de dupleta"):
+            st.session_state.dup_carrera_1 = None
+            st.session_state.dup_caballo_1 = None
+            st.session_state.dup_carrera_2 = None
+            st.session_state.dup_caballo_2 = None
+            for k in ["filtro_cab_1", "filtro_cab_2", "num_monto_dupleta"]:
+                if k in st.session_state:
+                    del st.session_state[k]
+            st.toast("🧹 Formulario de dupleta limpiado con éxito.")
+            st.rerun()
 
-        if st.session_state.dupletas_tickets:
-            df_dupletas = pd.DataFrame(st.session_state.dupletas_tickets)
-            st.dataframe(df_dupletas, use_container_width=True, hide_index=True)
-            
-            st.markdown("---")
-            st.subheader("🎯 Actualizar Estado de Ticket")
-            id_a_actualizar = st.selectbox("Seleccione ID de Ticket", [t["ID"] for t in st.session_state.dupletas_tickets], key="sel_id_ticket_act")
-            nuevo_estado = st.selectbox("Nuevo Estado", ["Pendiente ⏳", "Ganador 🏆", "Perdedor ❌"], key="sel_nuevo_estado_ticket")
-            
-            if st.button("🔄 Cambiar Estado del Ticket", use_container_width=True):
-                for ticket in st.session_state.dupletas_tickets:
-                    if ticket["ID"] == id_a_actualizar:
-                        ticket["Estado"] = nuevo_estado
-                        st.success(f"Estado del ticket #{id_a_actualizar} actualizado a: {nuevo_estado}")
-                        st.rerun()
-        else:
-            st.info("No hay dupletas registradas en la sesión actual.")
+    if st.session_state.dupletas_tickets:
+        df_dupletas = pd.DataFrame(st.session_state.dupletas_tickets)
+        st.dataframe(df_dupletas, use_container_width=True, hide_index=True)
+        
+        st.markdown("---")
+        st.subheader("🎯 Actualizar Estado de Ticket")
+        id_a_actualizar = st.selectbox("Seleccione ID de Ticket", [t["ID"] for t in st.session_state.dupletas_tickets], key="sel_id_ticket_act")
+        nuevo_estado = st.selectbox("Nuevo Estado", ["Pendiente ⏳", "Ganador 🏆", "Perdedor ❌"], key="sel_nuevo_estado_ticket")
+        
+        if st.button("🔄 Cambiar Estado del Ticket", use_container_width=True):
+            for ticket in st.session_state.dupletas_tickets:
+                if ticket["ID"] == id_a_actualizar:
+                    ticket["Estado"] = nuevo_estado
+                    st.success(f"Estado del ticket #{id_a_actualizar} actualizado a: {nuevo_estado}")
+                    st.rerun()
+    else:
+        st.info("No hay dupletas registradas en la sesión actual.")
 
 # ==========================================
 # PESTAÑA 4: CUENTAS POR JUGADOR
