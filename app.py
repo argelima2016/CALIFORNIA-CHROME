@@ -210,7 +210,10 @@ if not st.session_state.carreras_habilitadas_dupleta and lista_carreras_disponib
     st.session_state.carreras_habilitadas_dupleta = list(lista_carreras_disponibles)
 
 carrera_actual = st.sidebar.selectbox("Seleccionar Carrera Activa", lista_carreras_disponibles, key="selector_carrera_sidebar")
-porcentaje_casa = st.sidebar.slider("Retención de la Casa (%)", 0, 50, 30, key="slider_retencion_casa")
+
+# --- RETENCIÓN DE LA CASA OCULTA EN ICONO (EXPANDER) ---
+with st.sidebar.expander("🏠 ⚙️ Configuración de Retención de la Casa", expanded=False):
+    porcentaje_casa = st.slider("Retención de la Casa (%)", 0, 50, 30, key="slider_retencion_casa")
 
 if carrera_actual not in st.session_state.remates or not st.session_state.remates[carrera_actual]:
     st.session_state.remates[carrera_actual] = {f"{i} - Caballo": {"jugador": "Sin Postor", "monto": 0.0} for i in range(1, 11)}
@@ -221,16 +224,15 @@ if len(st.session_state.remates[carrera_actual]) > 17:
 
 todos_los_caballos = sorted(list({cab for carr in st.session_state.remates.values() for cab in carr.keys()}))
 
-# --- PANEL DE CONFIGURACIÓN DE HORA DE CIERRE ESTRICTA Y MANUAL (ADMIN) ---
-st.sidebar.markdown("---")
-with st.sidebar.expander("⏰ Hora de Cierre Estricta y Manual", expanded=False):
+# --- PANEL DE CONFIGURACIÓN DE HORA DE CIERRE ESTRICTA Y MANUAL OCULTO EN ICONO ---
+with st.sidebar.expander("⏰ ⚙️ Ajustar Hora de Cierre Estricta", expanded=False):
     st.markdown(f"Configurar para: **{carrera_actual}**")
     
     hora_actual_def = ahora_dt.time()
     hora_guardada_actual = st.session_state.horas_cierre_remate.get(carrera_actual)
     
     hora_seleccionada = st.sidebar.time_input(
-        "Modificar Hora Estricta de Cierre", 
+        "Modificar Hora Estricta", 
         value=hora_guardada_actual if hora_guardada_actual else time(hora_actual_def.hour, min(59, hora_actual_def.minute + 5)),
         key=f"time_input_{carrera_actual}"
     )
@@ -251,7 +253,7 @@ with st.sidebar.expander("⏰ Hora de Cierre Estricta y Manual", expanded=False)
             st.toast(f"🗑️ Hora programada removida para {carrera_actual}.")
             st.rerun()
 
-# --- NUEVO PANEL LATERAL: GESTIÓN DE CIERRE Y LIQUIDACIÓN ---
+# --- PANEL LATERAL: GESTIÓN DE CIERRE Y LIQUIDACIÓN ---
 st.sidebar.markdown("---")
 with st.sidebar.expander("🏁 Gestión de Cierre y Liquidación", expanded=True):
     st.markdown(f"Acciones para: **{carrera_actual}**")
@@ -274,7 +276,6 @@ with st.sidebar.expander("🏁 Gestión de Cierre y Liquidación", expanded=True
             
     st.markdown("---")
     
-    # Calcular pote total y premio actual para liquidación rápida desde la barra lateral
     total_pote_side = sum([info['monto'] for info in st.session_state.remates[carrera_actual].values()])
     monto_casa_side = total_pote_side * (porcentaje_casa / 100)
     pote_neto_base_side = total_pote_side - monto_casa_side
@@ -332,10 +333,12 @@ if st.sidebar.button("🗑️ Reiniciar Jornada Global", use_container_width=Tru
     st.toast("🚨 Jornada reiniciada (Banco de nombres conservado).")
     st.rerun()
 
-if st.sidebar.button("🗑️ Reiniciar Banco de Caballos", use_container_width=True, type="secondary"):
-    st.session_state.banco_ejemplares = []
-    st.toast("🚨 ¡El banco de nombres de caballos ha sido vaciado!")
-    st.rerun()
+# --- REINICIO DE BANCO DE CABALLOS OCULTO EN ICONO ---
+with st.sidebar.expander("🐴 🗑️ Opciones Avanzadas del Banco", expanded=False):
+    if st.button("🗑️ Reiniciar Banco de Caballos", use_container_width=True, type="secondary"):
+        st.session_state.banco_ejemplares = []
+        st.toast("🚨 ¡El banco de nombres de caballos ha sido vaciado!")
+        st.rerun()
 
 # --- INTERFAZ DE PESTAÑAS ---
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -351,14 +354,12 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 # PESTAÑA 1: REMATE ADELANTADO (CON HORA VISIBLE Y BOTONES RÁPIDOS)
 # ==========================================
 with tab1:
-    # Encabezado con la Hora de Venezuela en tiempo real visible directamente en la pestaña
     col_t_title, col_t_clock = st.columns([2, 1])
     with col_t_title:
         st.markdown(f"<div class='subasta-header'>🎯 Remate Adelantado: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
     with col_t_clock:
         st.markdown(f"<div style='text-align: right; font-size: 16px; font-weight: bold; background-color: #1e1e2f; padding: 6px 12px; border-radius: 6px; border: 1px solid #4f4f6f; color: #00d2d3;'>🕒 Hora Venezuela: {ahora_dt.strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
     
-    # --- LÓGICA DEL TEMPORIZADOR Y HORA ESTRICTA ---
     hora_limite = st.session_state.horas_cierre_remate.get(carrera_actual)
     carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carrera_actual, False)
     estado_conteo = st.session_state.estado_conteo_carrera.get(carrera_actual, "INACTIVO")
@@ -441,7 +442,6 @@ with tab1:
         with st.container(border=True):
             st.markdown("⚡ **Registro Dinámico de Puja**")
             
-            # --- SELECCIÓN RÁPIDA DE EJEMPLAR EXCLUSIVAMENTE CON BOTONES ---
             lista_caballos_activos = list(st.session_state.remates[carrera_actual].keys())
             
             if not lista_caballos_activos:
