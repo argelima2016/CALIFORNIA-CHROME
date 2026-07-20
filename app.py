@@ -685,8 +685,8 @@ with tab2:
 # PESTAÑA 3: MÓDULO DE DUPLETA MODERNO Y DIDÁCTICO
 # ==========================================
 with tab3:
-    st.markdown("<div class='subasta-header'>🎟️ Módulo de Dupleta Didáctico & Anti-Duplicados</div>", unsafe_allow_html=True)
-    st.markdown("Arma tu dupleta paso a paso de forma visual. El sistema te guía de manera clara carrera por carrera y valida que **no existan tickets idénticos** activos.")
+    st.markdown("<div class='subasta-header'>🎟️ Módulo de Dupleta Didáctico & Anti-Duplicados Avanzado</div>", unsafe_allow_html=True)
+    st.markdown("Arma tu dupleta paso a paso de forma visual. El sistema te guía de manera clara carrera por carrera y bloquea estrictamente **cualquier ticket con combinaciones duplicadas** (independientemente del orden de selección).")
 
     carreras_habilitadas = st.session_state.carreras_habilitadas_dupleta
 
@@ -721,11 +721,9 @@ with tab3:
                 
                 seleccion_ejemplares_ticket = {}
                 
-                # Enfoque didáctico: Mostrar el estado de selección en pestañas internas o expanders detallados por carrera
                 for carr_h in carreras_habilitadas:
                     caballos_carr = list(st.session_state.remates.get(carr_h, {}).keys())
                     
-                    # Verificamos si ya hay un caballo seleccionado para mostrar un indicador visual dinámico en el título del expander
                     sel_actual_previo = st.session_state.get(f"dup_didactico_sel_{carr_h}", "-- Omitir / Sin selección --")
                     indicador_estado = "🟢" if sel_actual_previo != "-- Omitir / Sin selección --" else "⚪"
                     
@@ -768,18 +766,19 @@ with tab3:
 
                 if st.button("🚀 Emitir Dupleta Verificada", type="primary", use_container_width=True):
                     if len(seleccion_ejemplares_ticket) < 2:
-                        st.error("⚠️ Una dupleta requiere obligatoriamente selecciones en al menos **2 carreras**.")
+                        st.error("⚠️ Eine dupleta requiere obligatoriamente selecciones en al menos **2 carreras**.")
                     else:
-                        # VALIDACIÓN ANTI-DUPLICADOS EXACTOS (Mismo jugador y mismas selecciones clave-valor)
+                        # VALIDACIÓN ANTI-DUPLICADOS ROBUSTA (Para el mismo jugador, bloquea si el conjunto de pares {Carrera: Caballo} es idéntico)
                         ticket_duplicado_encontrado = False
                         for tkt_existente in st.session_state.dupletas_tickets:
                             if tkt_existente["Estado"] == "Activo" and tkt_existente["Jugador"] == jugador_dupleta:
+                                # Comparamos diccionarios de selecciones de forma estricta
                                 if tkt_existente["Selecciones"] == seleccion_ejemplares_ticket:
                                     ticket_duplicado_encontrado = True
                                     break
                         
                         if ticket_duplicado_encontrado:
-                            st.error("🚨 **¡Duplicado Bloqueado!** El jugador ya posee un ticket activo con esta misma combinación exacta de ejemplares.")
+                            st.error("🚨 **¡Duplicado Bloqueado!** El jugador ya posee un ticket activo con esta misma combinación exacta de ejemplares y carreras.")
                         else:
                             id_ticket = f"DUP-{len(st.session_state.dupletas_tickets) + 1:03d}"
                             ticket_nuevo = {
@@ -809,7 +808,6 @@ with tab3:
             st.markdown("### 📋 Tickets de Dupleta Emitidos")
             
             if st.session_state.dupletas_tickets:
-                # Contenedor con scroll visual para la lista de tickets
                 for idx, tkt in enumerate(reversed(st.session_state.dupletas_tickets)):
                     with st.container(border=True):
                         c_t1, c_t2 = st.columns([2, 1])
