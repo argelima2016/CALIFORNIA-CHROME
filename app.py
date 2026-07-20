@@ -3,6 +3,7 @@ import pandas as pd
 import io
 import os
 import re
+import requests
 from datetime import datetime, time, timedelta
 from pypdf import PdfReader, PdfWriter
 from streamlit_autorefresh import st_autorefresh
@@ -13,7 +14,25 @@ st.set_page_config(page_title="Sistema de Remates, Dupletas y PDF en Vivo", layo
 # --- AUTOREFRESH PARA TIEMPO REAL (1 SEGUNDO PARA PRECISIÓN DE CONTEO) ---
 st_autorefresh(interval=1000, key="datarefresh_en_vivo")
 
-# --- ESCALA OFICIAL DE PUJAS CONDICIONADAS (AMPLIADA HASTA EL INFINITO DE 1000 EN 1000) ---
+# --- FUNCIÓN PARA OBTENER LA HORA EXACTA DESDE INTERNET (CON CACHÉ CORTA DE 15 SEGUNDOS) ---
+@st.cache_data(ttl=15)
+def obtener_hora_internet():
+    try:
+        # Petición a una API pública y rápida de tiempo mundial (Zona horaria de Caracas/Venezuela por defecto)
+        respuesta = requests.get("https://timeapi.world/timezone/America/Caracas", timeout=3)
+        if respuesta.status_code == 200:
+            data = respuesta.json()
+            datetime_str = data.get("datetime") # Formato ISO 8601 ej: 2026-07-19T21:00:00-04:00
+            if datetime_str:
+                # Extraemos fecha y hora exactas antes del offset o zona
+                dt_limpio = datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
+                return dt_limpio.replace(tzinfo=None), True
+    except Exception:
+        pass
+    # Fallback seguro a la hora local del servidor si no hay internet en el momento
+    return datetime.now(), False
+
+# --- ESCALA OFICIAL DE PUJAS CONDICIONADAS ---
 ESCALA_PUJAS = [
     50, 100, 150, 200, 250, 300, 350, 400, 500, 600, 700, 800, 900, 1000,
     1200, 1400, 1600, 1800, 2000, 2500, 3000, 3500, 4000, 4500, 5000,
@@ -95,12 +114,10 @@ if 'historial_ganadores' not in st.session_state:
 if 'carreras_cerradas_remate' not in st.session_state:
     st.session_state.carreras_cerradas_remate = {}
 
-# --- ESTADOS PARA HORA DE CIERRE ESTRICTA Y CONTEO REGRESIVO INTELIGENTE ---
 if 'horas_cierre_remate' not in st.session_state:
     st.session_state.horas_cierre_remate = {}
 
 if 'estado_conteo_carrera' not in st.session_state:
-    # Estados posibles: "INACTIVO", "CONTEO_10S", "ESPERA_POST_PUJA", "CERRADO"
     st.session_state.estado_conteo_carrera = {}
 
 if 'tiempo_inicio_conteo' not in st.session_state:
@@ -117,9 +134,6 @@ if 'historial_transacciones' not in st.session_state:
 
 if 'dupletas_tickets' not in st.session_state:
     st.session_state.dupletas_tickets = []
-
-if 'archivos_subidos' not in st.session_state:
-    st.session_state.archivos_subidos = []
 
 if 'dup_carrera_1' not in st.session_state:
     st.session_state.dup_carrera_1 = None
@@ -140,7 +154,13 @@ def formatear_bs(monto):
 # ⚙️ CONTROL LATERAL Y CARGA DE PROGRAMA
 # ==========================================
 st.sidebar.header("⚙️ Control de Carrera en Vivo")
-st.sidebar.caption("🔄 Sincronización en tiempo real activa (1s)")
+
+# Obtención de la hora actual sincronizada con internet
+ahora_dt, conexion_internet = obtener_hora_internet()
+if conexion_internet:
+    st.sidebar.caption("🌐 Hora sincronizada con Internet (En Vivo)")
+else:
+    st.sidebar.caption("⚠️ Hora local del servidor (Sin conexión web)")
 
 def cargar_programa_automatico():
     archivo_fijo = "programa_del_dia.xlsx" 
@@ -194,13 +214,12 @@ st.sidebar.markdown("---")
 with st.sidebar.expander("⏰ Hora de Cierre Estricta y Manual", expanded=True):
     st.markdown(f"Configurar para: **{carrera_actual}**")
     
-    hora_actual_def = datetime.now().time()
+    hora_actual_def = ahora_dt.time()
     hora_guardada_actual = st.session_state.horas_cierre_remate.get(carrera_actual)
     
-    # Campo para modificar la hora de cierre estrictamente de manera manual
     hora_seleccionada = st.sidebar.time_input(
         "Modificar Hora Estricta de Cierre", 
-        value=hora_guardada_actual if hora_guardada_actual else time(hora_actual_def.hour, hora_actual_def.minute + 5),
+        value=hora_guardada_actual if hora_guardada_actual else time(hora_actual_def.hour, min(59, hora_actual_def.minute + 5)),
         key=f"time_input_{carrera_actual}"
     )
     
@@ -264,18 +283,16 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 Remate Adelantado: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
     
-    # --- LÓGICA DEL TEMPORIZADOR Y HORA ESTRICTA ---
+    # --- LÓGICA DEL TEMPORIZADOR Y HORA ESTRICTA CON TIEMPO DE INTERNET ---
     hora_limite = st.session_state.horas_cierre_remate.get(carrera_actual)
     carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carrera_actual, False)
     estado_conteo = st.session_state.estado_conteo_carrera.get(carrera_actual, "INACTIVO")
     
-    ahora_dt = datetime.now()
-    
-    # Mostrar siempre la hora de cierre estricta programada en la interfaz principal
+    # Mostrar siempre la hora de cierre estricta programada y la hora de internet en vivo
     if hora_limite:
-        st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta Programada para <b>{carrera_actual}</b>: <b>{hora_limite.strftime('%H:%M:%S')}</b> (Hora Actual: {ahora_dt.strftime('%H:%M:%S')})</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta Programada para <b>{carrera_actual}</b>: <b>{hora_limite.strftime('%H:%M:%S')}</b> | 🌐 Hora Actual Internet: <b>{ahora_dt.strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
     else:
-        st.markdown(f"<div class='cierre-info-box'>⚠️ No hay hora de cierre estricta configurada para <b>{carrera_actual}</b> (Puede asignarla en la barra lateral izquierda).</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='cierre-info-box'>⚠️ No hay hora de cierre estricta configurada para <b>{carrera_actual}</b> | 🌐 Hora Actual Internet: <b>{ahora_dt.strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
 
     if hora_limite and not carrera_cerrada:
         dt_limite = datetime.combine(ahora_dt.date(), hora_limite)
@@ -287,7 +304,6 @@ with tab1:
                 st.session_state.tiempo_inicio_conteo[carrera_actual] = ahora_dt
                 st.rerun()
             elif diferencia_segundos <= 0:
-                # Cierre estricto cumplido
                 st.session_state.carreras_cerradas_remate[carrera_actual] = True
                 st.session_state.estado_conteo_carrera[carrera_actual] = "CERRADO"
                 st.rerun()
@@ -383,7 +399,7 @@ with tab1:
                         # --- REINICIO AUTOMÁTICO DEL CONTEO SI HAY UNA PUJA DURANTE EL CIERRE ---
                         if estado_conteo in ["CONTEO_10S", "ESPERA_POST_PUJA"]:
                             st.session_state.estado_conteo_carrera[carrera_actual] = "CONTEO_10S"
-                            st.session_state.tiempo_inicio_conteo[carrera_actual] = datetime.now()
+                            st.session_state.tiempo_inicio_conteo[carrera_actual] = ahora_dt
                             st.toast("⚡ ¡Nueva puja registrada! El conteo regresivo se ha reiniciado por 10 segundos.")
                         else:
                             st.toast(f"✅ {caballo} ➡️ {jugador} ({formatear_bs(monto_puja)})")
@@ -614,7 +630,7 @@ with tab3:
                 if not st.session_state.dup_carrera_1 or not st.session_state.dup_caballo_1 or not st.session_state.dup_carrera_2 or not st.session_state.dup_caballo_2:
                     st.error("⚠️ Debes seleccionar ambos ejemplares de ambas carreras.")
                 elif st.session_state.dup_carrera_1 == st.session_state.dup_carrera_2:
-                    st.error("⚠️ Las duas carreras de la dupleta deben ser distintas.")
+                    st.error("⚠️ Las dos carreras de la dupleta deben ser distintas.")
                 else:
                     sel_1_str = f"{st.session_state.dup_carrera_1} - {st.session_state.dup_caballo_1}"
                     sel_2_str = f"{st.session_state.dup_carrera_2} - {st.session_state.dup_caballo_2}"
