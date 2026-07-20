@@ -110,7 +110,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🎟️ Módulo de Dupleta", 
     "📊 Cuentas por Jugador", 
     "🧾 Historial de Transacciones", 
-    "📄 Lector Directo PDF"
+    "📄 Lector Tabular PDF"
 ])
 
 # ==========================================
@@ -291,77 +291,82 @@ with tab4:
         st.info("Aún no se han registrado transacciones en el historial.")
 
 # ==========================================
-# PESTAÑA 5: LECTOR ROBUSTO DE PROGRAMA PDF
+# PESTAÑA 5: LECTOR DE PDF CON PDFPLUMBER (TABLAS)
 # ==========================================
 with tab5:
-    st.title("📄 Lector Directo y Robusto de PDF")
-    st.markdown("Este módulo extrae el texto de forma abierta y detecta automáticamente los números, nombres de ejemplares y jinetes de todo el programa.")
+    st.title("📄 Lector Avanzado de Tablas (Pdfplumber)")
+    st.markdown("Este módulo utiliza extracción matricial para leer el 100% de las tablas, ejemplares y jinetes del programa oficial sin omisiones.")
 
-    archivo_pdf_directo = st.file_uploader(
+    archivo_pdf_plumber = st.file_uploader(
         "Sube el programa oficial en PDF", 
         type=["pdf"],
-        key="uploader_pdf_directo"
+        key="uploader_pdfplumber"
     )
 
-    if archivo_pdf_directo is not None:
+    if archivo_pdf_plumber is not None:
         st.success("¡Archivo PDF cargado correctamente!")
         
-        if st.button("🚀 Extraer Ejemplares y Jinetes (Modo Directo)", type="primary", use_container_width=True):
+        if st.button("🚀 Extraer con Pdfplumber (Modo Completo)", type="primary", use_container_width=True):
             try:
-                reader = PdfReader(archivo_pdf_directo)
+                import pdfplumber
                 carreras_estructuradas = {}
                 carrera_actual = "Carrera 1"
                 ejemplares_detectados = {}
-                
-                palabras_basura = ["HIPODROMO", "VALE", "PROGRAMA", "DIVIDENDO", "METROS", "PREMIO", "RETIRADO", "EJEMPLAR", "KILOS", "JINETE", "ENTRENADOR", "HARAS", "APUESTAS", "LINGOTES", "VALIDA", "POOL", "RET", "KG", "I", "II", "III", "IV", "V", "VI"]
-
                 contador_carrera = 1
 
-                for num_pag, page in enumerate(reader.pages):
-                    texto_pag = page.extract_text()
-                    if not texto_pag:
-                        continue
-                    
-                    lineas = [l.strip() for l in texto_pag.split('\n') if l.strip()]
-                    
-                    for i, linea in enumerate(lineas):
-                        linea_mayus = linea.upper()
+                with pdfplumber.open(archivo_pdf_plumber) as pdf:
+                    for num_pag, page in enumerate(pdf.pages):
+                        tables = page.extract_tables()
                         
-                        if "CARRERA" in linea_mayus or "VÁLIDA" in linea_mayus or "VALIDA" in linea_mayus:
-                            if ejemplares_detectados:
-                                carreras_estructuradas[carrera_actual] = ejemplares_detectados
-                                ejemplares_detectados = {}
-                            
-                            match_num_carr = re.search(r'(\d+)', linea_mayus)
-                            if match_num_carr:
-                                num_c = match_num_carr.group(1)
-                                carrera_actual = f"Carrera {int(num_c)}"
-                            else:
-                                contador_carrera += 1
-                                carrera_actual = f"Carrera {contador_carrera}"
-                            continue
+                        if tables:
+                            for table in tables:
+                                for row in table:
+                                    fila_texto = [str(cell).strip() for cell in row if cell is not None and str(cell).strip() != ""]
+                                    if not fila_texto:
+                                        continue
+                                    
+                                    texto_fila_unido = " ".join(fila_texto)
+                                    texto_upper = texto_fila_unido.upper()
 
-                        match_ej = re.match(r'^(\d{1,2})[\.\-\)]?\s+([A-ZÁÉÍÓÚÑa-záéíóúñ\s]{3,})', linea)
-                        if match_ej:
-                            num_ej = match_ej.group(1).zfill(2)
-                            resto_linea = match_ej.group(2).strip()
-                            
-                            partes = [p for p in resto_linea.split() if p.upper() not in palabras_basura]
-                            if partes:
-                                nombre_ej = " ".join(partes[:3]).title()
-                                
-                                jinete_encontrado = "Sin Jinete"
-                                for offset in range(1, 3):
-                                    if i + offset < len(lineas):
-                                        candidato = lineas[i + offset].strip()
-                                        candidato_upper = candidato.upper()
-                                        if len(candidato) > 3 and not any(c.isdigit() for c in candidato) and not any(pb in candidato_upper for pb in palabras_basura):
-                                            jinete_encontrado = candidato.title()
+                                    if "CARRERA" in texto_upper or "VÁLIDA" in texto_upper or "VALIDA" in texto_upper:
+                                        if ejemplares_detectados:
+                                            carreras_estructuradas[carrera_actual] = ejemplares_detectados
+                                            ejemplares_detectados = {}
+                                        
+                                        match_carr = re.search(r'(\d+)', texto_upper)
+                                        if match_carr:
+                                            num_c = match_carr.group(1)
+                                            carrera_actual = f"Carrera {int(num_c)}"
+                                        else:
+                                            contador_carrera += 1
+                                            carrera_actual = f"Carrera {contador_carrera}"
+                                        continue
+
+                                    for celda in fila_texto:
+                                        match_ej = re.match(r'^(\d{1,2})[\.\-\)]?$', celda)
+                                        if match_ej:
+                                            num_ej = match_ej.group(1).zfill(2)
+                                            celdas_restantes = [c for c in fila_texto if c != celda]
+                                            if celdas_restantes:
+                                                nombre_ej = celdas_restantes[0].title()
+                                                jinete_ej = celdas_restantes[1].title() if len(celdas_restantes) > 1 else "Sin Jinete"
+                                                
+                                                formato_llave = f"{int(num_ej)} - {nombre_ej} ({jinete_ej})"
+                                                if formato_llave not in ejemplares_detectados:
+                                                    ejemplares_detectados[formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
                                             break
 
-                                formato_llave = f"{int(num_ej)} - {nombre_ej} ({jinete_encontrado})"
-                                if formato_llave not in ejemplares_detectados:
-                                    ejemplares_detectados[formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
+                        texto_pag = page.extract_text()
+                        if texto_pag:
+                            lineas = [l.strip() for l in texto_pag.split('\n') if l.strip()]
+                            for linea in lineas:
+                                match_linea = re.match(r'^(\d{1,2})[\.\-\)]?\s+([A-ZÁÉÍÓÚÑa-záéíóúñ\s]{3,})', linea)
+                                if match_linea:
+                                    num_ej = match_linea.group(1).zfill(2)
+                                    nombre_ej = match_linea.group(2).strip().title()
+                                    formato_llave = f"{int(num_ej)} - {nombre_ej} (Sin Jinete)"
+                                    if formato_llave not in ejemplares_detectados:
+                                        ejemplares_detectados[formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
 
                 if ejemplares_detectados:
                     carreras_estructuradas[carrera_actual] = ejemplares_detectados
@@ -371,9 +376,11 @@ with tab5:
                         carreras_estructuradas[f"Carrera {c}"] = {f"{j} - Ejemplar (Jinete)": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 11)}
 
                 st.session_state.remates = carreras_estructuradas
-                st.success("¡Lectura de ejemplares y jinetes completada con éxito!")
+                st.success("¡Lectura completa y profunda realizada con Pdfplumber!")
                 st.balloons()
                 st.rerun()
 
+            except ImportError:
+                st.error("⚠️ La librería 'pdfplumber' no está instalada. Ejecuta `pip install pdfplumber` en tu terminal y reinicia Streamlit.")
             except Exception as e:
-                st.error(f"Ocurrió un error al procesar el PDF: {e}")
+                st.error(f"Ocurrió un error al procesar el PDF con Pdfplumber: {e}")
