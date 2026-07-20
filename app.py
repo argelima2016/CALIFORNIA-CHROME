@@ -776,13 +776,27 @@ with tab3:
                             st.rerun()
 
         with col_dup_der:
-            st.subheader("📋 Tickets Emitidos")
+            st.subheader("📋 Tickets Emitidos (Visibilidad de Duplicados)")
             
             if not st.session_state.dupletas_tickets:
                 st.info("No hay tickets registrados en esta sesión.")
             else:
                 filtro_t = st.selectbox("Filtrar Estado", ["Todos", "En Curso", "Ganador", "Perdedor"], key="filtro_dupleta_simple")
                 
+                # Sección para mostrar tabla resumen general de combinaciones activas y evitar duplicados a simple vista
+                with st.expander("🔍 Tabla Resumen de Combinaciones Activas", expanded=True):
+                    datos_resumen_dup = []
+                    for t_idx, tk in enumerate(st.session_state.dupletas_tickets):
+                        picks_str = " + ".join([f"{p['Carrera']} ({p['Ejemplar']})" for p in tk['Picks']])
+                        datos_resumen_dup.append({
+                            "Tk #": t_idx + 1,
+                            "Jugador": tk['Jugador'],
+                            "Combinación": picks_str,
+                            "Estado": tk['Estado']
+                        })
+                    st.dataframe(pd.DataFrame(datos_resumen_dup), use_container_width=True, hide_index=True)
+
+                st.markdown("---")
                 for idx_t, ticket in enumerate(st.session_state.dupletas_tickets):
                     if filtro_t != "Todos" and ticket['Estado'] != filtro_t:
                         continue
@@ -955,4 +969,4 @@ with tab7:
                     st.warning("⚠️ No se pudieron estructurar datos automáticos del PDF.")
                     
         except Exception as e:
-            st.error(f"Error procesando el documento PDF: {e}")
+            st.error(f5"Error procesando el documento PDF: {e}")
