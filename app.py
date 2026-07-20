@@ -678,11 +678,11 @@ with tab2:
                 st.rerun()
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETA PRO
+# PESTAÑA 3: MÓDULO DE DUPLETA PRO (VALIDACIÓN ANTIDUPLICADOS)
 # ==========================================
 with tab3:
     st.title("🎟️ Módulo de Dupletas Pro")
-    st.markdown("Configura y registra jugadas combinadas (dupletas) seleccionando ejemplares de las carreras habilitadas.")
+    st.markdown("Configura y registra jugadas combinadas (dupletas) seleccionando ejemplares de las carreras habilitadas. **El sistema prohíbe estrictamente tickets repetidos (misma combinación exacta de ejemplares y jugador).**")
 
     col_dup_1, col_dup_2 = st.columns([1, 1], gap="large")
 
@@ -709,26 +709,41 @@ with tab3:
             caballo_leg_2 = st.selectbox("Ejemplar 2da Válida", caballos_carr_2 if caballos_carr_2 else ["Sin ejemplares"], key="sel_dup_cab_2")
             
             if st.button("💾 Guardar Ticket de Dupleta", use_container_width=True, type="primary"):
-                ticket_nuevo = {
-                    "Jugador": jugador_dupleta,
-                    "Monto": monto_dupleta,
-                    "Leg_1": f"{carrera_leg_1} ({caballo_leg_1})",
-                    "Leg_2": f"{carrera_leg_2} ({caballo_leg_2})",
-                    "Estado": "En Curso"
-                }
-                st.session_state.dupletas_tickets.append(ticket_nuevo)
+                leg_1_str = f"{carrera_leg_1} ({caballo_leg_1})"
+                leg_2_str = f"{carrera_leg_2} ({caballo_leg_2})"
                 
-                if jugador_dupleta not in st.session_state.cuentas:
-                    st.session_state.cuentas[jugador_dupleta] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
-                st.session_state.cuentas[jugador_dupleta]['Pujas'] += monto_dupleta
+                # --- VALIDACIÓN ESTRICTA: NO PERMITIR TICKETS REPETIDOS ---
+                duplicado_encontrado = False
+                for t in st.session_state.dupletas_tickets:
+                    if (t.get("Jugador") == jugador_dupleta and 
+                        t.get("Leg_1") == leg_1_str and 
+                        t.get("Leg_2") == leg_2_str):
+                        duplicado_encontrado = True
+                        break
                 
-                st.session_state.historial_transacciones.append({
-                    "Carrera": "Dupleta", "Jugador": jugador_dupleta,
-                    "Tipo": "Cargo (Dupleta)", "Detalle": f"Ticket: {ticket_nuevo['Leg_1']} + {ticket_nuevo['Leg_2']}", "Monto (Bs.)": -monto_dupleta
-                })
-                
-                st.toast(f"✅ ¡Dupleta registrada con éxito para {jugador_dupleta}!")
-                st.rerun()
+                if duplicado_encontrado:
+                    st.error("⚠️ **¡Ticket Duplicado!** Este jugador ya tiene registrada exactamente esta misma combinación de ejemplares para esta dupleta.")
+                else:
+                    ticket_nuevo = {
+                        "Jugador": jugador_dupleta,
+                        "Monto": monto_dupleta,
+                        "Leg_1": leg_1_str,
+                        "Leg_2": leg_2_str,
+                        "Estado": "En Curso"
+                    }
+                    st.session_state.dupletas_tickets.append(ticket_nuevo)
+                    
+                    if jugador_dupleta not in st.session_state.cuentas:
+                        st.session_state.cuentas[jugador_dupleta] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                    st.session_state.cuentas[jugador_dupleta]['Pujas'] += monto_dupleta
+                    
+                    st.session_state.historial_transacciones.append({
+                        "Carrera": "Dupleta", "Jugador": jugador_dupleta,
+                        "Tipo": "Cargo (Dupleta)", "Detalle": f"Ticket: {ticket_nuevo['Leg_1']} + {ticket_nuevo['Leg_2']}", "Monto (Bs.)": -monto_dupleta
+                    })
+                    
+                    st.toast(f"✅ ¡Dupleta registrada con éxito para {jugador_dupleta}!")
+                    st.rerun()
 
     with col_dup_2:
         st.subheader("📊 Tickets de Dupletas Activos")
@@ -800,7 +815,6 @@ with tab5:
     # --- LISTADO DE DEUDAS ACTIVAS DIRECTAS ---
     st.subheader("🔴 Deudas Pendientes de Jugadores")
     
-    # Filtrar solo jugadores con saldo neto negativo (deuda)
     jugadores_con_deuda = []
     for jugador, vals in st.session_state.cuentas.items():
         pujas = vals.get('Pujas', 0.0)
@@ -815,7 +829,6 @@ with tab5:
     else:
         st.markdown("Selecciona el jugador de la lista de deudores para aplicar su **Pago Total** de forma directa:")
         
-        # Crear filas interactivas para cada deudor
         for jug_deudor, monto_deuda in jugadores_con_deuda:
             col_d1, col_d2, col_d3 = st.columns([2, 2, 1])
             with col_d1:
@@ -872,7 +885,6 @@ with tab5:
 
     st.markdown("---")
     
-    # --- SECCIÓN ABONO DE DEUDA SIMPLIFICADO ---
     with st.container(border=True):
         st.subheader("💵 Sección de Abono de Deuda Parcial")
         st.markdown("Aplica un abono rápido por monto fijo seleccionando el jugador.")
@@ -910,7 +922,7 @@ with tab5:
                 st.session_state.cuentas[jugador_abono] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
             st.session_state.cuentas[jugador_abono]['Abonos'] += monto_abono_elegido
             st.session_state.historial_transacciones.append({
-                "Carrera": "Caja", "Jugador": jugador_abono,
+                "Carrera": "Caja", "Jugador": migrate_key if False else "Caja", "Jugador": jugador_abono,
                 "Tipo": "Abono (Pago Parcial)", "Detalle": f"Abono rápido de {formatear_bs(monto_abono_elegido)}", "Monto (Bs.)": monto_abono_elegido
             })
             st.toast(f"✅ Abono de {formatear_bs(monto_abono_elegido)} registrado a {jugador_abono}.")
