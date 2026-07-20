@@ -367,7 +367,7 @@ with tab2:
     st.write(list(st.session_state.remates[carrera_actual].keys()))
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETAS (VALIDACIÓN ANTI-DUPLICADOS + BOTÓN LIMPIAR)
+# PESTAÑA 3: MÓDULO DE DUPLETAS (VALIDACIÓN ANTI-DUPLICADOS + BOTÓN LIMPIAR EN TICKET EMITIDOS)
 # ==========================================
 with tab3:
     st.title("🎟️ Control y Gestión de Dupletas (Antiduplicados)")
@@ -376,18 +376,7 @@ with tab3:
     col_dup_reg, col_dup_list = st.columns([1, 2])
     
     with col_dup_reg:
-        # Encabezado con título y botón pequeño para limpiar al lado
-        c_tit_dup, c_btn_limp = st.columns([2, 1])
-        with c_tit_dup:
-            st.subheader("📝 Registrar Nueva Dupleta")
-        with c_btn_limp:
-            if st.button("🧹 Limpiar", key="btn_limpiar_dupleta", use_container_width=True, help="Limpia o reinicia las selecciones del formulario de dupleta"):
-                # Limpiamos las llaves del session_state asociadas al formulario de dupletas
-                for k in ["sel_jugador_dupleta", "sel_carr_dup_1", "sel_cab_dup_1", "sel_carr_dup_2", "sel_cab_dup_2", "num_monto_dupleta"]:
-                    if k in st.session_state:
-                        del st.session_state[k]
-                st.toast("🧹 Formulario de dupleta limpiado.")
-                st.rerun()
+        st.subheader("📝 Registrar Nueva Dupleta")
         
         jugador_dupleta = st.selectbox("Jugador / Comprador", st.session_state.lista_jugadores, key="sel_jugador_dupleta")
         
@@ -439,7 +428,18 @@ with tab3:
                     st.rerun()
 
     with col_dup_list:
-        st.subheader("📋 Tickets de Dupletas Emitidos")
+        # Encabezado de la sección de tickets emitidos junto con el botón pequeño de limpieza
+        c_t_list, c_b_limp = st.columns([2, 1])
+        with c_t_list:
+            st.subheader("📋 Tickets de Dupletas Emitidos")
+        with c_b_limp:
+            if st.button("🧹 Limpiar Dupleta", key="btn_limpiar_dupleta_emitidos", use_container_width=True, help="Limpia o reinicia las selecciones del formulario de dupleta"):
+                for k in ["sel_jugador_dupleta", "sel_carr_dup_1", "sel_cab_dup_1", "sel_carr_dup_2", "sel_cab_dup_2", "num_monto_dupleta"]:
+                    if k in st.session_state:
+                        del st.session_state[k]
+                st.toast("🧹 Formulario de dupleta limpiado con éxito.")
+                st.rerun()
+
         if st.session_state.dupletas_tickets:
             df_dupletas = pd.DataFrame(st.session_state.dupletas_tickets)
             st.dataframe(df_dupletas, use_container_width=True, hide_index=True)
@@ -546,7 +546,7 @@ with tab6:
                                     tiene_precio_o_invalido = contiene_palabra_prohibida or bool(re.search(r'\d{3,}', nombre_puro))
                                     
                                     if nombre_puro and len(nombre_puro) > 2 and not tiene_precio_o_invalido and nombre_puro not in ejemplares_detectados_nombres:
-                                    	ejemplares_detectados_nombres.append(nombre_puro)
+                                        ejemplares_detectados_nombres.append(nombre_puro)
 
                 agregados_nuevos = 0
                 for nombre in ejemplares_detectados_nombres:
