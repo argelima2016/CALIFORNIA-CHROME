@@ -64,6 +64,13 @@ if 'lista_jugadores' not in st.session_state:
 if 'remates' not in st.session_state:
     st.session_state.remates = {}
 
+# BANCO / HISTORIAL DE EJEMPLARES FRECUENTES O AÑADIDOS MANUALMENTE
+if 'banco_ejemplares' not in st.session_state:
+    st.session_state.banco_ejemplares = [
+        "1 - Gran Alex", "2 - Rey David", "3 - Sombra Negra", 
+        "4 - Rayo Veloz", "5 - Catire Bory", "6 - Doña Rosa"
+    ]
+
 if 'historial_ganadores' not in st.session_state:
     st.session_state.historial_ganadores = {}
 
@@ -118,7 +125,7 @@ if not st.session_state.remates:
     if not exito_carga:
         for i in range(1, 11):
             carr_nombre = f"Carrera {i}"
-            st.session_state.remates[carr_nombre] = {f"{j} - Ejemplar (Jinete)": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 11)}
+            st.session_state.remates[carr_nombre] = {f"{j} - Ejemplar": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 11)}
 
 lista_carreras_disponibles = list(st.session_state.remates.keys())
 
@@ -139,8 +146,9 @@ todos_los_caballos = sorted(list({cab for carr in st.session_state.remates.value
 st.sidebar.markdown("---")
 if st.sidebar.button("🗑️ Reiniciar Jornada Global", use_container_width=True, type="secondary"):
     for key in list(st.session_state.keys()):
-        del st.session_state[key]
-    st.toast("🚨 Jornada reiniciada.")
+        if key != 'banco_ejemplares':  # Preservamos el banco de nombres guardados
+            del st.session_state[key]
+    st.toast("🚨 Jornada reiniciada (Banco de nombres conservado).")
     st.rerun()
 
 # --- INTERFAZ DE PESTAÑAS ---
@@ -159,11 +167,9 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 Subasta en Vivo: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
     
-    # DISTRIBUCIÓN LADO A LADO: Izquierda Tabla Aumentada (60%), Derecha Consola de Pujas (40%)
     col_izq_tabla, col_der_pujas = st.columns([1.5, 1], gap="medium")
     
     with col_izq_tabla:
-        # 1. TABLERO DE SUBASTA CON ALTURA AMPLIADA (height=420 para visualizar más filas sin scroll excesivo)
         datos_tabla = []
         total_pote = 0.0
         for cab, info in st.session_state.remates[carrera_actual].items():
@@ -175,7 +181,6 @@ with tab1:
         monto_casa = total_pote * (porcentaje_casa / 100)
         pote_neto_base = total_pote - monto_casa
 
-        # 2. MÉTRICAS COMPACTAS DEBAJO DE LA TABLA
         c_m1, c_m2, c_m3 = st.columns(3)
         c_m1.metric("💰 Pote", formatear_bs(total_pote))
         
@@ -191,7 +196,6 @@ with tab1:
         c_m3.metric("🏆 Premio", formatear_bs(premio_total_calculado))
 
     with col_der_pujas:
-        # CONSOLA DE PUJAS Y CIERRE DIRECTAMENTE AL LADO
         with st.container(border=True):
             st.markdown("⚡ **Registro de Puja**")
             
@@ -252,48 +256,77 @@ with tab1:
                     st.rerun()
 
 # ==========================================
-# PESTAÑA 2: GESTIÓN MANUAL DE CABALLOS
+# PESTAÑA 2: GESTIÓN MANUAL DE CABALLOS Y BANCO DE NOMBRES GUARDADOS
 # ==========================================
 with tab2:
-    st.title("✍️ Gestión Manual de Ejemplares")
-    st.markdown("Añada, edite o elimine caballos de forma manual para la carrera seleccionada (Límite: **17 ejemplares máximo**).")
+    st.title("✍️ Gestión Manual de Ejemplares y Banco Persistente")
+    st.markdown("Añada o seleccione ejemplares guardados para la carrera activa. Los nombres nuevos se guardan automáticamente para reutilizarlos en otras carreras.")
 
     col_man_1, col_man_2 = st.columns(2)
 
     with col_man_1:
-        st.subheader("➕ Añadir Nuevo Ejemplar")
-        nombre_nuevo_caballo = st.text_input("Nombre del Caballo / Ejemplar", placeholder="Ej: 1 - Gran Alex (Jinete)", key="input_nuevo_caballo_manual")
+        st.subheader("➕ Añadir / Cargar Ejemplar")
         
-        if st.button("➕ Agregar a la Carrera Activa", use_container_width=True, type="primary"):
+        # Opción A: Escribir uno nuevo
+        nombre_nuevo_caballo = st.text_input("Escribir Nuevo Ejemplar", placeholder="Ej: 7 - Rayo de Luz", key="input_nuevo_caballo_manual")
+        
+        if st.button("💾 Guardar y Añadir a Carrera Actual", use_container_width=True, type="primary"):
             nombre_limpio = nombre_nuevo_caballo.strip().title()
             if not nombre_limpio:
                 st.error("⚠️ El nombre del ejemplar no puede estar vacío.")
             elif len(st.session_state.remates[carrera_actual]) >= 17:
-                st.error("⚠️ Has alcanzado el límite máximo de 17 ejemplares permitidos para esta carrera.")
+                st.error("⚠️ Has alcanzado el límite máximo de 17 ejemplares para esta carrera.")
             elif nombre_limpio in st.session_state.remates[carrera_actual]:
-                st.warning("⚠️ Este ejemplar ya se encuentra registrado en esta carrera.")
+                st.warning("⚠️ Este ejemplar ya está inscrito en esta carrera.")
             else:
                 st.session_state.remates[carrera_actual][nombre_limpio] = {"jugador": "Sin Postor", "monto": 0.0}
-                st.success(f"✅ Ejemplar '{nombre_limpio}' agregado exitosamente a {carrera_actual}.")
+                # Guardar en el banco general si no existe para futuras inscripciones
+                if nombre_limpio not in st.session_state.banco_ejemplares:
+                    st.session_state.banco_ejemplares.append(nombre_limpio)
+                st.success(f"✅ '{nombre_limpio}' guardado en el banco y añadido a {carrera_actual}.")
                 st.rerun()
 
+        st.markdown("---")
+        st.subheader("📚 Cargar desde Banco Guardado")
+        if st.session_state.banco_ejemplares:
+            ejemplar_banco = st.selectbox("Seleccionar del Banco Histórico", st.session_state.banco_ejemplares, key="sel_banco_ejemplar")
+            if st.button("📥 Inscribir Ejemplar Seleccionado en Carrera Activa", use_container_width=True):
+                if len(st.session_state.remates[carrera_actual]) >= 17:
+                    st.error("⚠️ Límite de 17 ejemplares alcanzado en esta carrera.")
+                elif ejemplar_banco in st.session_state.remates[carrera_actual]:
+                    st.warning("⚠️ Este ejemplar ya está inscrito en la carrera actual.")
+                else:
+                    st.session_state.remates[carrera_actual][ejemplar_banco] = {"jugador": "Sin Postor", "monto": 0.0}
+                    st.success(f"✅ '{ejemplar_banco}' cargado a {carrera_actual}.")
+                    st.rerun()
+        else:
+            st.info("No hay ejemplares en el banco guardado.")
+
     with col_man_2:
-        st.subheader("🗑️ Eliminar Ejemplar Existente")
+        st.subheader("🗑️ Opciones de Reinicio y Eliminación")
+        
         caballos_actuales_lista = list(st.session_state.remates[carrera_actual].keys())
         if caballos_actuales_lista:
-            caballo_a_borrar = st.selectbox("Seleccione Ejemplar a Remover", caballos_actuales_lista, key="sel_borrar_caballo_manual")
+            caballo_a_borrar = st.selectbox("Seleccione Ejemplar a Remover de esta Carrera", caballos_actuales_lista, key="sel_borrar_caballo_manual")
             if st.button("🗑️ Eliminar Ejemplar Seleccionado", use_container_width=True, type="secondary"):
                 if len(st.session_state.remates[carrera_actual]) <= 1:
                     st.error("⚠️ Debe conservar al menos un ejemplar en la carrera.")
                 else:
                     del st.session_state.remates[carrera_actual][caballo_a_borrar]
-                    st.success(f"🗑️ Ejemplar '{caballo_a_borrar}' eliminado correctamente.")
+                    st.success(f"🗑️ Ejemplar removido de {carrera_actual}.")
                     st.rerun()
         else:
             st.info("No hay ejemplares registrados en esta carrera.")
 
+        st.markdown("---")
+        st.markdown("⚠️ **Reinicio de Ejemplares (Carrera Actual)**")
+        if st.button("🔄 Vaciar Lista de esta Carrera", use_container_width=True, type="secondary"):
+            st.session_state.remates[carrera_actual] = {}
+            st.success(f"🧹 Se han vaciado todos los ejemplares de {carrera_actual}.")
+            st.rerun()
+
     st.markdown("---")
-    st.subheader(f"📋 Ejemplares Actuales en {carrera_actual} ({len(st.session_state.remates[carrera_actual])}/17)")
+    st.subheader(f"📋 Ejemplares Registrados en {carrera_actual} ({len(st.session_state.remates[carrera_actual])}/17)")
     st.write(list(st.session_state.remates[carrera_actual].keys()))
 
 # ==========================================
@@ -454,6 +487,9 @@ with tab6:
                                                 formato_llave = f"{int(num_ej)} - {nombre_ej} ({jinete_ej})"
                                                 if formato_llave not in ejemplares_detectados and len(ejemplares_detectados) < 17:
                                                     ejemplares_detectados[formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
+                                                # Guardar automáticamente en el banco histórico
+                                                if formato_llave not in st.session_state.banco_ejemplares:
+                                                    st.session_state.banco_ejemplares.append(formato_llave)
                                             break
 
                         texto_pag = page.extract_text()
@@ -467,6 +503,8 @@ with tab6:
                                     formato_llave = f"{int(num_ej)} - {nombre_ej} (Sin Jinete)"
                                     if formato_llave not in ejemplares_detectados and len(ejemplares_detectados) < 17:
                                         ejemplares_detectados[formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
+                                    if formato_llave not in st.session_state.banco_ejemplares:
+                                        st.session_state.banco_ejemplares.append(formato_llave)
 
                 if ejemplares_detectados:
                     claves_carr = list(ejemplares_detectados.keys())[:17]
@@ -474,14 +512,14 @@ with tab6:
 
                 if not carreras_estructuradas:
                     for c in range(1, 11):
-                        carreras_estructuradas[f"Carrera {c}"] = {f"{j} - Ejemplar (Jinete)": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 12)}
+                        carreras_estructuradas[f"Carrera {c}"] = {f"{j} - Ejemplar": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 12)}
 
                 st.session_state.remates = carreras_estructuradas
-                st.success("¡Lectura y limitación a máximo 17 ejemplares completada con éxito!")
+                st.success("¡Lectura y almacenamiento en el banco histórico completados con éxito!")
                 st.balloons()
                 st.rerun()
 
             except ImportError:
-                st.error("⚠️ La librería 'pdfplumber' no está instalada. Ejecuta `pip install pdfplumber` en tu terminal y reinicializa Streamlit.")
+                st.error("⚠️ La librería 'pdfplumber' no está instalada. Ejecuta `pip install pdfplumber` en tu terminal.")
             except Exception as e:
-                st.error(f"Ocurrió un error al procesar el PDF con Pdfplumber: {e}")
+                st.error(f"Ocurrió un error al procesar el PDF: {e}")
