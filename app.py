@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from pypdf import PdfReader
 from streamlit_autorefresh import st_autorefresh
 
-# Configuración de la página web en modo responsivo (ancha para que se adapte a celulares, tablets y PC)
+# Configuración de la página web en modo responsivo avanzado (anchura total fluida)
 st.set_page_config(page_title="Sistema de Remates Responsivo", layout="wide", page_icon="🏇")
 
 # --- AUTOREFRESH OPTIMIZADO (3 SEGUNDOS) ---
@@ -38,7 +38,7 @@ def obtener_siguientes_montos(monto_actual):
         siguientes = [ultimo + i * 1000 for i in range(1, 50)]
     return siguientes
 
-# --- ESTILOS CSS RESPONSIVOS (FLUIDOS PARA CUALQUIER PANTALLA) ---
+# --- ESTILOS CSS MULTIPLATAFORMA (ADAPTABLE A MÓVILES Y COMPUTADORAS) ---
 st.markdown("""
     <style>
     :root {
@@ -57,12 +57,12 @@ st.markdown("""
     }
     
     .subasta-header {
-        font-size: clamp(16px, 2.5vw, 24px);
+        font-size: clamp(18px, 4vw, 26px);
         font-weight: 800;
         color: var(--accent-gold);
-        margin-bottom: 8px;
+        margin-bottom: 12px;
         border-bottom: 2px solid var(--accent-gold);
-        padding-bottom: 5px;
+        padding-bottom: 6px;
     }
     
     .timer-box {
@@ -71,7 +71,7 @@ st.markdown("""
         padding: 12px;
         border-radius: 8px;
         text-align: center;
-        font-size: clamp(18px, 3vw, 24px);
+        font-size: clamp(16px, 3.5vw, 22px);
         font-weight: bold;
         color: var(--accent-red);
         margin-bottom: 12px;
@@ -83,7 +83,7 @@ st.markdown("""
         padding: 10px;
         border-radius: 6px;
         text-align: center;
-        font-size: clamp(13px, 1.5vw, 16px);
+        font-size: clamp(14px, 2vw, 16px);
         color: var(--text-primary);
         margin-bottom: 12px;
     }
@@ -91,30 +91,33 @@ st.markdown("""
     div[data-testid="stMetric"] {
         background-color: var(--bg-card);
         border: 1px solid var(--border-color);
-        padding: 10px;
+        padding: 12px;
         border-radius: 8px;
         margin-bottom: 10px;
     }
 
     div[data-testid="stMetricValue"] {
         color: var(--accent-gold) !important;
-        font-size: clamp(16px, 2vw, 22px) !important;
+        font-size: clamp(18px, 3vw, 24px) !important;
         font-weight: 700;
     }
 
+    /* Adaptabilidad total del contenedor principal para evitar desbordes en celulares */
     .block-container {
-        padding-top: 1rem;
-        padding-bottom: 1rem;
-        padding-left: 1.5rem;
-        padding-right: 1.5rem;
+        padding-top: 1rem !important;
+        padding-bottom: 2rem !important;
+        padding-left: 0.8rem !important;
+        padding-right: 0.8rem !important;
         max-width: 100% !important;
     }
     
+    /* Botones táctiles amplios para pantallas táctiles de Android e iOS */
     .stButton button {
-        width: 100%;
-        border-radius: 6px;
-        font-weight: bold;
-        padding: 0.5rem;
+        width: 100% !important;
+        border-radius: 8px !important;
+        font-weight: bold !important;
+        padding: 0.6rem !important;
+        min-height: 42px !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -365,7 +368,7 @@ if st.sidebar.button("🗑️ Reiniciar Jornada", use_container_width=True):
     st.toast("🚨 Jornada reiniciada.")
     st.rerun()
 
-# --- INTERFAZ DE PESTAÑAS (ADAPTABLES A CUALQUIER ANCHO DE PANTALLA) ---
+# --- INTERFAZ DE PESTAÑAS (ADAPTABLES A PANTALLAS TÁCTILES Y ESCRITORIO) ---
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remate", 
     "✍️ Banco", 
@@ -377,7 +380,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 ])
 
 # ==========================================
-# PESTAÑA 1: REMATE (MODO RESPONSIVO)
+# PESTAÑA 1: REMATE (MODO MULTIPLATAFORMA)
 # ==========================================
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 {carrera_actual}</div>", unsafe_allow_html=True)
@@ -414,7 +417,7 @@ with tab1:
                 st.session_state.tiempo_inicio_conteo[carrera_actual] = ahora_dt
                 st.rerun()
 
-    # Diseño responsivo en dos columnas si la pantalla es ancha, o apilado en vertical en pantallas estrechas
+    # Diseño responsivo en dos columnas de ancho flexible (en móviles se apilan automáticamente gracias a Streamlit Layout)
     col_izq_puja, col_der_tabla = st.columns([1.1, 1.9], gap="medium")
 
     with col_izq_puja:
@@ -428,7 +431,7 @@ with tab1:
                 if f"caballo_seleccionado_click_{carrera_actual}" not in st.session_state or st.session_state[f"caballo_seleccionado_click_{carrera_actual}"] not in lista_caballos_activos:
                     st.session_state[f"caballo_seleccionado_click_{carrera_actual}"] = lista_caballos_activos[0]
                     
-                cols_botones = st.columns(4) # Adaptable a grid de 4 botones
+                cols_botones = st.columns(4) # Cuadrícula táctil ideal para celulares Android/iOS y PC
                 for idx, cab_item in enumerate(lista_caballos_activos):
                     num_parte = cab_item.split(" - ")[0]
                     with cols_botones[idx % 4]:
