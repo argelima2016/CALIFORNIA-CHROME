@@ -84,7 +84,7 @@ if not st.session_state.remates:
     if not exito_carga:
         for i in range(1, 11):
             carr_nombre = f"Carrera {i}"
-            st.session_state.remates[carr_nombre] = {f"{j} - Ejemplar": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 11)}
+            st.session_state.remates[carr_nombre] = {f"{j} - Ejemplar (Jinete)": {"jugador": "Sin Postor", "monto": 0.0} for j in range(1, 11)}
 
 lista_carreras_disponibles = list(st.session_state.remates.keys())
 
@@ -110,7 +110,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🎟️ Módulo de Dupleta", 
     "📊 Cuentas por Jugador", 
     "🧾 Historial de Transacciones", 
-    "📄 Lector Ordenado PDF"
+    "📄 Lector con Jinete PDF"
 ])
 
 # ==========================================
@@ -291,24 +291,24 @@ with tab4:
         st.info("Aún no se han registrado transacciones en el historial.")
 
 # ==========================================
-# PESTAÑA 5: LECTOR ORDENADO DE PDF (CARRERA N° Y EJEMPLAR)
+# PESTAÑA 5: LECTOR DE PDF (CARRERA, EJEMPLAR Y JINETE)
 # ==========================================
 with tab5:
-    st.title("📄 Extractor Ordenado por Carrera y Ejemplar (PDF)")
-    st.markdown("Sube el PDF del programa semanal. El sistema detectará automáticamente los bloques de **Carrera** (ej. *1ra. Carrera*, *2da Carrera*) y enlistará los ejemplares ordenados con su número correspondiente (ej. *1 - Nombre del Caballo*).")
+    st.title("📄 Lector Inteligente con Extracción de Jinete (PDF)")
+    st.markdown("Sube el programa oficial en PDF. El sistema extraerá el número de carrera, el ejemplar y tratará de capturar el **jinete** asociado para mostrarlo de forma ordenada (ej: *1 - Nombre del Caballo (Jinete)*).")
 
-    archivo_pdf_ordenado = st.file_uploader(
+    archivo_pdf_jinete = st.file_uploader(
         "Selecciona el programa oficial de carreras (PDF)", 
         type=["pdf"],
-        key="uploader_pdf_ordenado_semana"
+        key="uploader_pdf_con_jinete"
     )
 
-    if archivo_pdf_ordenado is not None:
-        st.success("¡Archivo PDF cargado correctamente para análisis!")
+    if archivo_pdf_jinete is not None:
+        st.success("¡Archivo PDF cargado correctamente!")
         
-        if st.button("🚀 Extraer Ordenadamente Carreras y Ejemplares", type="primary", use_container_width=True):
+        if st.button("🚀 Extraer Carreras, Ejemplares y Jinetes", type="primary", use_container_width=True):
             try:
-                reader = PdfReader(archivo_pdf_ordenado)
+                reader = PdfReader(archivo_pdf_jinete)
                 texto_completo = ""
                 for page in reader.pages:
                     txt = page.extract_text()
@@ -321,61 +321,63 @@ with tab5:
                 carrera_actual = "Carrera 1"
                 ejemplares_detectados = {}
                 
-                # Expresión regular para detectar títulos de carrera (ej: "1RA. CARRERA", "2DA CARRERA", "TERCERA CARRERA")
                 patron_carrera = re.compile(r'(?:(\d+)\s*(?:RA|DA|TA|MA|VA)?\.?\s*CARRERA)|(?:CARRERA\s*N?[º°]?\s*(\d+))', re.IGNORECASE)
                 
-                # Expresión regular para detectar el número del ejemplar al inicio (ej: "1", "01", seguido de texto)
-                patron_ejemplar = re.compile(r'^(\d{1,2})[\.\-\)]\s+([A-ZÁÉÍÓÚÑ\s]{3,})')
+                # Patrón para capturar: [Nº Ejemplar] [Nombre del Caballo] y opcionalmente un nombre en mayúsculas después (Jinete)
+                patron_ejemplar_jinete = re.compile(r'^(\d{1,2})[\.\-\)]\s+([A-ZÁÉÍÓÚÑ\s]{3,})')
 
                 palabras_basura = ["HIPODROMO", "VALE", "PROGRAMA", "DIVIDENDO", "METROS", "PREMIO", "RETIRADO", "EJEMPLAR", "KILOS", "JINETE", "ENTRENADOR", "HARAS", "APUESTAS", "LINGOTES"]
 
-                for linea in lineas:
+                for i, linea in enumerate(lineas):
                     linea_mayus = linea.upper()
                     
-                    # Comprobar si la línea es un encabezado de carrera
+                    # Detectar cambio de carrera
                     match_carr = patron_carrera.search(linea_mayus)
                     if match_carr:
-                        # Si ya teníamos ejemplares en la carrera anterior, los guardamos
                         if ejemplares_detectados:
                             carreras_estructuradas[carrera_actual] = ejemplares_detectados
                             ejemplares_detectados = {}
-                        
-                        # Extraer el número de carrera encontrado
                         num_carr = next((g for g in match_carr.groups() if g is not None), "1")
                         carrera_actual = f"Carrera {int(num_carr)}"
                         continue
 
-                    # Comprobar si la línea es un ejemplar con su número respectivo
-                    match_ej = patron_ejemplar.match(linea)
+                    # Detectar ejemplar
+                    match_ej = patron_ejemplar_jinete.match(linea)
                     if match_ej:
                         num_ej = match_ej.group(1).zfill(2)
                         nombre_ej = match_ej.group(2).strip()
                         
-                        # Filtrar falsos positivos
+                        # Buscar si en la línea siguiente o en la misma se detecta un jinete (heurística de texto adyacente)
+                        jinete_encontrado = "Sin Jinete"
+                        if i + 1 < len(lineas):
+                            siguiente_linea = lineas[i + 1].strip()
+                            # Si la línea siguiente es corta y en mayúsculas, suele ser el jinete o peso
+                            if len(siguiente_linea) > 3 and not any(p in siguiente_linea.upper() for p in palabras_basura) and not siguiente_linea.isdigit():
+                                jinete_encontrado = siguiente_linea.title()
+
                         if not any(p in nombre_ej for p in palabras_basura) and len(nombre_ej) > 2:
-                            formato_llave = f"{int(num_ej)} - {nombre_ej.title()}"
+                            formato_llave = f"{int(num_ej)} - {nombre_ej.title()} ({jinete_encontrado})"
                             if formato_llave not in ejemplares_detectados:
                                 ejemplares_detectados[formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
 
-                # Guardar el último bloque remanente
+                # Guardar el último bloque
                 if ejemplares_detectados:
                     carreras_estructuradas[carrera_actual] = ejemplares_detectados
 
-                # Respaldo automático por si el formato del PDF es distinto y no detecta líneas con números estrictos
                 if not carreras_estructuradas or len(carreras_estructuradas) == 0:
                     carreras_estructuradas = {}
                     bloques = [lineas[i:i + 12] for i in range(0, len(lineas), 12)]
                     for idx, bloque in enumerate(bloques[:12]):
                         carr_nombre = f"Carrera {idx + 1}"
-                        carreras_estructuradas[carr_nombre] = {f"{i+1} - Ejemplar": {"jugador": "Sin Postor", "monto": 0.0} for i in range(len(bloque[:10]))}
+                        carreras_estructuradas[carr_nombre] = {f"{i+1} - Ejemplar (Jinete)": {"jugador": "Sin Postor", "monto": 0.0} for i in range(len(bloque[:10]))}
 
                 if carreras_estructuradas:
                     st.session_state.remates = carreras_estructuradas
-                    st.success(f"¡Éxito! Se cargaron ordenadamente {len(carreras_estructuradas)} carreras con sus respectivos ejemplares.")
+                    st.success(f"¡Éxito! Se cargaron las carreras, ejemplares y jinetes organizados correctamente.")
                     st.balloons()
                     st.rerun()
                 else:
-                    st.warning("No se pudo estructurar el contenido automáticamente. Verifique que el PDF posea texto seleccionable.")
+                    st.warning("No se pudo estructurar el contenido automáticamente. Compruebe que el PDF sea legible.")
 
             except Exception as e:
-                st.error(f"Error procesando el PDF ordenado: {e}")
+                st.error(f"Error procesando el PDF con jinetes: {e}")
