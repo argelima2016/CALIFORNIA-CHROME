@@ -702,28 +702,42 @@ with tab3:
                     if len(seleccion_pares) < 2:
                         st.error("⚠️ Debes seleccionar al menos 2 ejemplares en diferentes carreras para armar una dupleta.")
                     else:
-                        id_ticket = f"DUP-{int(datetime.now().timestamp())}"
-                        nuevo_ticket = {
-                            "ID": id_ticket,
-                            "Jugador": jugador_dupleta,
-                            "Monto": monto_apuesta_base,
-                            "Selecciones": seleccion_pares,
-                            "Estado": "Activa",
-                            "Fecha": datetime.now().strftime("%I:%M:%S %p")
-                        }
-                        st.session_state.dupletas_tickets.append(nuevo_ticket)
+                        # Verificar si ya existe un ticket idéntico (mismo jugador y misma combinación exacta de selecciones)
+                        ticket_duplicado = False
+                        for t_existente in st.session_state.dupletas_tickets:
+                            if t_existente["Jugador"] == jugador_dupleta:
+                                # Comparamos las selecciones ordenadas para asegurar igualdad exacta
+                                sel_existente_ord = sorted([(s["Carrera"], s["Ejemplar"]) for s in t_existente["Selecciones"]])
+                                sel_nueva_ord = sorted([(s["Carrera"], s["Ejemplar"]) for s in seleccion_pares])
+                                if sel_existente_ord == sel_nueva_ord:
+                                    ticket_duplicado = True
+                                    break
                         
-                        if jugador_dupleta not in st.session_state.cuentas:
-                            st.session_state.cuentas[jugador_dupleta] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
-                        st.session_state.cuentas[jugador_dupleta]['Pujas'] += monto_apuesta_base
-                        
-                        st.session_state.historial_transacciones.append({
-                            "Carrera": "Dupleta", "Jugador": jugador_dupleta,
-                            "Tipo": "Cargo (Dupleta)", "Detalle": f"Emisión de Ticket {id_ticket}", "Monto (Bs.)": -monto_apuesta_base
-                        })
-                        
-                        st.success(f"✅ ¡Ticket {id_ticket} emitido con éxito por {formatear_bs(monto_apuesta_base)}!")
-                        st.rerun()
+                        if ticket_duplicado:
+                            st.error("⚠️ Ya existe un ticket con exactamente esta misma combinación de ejemplares para este jugador.")
+                        else:
+                            id_ticket = f"DUP-{int(datetime.now().timestamp())}"
+                            nuevo_ticket = {
+                                "ID": id_ticket,
+                                "Jugador": jugador_dupleta,
+                                "Monto": monto_apuesta_base,
+                                "Selecciones": seleccion_pares,
+                                "Estado": "Activa",
+                                "Fecha": datetime.now().strftime("%I:%M:%S %p")
+                            }
+                            st.session_state.dupletas_tickets.append(nuevo_ticket)
+                            
+                            if jugador_dupleta not in st.session_state.cuentas:
+                                st.session_state.cuentas[jugador_dupleta] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                            st.session_state.cuentas[jugador_dupleta]['Pujas'] += monto_apuesta_base
+                            
+                            st.session_state.historial_transacciones.append({
+                                "Carrera": "Dupleta", "Jugador": jugador_dupleta,
+                                "Tipo": "Cargo (Dupleta)", "Detalle": f"Emisión de Ticket {id_ticket}", "Monto (Bs.)": -monto_apuesta_base
+                            })
+                            
+                            st.success(f"✅ ¡Ticket {id_ticket} emitido con éxito por {formatear_bs(monto_apuesta_base)}!")
+                            st.rerun()
 
         with col_dup_2:
             st.subheader("📋 Tickets de Dupleta Emitidos")
