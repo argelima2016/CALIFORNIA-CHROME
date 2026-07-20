@@ -39,13 +39,24 @@ st.markdown("""
     .timer-box {
         background-color: #1e1e2f;
         border: 2px solid #ff4757;
-        padding: 10px;
+        padding: 15px;
         border-radius: 8px;
         text-align: center;
-        font-size: 20px;
+        font-size: 24px;
         font-weight: bold;
         color: #ff4757;
-        margin-bottom: 10px;
+        margin-bottom: 15px;
+        box-shadow: 0 0 15px rgba(255, 71, 87, 0.4);
+    }
+    .cierre-info-box {
+        background-color: #2f2f42;
+        border: 1px solid #4f4f6f;
+        padding: 10px;
+        border-radius: 6px;
+        text-align: center;
+        font-size: 16px;
+        color: #f1f2f6;
+        margin-bottom: 15px;
     }
     .block-container {
         padding-top: 1.2rem;
@@ -248,7 +259,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 ])
 
 # ==========================================
-# PESTAÑA 1: REMATE ADELANTADO (CON HORA ESTRICTA, 10S, 3S Y MODIFICACIÓN MANUAL)
+# PESTAÑA 1: REMATE ADELANTADO (CON HORA DE CIERRE VISIBLE Y CONTEO DE 10S EN PANTALLA)
 # ==========================================
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 Remate Adelantado: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
@@ -260,6 +271,12 @@ with tab1:
     
     ahora_dt = datetime.now()
     
+    # Mostrar siempre la hora de cierre estricta programada en la interfaz principal
+    if hora_limite:
+        st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta Programada para <b>{carrera_actual}</b>: <b>{hora_limite.strftime('%H:%M:%S')}</b> (Hora Actual: {ahora_dt.strftime('%H:%M:%S')})</div>", unsafe_allow_html=True)
+    else:
+        st.markdown(f"<div class='cierre-info-box'>⚠️ No hay hora de cierre estricta configurada para <b>{carrera_actual}</b> (Puede asignarla en la barra lateral izquierda).</div>", unsafe_allow_html=True)
+
     if hora_limite and not carrera_cerrada:
         dt_limite = datetime.combine(ahora_dt.date(), hora_limite)
         diferencia_segundos = (dt_limite - ahora_dt).total_seconds()
@@ -281,7 +298,8 @@ with tab1:
             restantes_10s = max(0, 10 - int(tiempo_transcurrido))
             
             if restantes_10s > 0:
-                st.markdown(f"<div class='timer-box'>⚠️ ¡ATENCIÓN ESTRICTA! Faltan {restantes_10s} segundos para el cierre definitivo de {carrera_actual}</div>", unsafe_allow_html=True)
+                # --- VISUALIZACIÓN GRANDE Y CLARA DEL CONTEO DE LOS 10 SEGUNDOS ---
+                st.markdown(f"<div class='timer-box'>⚠️ ¡ATENCIÓN ESTRICTA! CIERRE INMINENTE EN: <b>{restantes_10s}</b> SEGUNDOS</div>", unsafe_allow_html=True)
             else:
                 st.session_state.estado_conteo_carrera[carrera_actual] = "ESPERA_POST_PUJA"
                 st.session_state.tiempo_inicio_conteo[carrera_actual] = ahora_dt
