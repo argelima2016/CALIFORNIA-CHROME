@@ -666,8 +666,11 @@ with tab3:
     st.markdown("Selecciona tu combinación de ejemplares de forma interactiva y veloz.")
 
     carreras_permitidas = st.session_state.carreras_habilitadas_dupleta
+    # Modificación solicitada: En módulo de dupletas solo mostrar las carreras cerradas
+    carreras_permitidas = [carr for carr in carreras_permitidas if st.session_state.carreras_cerradas_remate.get(carr, False)]
+
     if not carreras_permitidas:
-        st.warning("⚠️ El administrador aún no ha seleccionado ninguna carrera habilitada para las dupletas en la barra lateral.")
+        st.warning("⚠️ No hay carreras cerradas y habilitadas para dupletas en este momento.")
     else:
         col_j_m1, col_j_m2 = st.columns([3, 1])
         with col_j_m1:
@@ -787,7 +790,7 @@ with tab3:
 # ==========================================
 with tab4:
     st.title("🏁 Central de Cierre, Remates Cerrados y Dupletas")
-    st.markdown("Módulo dinámico optimizado: muestra únicamente las carreras cerradas y pendientes de liquidación para agilizar el proceso.")
+    st.markdown("Módulo dinámico optimizado: seleccione la carrera mediante botones rápidos con iconos.")
 
     # Filtrar solo las carreras que están cerradas
     carreras_cerradas_disp = [carr for carr in st.session_state.remates.keys() if st.session_state.carreras_cerradas_remate.get(carr, False)]
@@ -795,8 +798,23 @@ with tab4:
     if not carreras_cerradas_disp:
         st.info("ℹ️ No hay carreras cerradas en este momento. Cierra un remate desde la barra lateral o la pestaña de Remate Adelantado para habilitar la liquidación aquí.")
     else:
-        # Selector dinámico solo con carreras cerradas
-        carr_liq_sel = st.selectbox("🎯 Seleccionar Carrera Cerrada para Liquidar", carreras_cerradas_disp, key="sel_carr_liq_central_dinamico")
+        # Selector de carreras cerradas con botones de iconos rápidos en lugar de selectbox tradicional
+        if "carr_liq_sel_activo" not in st.session_state or st.session_state["carr_liq_sel_activo"] not in carreras_cerradas_disp:
+            st.session_state["carr_liq_sel_activo"] = carreras_cerradas_disp[0]
+
+        st.markdown("⚡ **Seleccionar Carrera Cerrada:**")
+        cols_iconos_carr = st.columns(min(len(carreras_cerradas_disp), 6))
+        for idx, carr_item in enumerate(carreras_cerradas_disp):
+            with cols_iconos_carr[idx % len(cols_iconos_carr)]:
+                is_selected = st.session_state["carr_liq_sel_activo"] == carr_item
+                btn_type = "primary" if is_selected else "secondary"
+                num_carr_txt = ''.join(filter(str.isdigit, str(carr_item))) or str(idx + 1)
+                if st.button(f"🏁 C{num_carr_txt}", key=f"btn_icono_carr_{carr_item}", use_container_width=True, type=btn_type):
+                    st.session_state["carr_liq_sel_activo"] = carr_item
+                    st.rerun()
+
+        carr_liq_sel = st.session_state["carr_liq_sel_activo"]
+        st.markdown(f"### Carrera Activa Seleccionada: **{carr_liq_sel}**")
 
         is_liquidada = carr_liq_sel in st.session_state.historial_ganadores
 
