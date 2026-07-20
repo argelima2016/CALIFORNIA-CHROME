@@ -699,11 +699,11 @@ with tab2:
                 st.rerun()
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETA PRO (INTERACTIVO Y DIDÁCTICO)
+# PESTAÑA 3: MÓDULO DE DUPLETA PRO (INTERACTIVO Y DIDÁCTICO - BOTONES MÁS PEQUEÑOS Y VALIDACIÓN TOTAL)
 # ==========================================
 with tab3:
     st.title("🎟️ Módulo de Dupletas Pro Interactivo")
-    st.markdown("Arma tus dupletas con un panel didáctico visual de botones por cada ejemplar. **No se permiten tickets con selecciones de ejemplares iguales** (independientemente del jugador), y el pozo total refleja exactamente la suma de todos los tickets vendidos.")
+    st.markdown("Arma tus dupletas con un panel didáctico visual optimizado y compacto. **Validación estricta:** Ningún ticket puede repetir ningún ejemplar ya utilizado en tickets previos (en ninguna de las dos válidas, sin importar el jugador).")
 
     carreras_habilitadas = st.session_state.carreras_habilitadas_dupleta
 
@@ -724,10 +724,23 @@ with tab3:
         col_dup_izq, col_dup_der = st.columns([1.3, 1], gap="large")
 
         with col_dup_izq:
-            st.subheader("🎯 Panel Didáctico de Selección de Ejemplares")
+            st.subheader("🎯 Panel Didáctico de Selección Compacto")
             
             if st.session_state.dupleta_bloqueada:
                 st.warning("🔒 **Módulo Bloqueado:** No se admiten nuevos tickets en este momento.")
+
+            # --- RECOPILAR EJEMPLARES YA USADOS EN OTROS TICKETS (VALIDACIÓN ESTRICTA GLOBAL) ---
+            ejemplares_leg1_ocupados = set()
+            ejemplares_leg2_ocupados = set()
+            
+            for t in st.session_state.dupletas_tickets:
+                # Guardamos combinaciones o pares exactos válidos jugados
+                l1 = t.get("Leg_1")
+                l2 = t.get("Leg_2")
+                if l1:
+                    ejemplares_leg1_ocupados.add(l1)
+                if l2:
+                    ejemplares_leg2_ocupados.add(l2)
 
             # --- SELECCIÓN DE 1RA VÁLIDA ---
             st.markdown("#### 1️⃣ Primera Válida")
@@ -739,24 +752,33 @@ with tab3:
             if not caballos_c1:
                 st.info("No hay ejemplares en esta carrera.")
             else:
-                st.markdown("Selecciona el ejemplar haciendo clic en su botón:")
-                cols_b_c1 = st.columns(4)
+                st.markdown("Ejemplares (Haz clic para seleccionar):")
+                # Filas de 6 columnas para hacer los botones mucho más pequeños y ordenados
+                cols_b_c1 = st.columns(6)
                 for idx, c_item in enumerate(caballos_c1):
                     num_str = c_item.split(" - ")[0]
                     nombre_corto = c_item.split(" - ")[1] if " - " in c_item else c_item
+                    if len(nombre_corto) > 8:
+                        nombre_corto = nombre_corto[:7] + "."
+                        
+                    leg_completa_actual = f"{carr_1_sel} ({c_item})"
+                    ya_ocupado = leg_completa_actual in ejemplares_leg1_ocupados
                     is_selected = (st.session_state.dup_cab_1_elegido == c_item)
+                    
                     btn_type = "primary" if is_selected else "secondary"
                     
-                    with cols_b_c1[idx % 4]:
-                        if st.button(f"#{num_str}\n{nombre_corto}", key=f"btn_didact_c1_{carr_1_sel}_{idx}", use_container_width=True, type=btn_type):
-                            st.session_state.dup_cab_1_elegido = c_item
-                            st.rerun()
+                    with cols_b_c1[idx % 6]:
+                        if ya_ocupado:
+                            st.button(f"#{num_str}\n(Ocupado)", key=f"btn_didact_c1_{carr_1_sel}_{idx}", use_container_width=True, disabled=True)
+                        else:
+                            if st.button(f"#{num_str}\n{nombre_corto}", key=f"btn_didact_c1_{carr_1_sel}_{idx}", use_container_width=True, type=btn_type):
+                                st.session_state.dup_cab_1_elegido = c_item
+                                st.rerun()
 
             st.markdown("---")
 
             # --- SELECCIÓN DE 2DA VÁLIDA ---
             st.markdown("#### 2️⃣ Segunda Válida")
-            # Filtrar para evitar que la 2da carrera sea idéntica si hay más de 1 disponible, o permitirla si el usuario gusta
             carr_2_opciones = carreras_habilitadas
             carr_2_sel = st.selectbox("Elegir Carrera (2da Válida)", carr_2_opciones, key="select_carr_valida_2")
             st.session_state.dup_sel_carr_2 = carr_2_sel
@@ -765,18 +787,27 @@ with tab3:
             if not caballos_c2:
                 st.info("No hay ejemplares en esta carrera.")
             else:
-                st.markdown("Selecciona el ejemplar haciendo clic en su botón:")
-                cols_b_c2 = st.columns(4)
+                st.markdown("Ejemplares (Haz clic para seleccionar):")
+                cols_b_c2 = st.columns(6)
                 for idx, c_item in enumerate(caballos_c2):
                     num_str = c_item.split(" - ")[0]
                     nombre_corto = c_item.split(" - ")[1] if " - " in c_item else c_item
+                    if len(nombre_corto) > 8:
+                        nombre_corto = nombre_corto[:7] + "."
+                        
+                    leg_completa_actual = f"{carr_2_sel} ({c_item})"
+                    ya_ocupado = leg_completa_actual in ejemplares_leg2_ocupados
                     is_selected = (st.session_state.dup_cab_2_elegido == c_item)
+                    
                     btn_type = "primary" if is_selected else "secondary"
                     
-                    with cols_b_c2[idx % 4]:
-                        if st.button(f"#{num_str}\n{nombre_corto}", key=f"btn_didact_c2_{carr_2_sel}_{idx}", use_container_width=True, type=btn_type):
-                            st.session_state.dup_cab_2_elegido = c_item
-                            st.rerun()
+                    with cols_b_c2[idx % 6]:
+                        if ya_ocupado:
+                            st.button(f"#{num_str}\n(Ocupado)", key=f"btn_didact_c2_{carr_2_sel}_{idx}", use_container_width=True, disabled=True)
+                        else:
+                            if st.button(f"#{num_str}\n{nombre_corto}", key=f"btn_didact_c2_{carr_2_sel}_{idx}", use_container_width=True, type=btn_type):
+                                st.session_state.dup_cab_2_elegido = c_item
+                                st.rerun()
 
         with col_dup_der:
             st.subheader("🛒 Resumen del Ticket y Registro")
@@ -805,15 +836,15 @@ with tab3:
                             leg_1_str = f"{st.session_state.dup_sel_carr_1} ({st.session_state.dup_cab_1_elegido})"
                             leg_2_str = f"{st.session_state.dup_sel_carr_2} ({st.session_state.dup_cab_2_elegido})"
                             
-                            # --- VALIDACIÓN ESTRICTA: NO PUEDE HABER TICKETS CON SELECCIONES DE EJEMPLAR IGUALES ---
-                            duplicado_ejemplares = False
+                            # --- VALIDACIÓN ESTRICTA GLOBAL: NINGÚN EJEMPLAR PUEDE ESTAR REPETIDO EN NINGÚN TICKET PREVIO ---
+                            ejemplar_repetido = False
                             for t in st.session_state.dupletas_tickets:
-                                if (t.get("Leg_1") == leg_1_str and t.get("Leg_2") == leg_2_str):
-                                    duplicado_ejemplares = True
+                                if t.get("Leg_1") == leg_1_str or t.get("Leg_2") == leg_1_str or t.get("Leg_1") == leg_2_str or t.get("Leg_2") == leg_2_str:
+                                    ejemplar_repetido = True
                                     break
                             
-                            if duplicado_ejemplares:
-                                st.error("⚠️ **¡Selección de Ejemplares Duplicada!** Ya existe un ticket registrado con exactamente esta misma combinación de ejemplares para ambas válidas. No se permiten selecciones de ejemplares iguales en ningún ticket.")
+                            if ejemplar_repetido:
+                                st.error("⚠️ **¡Ejemplar Ya Utilizado!** Uno o ambos de los ejemplares seleccionados ya forman parte de otro ticket registrado previamente. No se permite registrar ningún ticket que repita un ejemplar ya utilizado.")
                             else:
                                 ticket_nuevo = {
                                     "Jugador": jugador_dupleta,
@@ -925,7 +956,7 @@ with tab5:
     if not jugadores_con_deuda:
         st.success("🎉 ¡Excelente! No hay jugadores con deudas pendientes en este momento.")
     else:
-        st.markdown("Selecciona el jugador de la lista de deudores para aplicar su **Pago Total** de forma directa:")
+        st.markdown("Selecciona el jugador de la lista de deudores para aplicar sus pagos de forma directa:")
         
         for jug_deudor, monto_deuda in jugadores_con_deuda:
             col_d1, col_d2, col_d3 = st.columns([2, 2, 1])
