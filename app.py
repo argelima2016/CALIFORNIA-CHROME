@@ -156,7 +156,6 @@ def formatear_bs(monto):
 st.sidebar.header("⚙️ Control de Carrera en Vivo")
 
 ahora_dt, conexion_local = obtener_hora_venezuela()
-st.sidebar.caption("🇻🇪 🕒 Hora Local de Venezuela (Sistema)")
 
 def cargar_programa_automatico():
     archivo_fijo = "programa_del_dia.xlsx" 
@@ -214,7 +213,7 @@ with st.sidebar.expander("⏰ Hora de Cierre Estricta y Manual", expanded=True):
     hora_guardada_actual = st.session_state.horas_cierre_remate.get(carrera_actual)
     
     hora_seleccionada = st.sidebar.time_input(
-        "Modificar Hora Estricta de Cierre (VET)", 
+        "Modificar Hora Estricta de Cierre", 
         value=hora_guardada_actual if hora_guardada_actual else time(hora_actual_def.hour, min(59, hora_actual_def.minute + 5)),
         key=f"time_input_{carrera_actual}"
     )
@@ -279,15 +278,15 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 Remate Adelantado: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
     
-    # --- LÓGICA DEL TEMPORIZADOR Y HORA ESTRICTA CON HORA LOCAL DE VENEZUELA ---
+    # --- LÓGICA DEL TEMPORIZADOR Y HORA ESTRICTA ---
     hora_limite = st.session_state.horas_cierre_remate.get(carrera_actual)
     carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carrera_actual, False)
     estado_conteo = st.session_state.estado_conteo_carrera.get(carrera_actual, "INACTIVO")
     
     if hora_limite:
-        st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta para <b>{carrera_actual}</b>: <b>{hora_limite.strftime('%H:%M:%S')}</b> | 🇻🇪 Hora Actual: <b>{ahora_dt.strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta para <b>{carrera_actual}</b>: <b>{hora_limite.strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
     else:
-        st.markdown(f"<div class='cierre-info-box'>⚠️ Sin hora de cierre estricta para <b>{carrera_actual}</b> | 🇻🇪 Hora Actual: <b>{ahora_dt.strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='cierre-info-box'>⚠️ Sin hora de cierre estricta configurada para <b>{carrera_actual}</b></div>", unsafe_allow_html=True)
 
     if hora_limite and not carrera_cerrada:
         dt_limite = datetime.combine(ahora_dt.date(), hora_limite)
