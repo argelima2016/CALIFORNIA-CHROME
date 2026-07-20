@@ -652,310 +652,307 @@ with tab2:
                         match_num = re.match(r'^(\d+)', elem)
                         if match_num:
                             numeros_usados.append(int(match_num.group(1)))
-                    
+                            
                     siguiente_num = 1
                     while siguiente_num in numeros_usados and siguiente_num <= 17:
                         siguiente_num += 1
-                    
+                        
                     if siguiente_num > 17:
-                        st.error("⚠️ No hay posiciones disponibles (máximo 17).")
+                        st.error("⚠️ No hay posiciones disponibles.")
                     else:
                         formato_llave = f"{siguiente_num} - {nombre_limpio}"
-                        st.session_state.remates[carrera_actual][formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
-                        st.success(f"✅ Cargado como **{formato_llave}** en {carrera_actual}.")
-                        st.rerun()
-        else:
-            st.info("El banco de nombres está vacío.")
+                        if formato_llave not in st.session_state.remates[carrera_actual]:
+                            st.session_state.remates[carrera_actual][formato_llave] = {"jugador": "Sin Postor", "monto": 0.0}
+                            st.success(f"✅ Añadido **{formato_llave}** a {carrera_actual}.")
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ Este ejemplar ya está inscrito en esta carrera.")
 
     with col_man_2:
-        st.subheader(f"📋 Ejemplares en {carrera_actual}")
-        lista_cab_actuales = list(st.session_state.remates[carrera_actual].keys())
-        if lista_cab_actuales:
-            for cab in lista_cab_actuales:
-                col_c1, col_c2 = st.columns([3, 1])
-                col_c1.markdown(f"• **{cab}**")
-                if col_c2.button("🗑️ Quitar", key=f"btn_del_cab_{carrera_actual}_{cab}"):
-                    del st.session_state.remates[carrera_actual][cab]
-                    st.toast(f"🗑️ Ejemplar {cab} eliminado.")
-                    st.rerun()
+        st.subheader("🗑️ Eliminar Ejemplares Inscritos")
+        ejemplares_actuales_lista = list(st.session_state.remates[carrera_actual].keys())
+        if ejemplares_actuales_lista:
+            caballo_a_borrar = st.selectbox("Seleccionar Ejemplar a Remover", ejemplares_actuales_lista, key="sel_borrar_caballo")
+            if st.button("🗑️ Eliminar Ejemplar Seleccionado", use_container_width=True, type="secondary"):
+                del st.session_state.remates[carrera_actual][caballo_a_borrar]
+                st.success(f"🗑️ Ejemplar {caballo_a_borrar} eliminado de {carrera_actual}.")
+                st.rerun()
         else:
             st.info("No hay ejemplares inscritos en esta carrera.")
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETA MODERNO Y DIDÁCTICO
+# PESTAÑA 3: MÓDULO DE DUPLETA MODERNO Y SEGURO
 # ==========================================
 with tab3:
-    st.markdown("<div class='subasta-header'>🎟️ Módulo de Dupleta Dinámico & Anti-Duplicados Avanzado</div>", unsafe_allow_html=True)
-    st.markdown("Arma tu dupleta de forma rápida y visual con **selección simple** (un solo clic por carrera). El sistema valida estrictamente que **no existan dos tickets con la misma combinación exacta** y que **no se repita el mismo caballo** en diferentes carreras dentro de la misma dupleta.")
+    st.title("🎟️ Módulo de Dupletas de La Rinconada")
+    st.markdown("Crea combinaciones de forma rápida. El sistema valida automáticamente las carreras autorizadas y evita que se repita exactamente la misma combinación de ejemplares.")
 
-    carreras_habilitadas = st.session_state.carreras_habilitadas_dupleta
-
-    if not carreras_habilitadas:
-        st.warning("⚠️ No hay carreras habilitadas para dupletas. Configúralas primero en la barra lateral (Admin: Carreras de Dupleta).")
+    carreras_dup_activas = st.session_state.carreras_habilitadas_dupleta
+    
+    if not carreras_dup_activas:
+        st.warning("⚠️ No hay carreras habilitadas para dupletas por el administrador en la barra lateral.")
     else:
-        # Métricas rápidas superiores de dupletas
-        dupletas_activas_list = [t for t in st.session_state.dupletas_tickets if t["Estado"] == "Activo"]
-        monto_total_dupletas = sum([t["Monto"] for t in dupletas_activas_list])
-        
-        col_m1, col_m2 = st.columns(2)
-        col_m1.metric("🎫 Dupletas Activas en Juego", len(dupletas_activas_list))
-        col_m2.metric("💵 Monto Total en Dupletas", formatear_bs(monto_total_dupletas))
-        
-        st.markdown("---")
+        col_dup_izq, col_dup_der = st.columns([1.2, 1], gap="large")
 
-        col_dup_1, col_dup_2 = st.columns([1.3, 1], gap="large")
-
-        with col_dup_1:
+        with col_dup_izq:
             with st.container(border=True):
-                st.markdown("### ⚡ Creador Dinámico de Dupleta (Selección Simple)")
+                st.subheader("📝 Registrar Nueva Dupleta")
                 
-                jugador_dupleta = st.selectbox(
-                    "👤 1. Seleccionar Comprador / Jugador", 
-                    st.session_state.lista_jugadores, 
-                    key="sel_jugador_dupleta_didactico"
-                )
+                jugador_dup = st.selectbox("Comprador / Jugador", st.session_state.lista_jugadores, key="sel_jugador_dupleta_simple")
                 
-                st.markdown("---")
-                st.markdown("#### 🏇 2. Selección Simple por Carrera")
-                st.caption("*(Selecciona un ejemplar por carrera. Si prefieres no jugar alguna válida, déjala en la opción de omitir)*")
+                # Selector limpio de 2 o 3 selecciones
+                tipo_dupleta = st.radio("Estructura de la Dupleta", ["Dupleta (2 Carreras)", "Trpleta (3 Carreras)"], horizontal=True, key="radio_tipo_dupleta_simple")
+                num_picks = 2 if "2" in tipo_dupleta else 3
                 
-                seleccion_ejemplares_ticket = {}
+                picks_actuales = []
+                carreras_elegidas = []
+                bloqueo_carrera_repetida = True
                 
-                for carr_h in carreras_habilitadas:
-                    caballos_carr = list(st.session_state.remates.get(carr_h, {}).keys())
+                for i in range(num_picks):
+                    st.markdown(f"**Selección #{i+1}**")
+                    col_c_sel, col_e_sel = st.columns(2)
                     
-                    if not caballos_carr:
-                        st.info(f"No hay ejemplares cargados en {carr_h}.")
+                    with col_c_sel:
+                        carr_sel = st.selectbox(f"Carrera #{i+1}", carreras_dup_activas, key=f"dup_carr_simple_{i}")
+                    
+                    with col_e_sel:
+                        caballos_en_carr = list(st.session_state.remates.get(carr_sel, {}).keys())
+                        cab_sel = st.selectbox(f"Ejemplar #{i+1}", caballos_en_carr if caballos_en_carr else ["Sin ejemplares"], key=f"dup_cab_simple_{i}")
+                    
+                    if carr_sel in carreras_elegidas:
+                        bloqueo_carrera_repetida = False
                     else:
-                        opciones_cab = ["-- Omitir / Sin selección --"] + caballos_carr
+                        carreras_elegidas.append(carr_sel)
                         
-                        sel_c = st.selectbox(
-                            f"Ejemplar para {carr_h}:", 
-                            opciones_cab, 
-                            key=f"dup_didactico_sel_{carr_h}"
-                        )
-                        
-                        if sel_c != "-- Omitir / Sin selección --":
-                            seleccion_ejemplares_ticket[carr_h] = sel_c
+                    picks_actuales.append({"Carrera": carr_sel, "Ejemplar": cab_sel})
+                    if i < num_picks - 1:
+                        st.markdown("---")
 
-                st.markdown("---")
+                monto_dup = st.number_input("Monto de la Dupleta (Bs.)", min_value=50.0, value=500.0, step=50.0, key="input_monto_dupleta_simple")
                 
-                # Panel Resumen Dinámico en tiempo real antes de emitir
-                st.markdown("#### 📝 Resumen de tu Selección Actual:")
-                if len(seleccion_ejemplares_ticket) > 0:
-                    for c_res, e_res in seleccion_ejemplares_ticket.items():
-                        st.markdown(f"• **{c_res}** ➡️ `{e_res}`")
-                else:
-                    st.info("Aún no has seleccionado ejemplares en ninguna carrera.")
+                # Cálculo de premio base estimado (x2 por cada logro)
+                premio_estimado = monto_dup * (2 ** num_picks)
+                st.info(f"💡 **Premio Estimado:** `{formatear_bs(premio_estimado)}`")
 
-                st.markdown("---")
-                monto_dupleta = st.number_input(
-                    "💰 3. Monto de la Apuesta (Bs.)", 
-                    min_value=50.0, 
-                    value=500.0, 
-                    step=50.0, 
-                    key="input_monto_dupleta_didactico"
-                )
-
-                if st.button("🚀 Emitir Dupleta Verificada", type="primary", use_container_width=True):
-                    # VALIDACIÓN: Verificar si hay caballos repetidos en la selección actual
-                    caballos_seleccionados_lista = list(seleccion_ejemplares_ticket.values())
-                    hay_caballos_repetidos = len(caballos_seleccionados_lista) != len(set(caballos_seleccionados_lista))
-
-                    if len(seleccion_ejemplares_ticket) < 2:
-                        st.error("⚠️ Una dupleta requiere obligatoriamente selecciones en al menos **2 carreras**.")
-                    elif hay_caballos_repetidos:
-                        st.error("🚨 **¡Caballo Repetido Bloqueado!** No puedes seleccionar el mismo ejemplar en dos carreras distintas dentro de la misma dupleta.")
+                if st.button("🎟️ Emitir Dupleta", use_container_width=True, type="primary"):
+                    if not bloqueo_carrera_repetida:
+                        st.error("⚠️ No puedes seleccionar la misma carrera dos veces en una misma combinada.")
                     else:
-                        # VALIDACIÓN ANTI-DUPLICADOS ESTRICTA (Bloquea si ya existe un ticket activo con exactamente las mismas selecciones)
-                        ticket_duplicado_encontrado = False
-                        for tkt_existente in st.session_state.dupletas_tickets:
-                            if tkt_existente["Estado"] == "Activo" and tkt_existente["Jugador"] == jugador_dupleta:
-                                if tkt_existente["Selecciones"] == seleccion_ejemplares_ticket:
-                                    ticket_duplicado_encontrado = True
+                        # VERIFICAR BLOQUEO DE COMBINACIÓN EXACTAMENTE IGUAL
+                        combinacion_actual_clave = tuple(sorted([(p["Carrera"], p["Ejemplar"]) for p in picks_actuales]))
+                        
+                        dupleta_repetida = False
+                        for t_existente in st.session_state.dupletas_tickets:
+                            if t_existente.get("Estado") != "Perdedor":
+                                t_clave = tuple(sorted([(p["Carrera"], p["Ejemplar"]) for p in t_existente["Picks"]]))
+                                if t_clave == combinacion_actual_clave:
+                                    dupleta_repetida = True
                                     break
                         
-                        if ticket_duplicado_encontrado:
-                            st.error("🚨 **¡Duplicado Bloqueado!** El jugador ya posee un ticket activo con esta misma combinación exacta de ejemplares y carreras.")
+                        if dupleta_repetida:
+                            st.error("🚫 ¡Bloqueo de seguridad! Esta combinación exacta de ejemplares ya fue registrada previamente en otro ticket activo.")
                         else:
-                            id_ticket = f"DUP-{len(st.session_state.dupletas_tickets) + 1:03d}"
                             ticket_nuevo = {
-                                "ID": id_ticket,
-                                "Jugador": jugador_dupleta,
-                                "Selecciones": seleccion_ejemplares_ticket,
-                                "Monto": monto_dupleta,
-                                "Estado": "Activo"
+                                "Jugador": jugador_dup,
+                                "Picks": picks_actuales,
+                                "Monto": monto_dup,
+                                "Premio": premio_estimado,
+                                "Estado": "En Curso",
+                                "Fecha": ahora_dt.strftime('%I:%M:%S %p')
                             }
                             st.session_state.dupletas_tickets.append(ticket_nuevo)
                             
-                            # Cargo automático a la cuenta corriente del jugador
-                            if jugador_dupleta not in st.session_state.cuentas:
-                                st.session_state.cuentas[jugador_dupleta] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
-                            st.session_state.cuentas[jugador_dupleta]['Pujas'] += monto_dupleta
+                            # Cargo automático a cuenta del jugador
+                            if jugador_dup not in st.session_state.cuentas:
+                                st.session_state.cuentas[jugador_dup] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                            st.session_state.cuentas[jugador_dup]['Pujas'] += monto_dup
                             
-                            detalle_str = ", ".join([f"{c}: {e}" for c, e in seleccion_ejemplares_ticket.items()])
                             st.session_state.historial_transacciones.append({
-                                "Carrera": "Múltiples (Dupleta)", "Jugador": jugador_dupleta,
-                                "Tipo": "Cargo (Dupleta)", "Detalle": f"Ticket {id_ticket} [{detalle_str}]", "Monto (Bs.)": -monto_dupleta
+                                "Carrera": "Dupleta", "Jugador": jugador_dup,
+                                "Tipo": "Cargo (Dupleta)", "Detalle": f"Ticket de {num_picks} selecciones", "Monto (Bs.)": -monto_dup
                             })
                             
-                            st.success(f"✅ ¡Dupleta `{id_ticket}` generada con éxito por **{formatear_bs(monto_dupleta)}**!")
+                            st.success("✅ ¡Dupleta registrada y cargada a cuentas exitosamente!")
                             st.rerun()
 
-        with col_dup_2:
-            st.markdown("### 📋 Tickets de Dupleta Emitidos")
+        with col_dup_der:
+            st.subheader("📋 Tickets Emitidos")
             
-            if st.session_state.dupletas_tickets:
-                for idx, tkt in enumerate(reversed(st.session_state.dupletas_tickets)):
-                    with st.container(border=True):
-                        c_t1, c_t2 = st.columns([2, 1])
-                        c_t1.markdown(f"**Ticket:** `{tkt['ID']}`")
-                        c_t2.markdown(f"**{tkt['Estado']}**", help="Estado actual del ticket")
-                        
-                        st.markdown(f"👤 **Jugador:** `{tkt['Jugador']}` | 💵 **Monto:** `{formatear_bs(tkt['Monto'])}`")
-                        st.markdown("🎯 **Selecciones:**")
-                        
-                        for c_key, e_val in tkt['Selecciones'].items():
-                            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;• *{c_key}* ➡️ **{e_val}**")
-                        
-                        if tkt['Estado'] == "Activo":
-                            if st.button("🗑️ Anular Ticket", key=f"btn_anular_dup_didactico_{tkt['ID']}_{idx}", use_container_width=True):
-                                st.session_state.cuentas[tkt['Jugador']]['Pujas'] -= tkt['Monto']
-                                tkt['Estado'] = "Anulado"
-                                st.toast(f"🗑️ Ticket {tkt['ID']} anulado y saldo reintegrado a la cuenta.")
-                                st.rerun()
-                        else:
-                            st.markdown("*(Este ticket se encuentra anulado)*")
+            if not st.session_state.dupletas_tickets:
+                st.info("No hay tickets registrados en esta sesión.")
             else:
-                st.info("No hay tickets de dupleta registrados en la sesión actual.")
+                filtro_t = st.selectbox("Filtrar Estado", ["Todos", "En Curso", "Ganador", "Perdedor"], key="filtro_dupleta_simple")
+                
+                for idx_t, ticket in enumerate(st.session_state.dupletas_tickets):
+                    if filtro_t != "Todos" and ticket['Estado'] != filtro_t:
+                        continue
+                        
+                    badge_estado = "🟡" if ticket['Estado'] == "En Curso" else ("🟢" if ticket['Estado'] == "Ganador" else "🔴")
+                    
+                    with st.container(border=True):
+                        st.markdown(f"**Ticket #{idx_t + 1}** {badge_estado} | **{ticket['Jugador']}**")
+                        st.markdown(f"💰 **Monto:** `{formatear_bs(ticket['Monto'])}` | 🏆 **Premio:** `{formatear_bs(ticket['Premio'])}`")
+                        
+                        for p in ticket['Picks']:
+                            st.caption(f"• **{p['Carrera']}** ➡️ {p['Ejemplar']}")
+                            
+                        c_acc1, c_acc2 = st.columns(2)
+                        with c_acc1:
+                            if st.button("✅ Ganador", key=f"btn_s_ganador_{idx_t}", use_container_width=True):
+                                if ticket['Estado'] != "Ganador":
+                                    st.session_state.dupletas_tickets[idx_t]['Estado'] = "Ganador"
+                                    if ticket['Jugador'] not in st.session_state.cuentas:
+                                        st.session_state.cuentas[ticket['Jugador']] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                                    st.session_state.cuentas[ticket['Jugador']]['Premios'] += ticket['Premio']
+                                    st.session_state.historial_transacciones.append({
+                                        "Carrera": "Dupleta", "Jugador": ticket['Jugador'],
+                                        "Tipo": "Abono (Premio Dupleta)", "Detalle": f"Ticket #{idx_t + 1} acertado", "Monto (Bs.)": ticket['Premio']
+                                    })
+                                    st.success("¡Premio abonado al jugador!")
+                                    st.rerun()
+                        with c_acc2:
+                            if st.button("❌ Perdedor", key=f"btn_s_perdedor_{idx_t}", use_container_width=True):
+                                st.session_state.dupletas_tickets[idx_t]['Estado'] = "Perdedor"
+                                st.rerun()
 
 # ==========================================
 # PESTAÑA 4: CIERRE Y LIQUIDACIÓN
 # ==========================================
 with tab4:
-    st.title("🏁 Cierre y Liquidación de Carreras")
-    st.markdown("Consulta el estado de liquidación de todas las carreras de la jornada.")
+    st.title("🏁 Panel General de Cierre y Liquidación")
+    st.markdown("Resumen de todas las carreras y su estado actual en la jornada.")
 
-    for carr_j in lista_carreras_disponibles:
-        with st.container(border=True):
-            col_liqc_1, col_liqc_2, col_liqc_3 = st.columns([1.5, 1.5, 1])
-            with col_liqc_1:
-                st.markdown(f"### 🏇 {carr_j}")
-                cerrada_est = st.session_state.carreras_cerradas_remate.get(carr_j, False)
-                est_txt = "🔒 Cerrado" if cerrada_est else "🔓 Abierto"
-                st.markdown(f"**Estado Remate:** {est_txt}")
+    for carr_item in lista_carreras_disponibles:
+        with st.expander(f"📌 {carr_item}", expanded=False):
+            c_est1, c_est2, c_est3 = st.columns(3)
+            cerrada_estado = st.session_state.carreras_cerradas_remate.get(carr_item, False)
+            liquidada_info = st.session_state.historial_ganadores.get(carr_item)
             
-            with col_liqc_2:
-                if carr_j in st.session_state.historial_ganadores:
-                    info_g = st.session_state.historial_ganadores[carr_j]
-                    st.success(f"🏆 Liquidado\n• **Ganador:** {info_g['Ganador']}\n• **Caballo:** {info_g['Caballo']}\n• **Premio:** {info_g['Premio']}")
-                else:
-                    st.warning("⚠️ Pendiente de Liquidación")
+            c_est1.markdown(f"**Remate:** `{'Cerrado 🔒' if cerrada_estado else 'Abierto 🔓'}`")
+            c_est2.markdown(f"**Liquidación:** `{'Liquidada 🏆' if liquidada_info else 'Pendiente ⏳'}`")
             
-            with col_liqc_3:
-                total_p_carr = sum([inf['monto'] for inf in st.session_state.remates[carr_j].values()])
-                st.metric("Pote Total", formatear_bs(total_p_carr))
+            total_carr = sum([info['monto'] for info in st.session_state.remates[carr_item].values()])
+            c_est3.markdown(f"**Pote Total:** `{formatear_bs(total_carr)}`")
+            
+            if liquidada_info:
+                st.success(f"🏆 Ganador: **{liquidada_info['Ganador']}** con el ejemplar **{liquidada_info['Caballo']}** — Premio: **{liquidada_info['Premio']}**")
 
 # ==========================================
 # PESTAÑA 5: CUENTAS POR JUGADOR
 # ==========================================
 with tab5:
-    st.title("📊 Cuentas Corrientes por Jugador")
-    st.markdown("Resumen financiero detallado de los saldos de cada participante.")
+    st.title("📊 Estado de Cuentas por Jugador")
+    st.markdown("Balance financiero detallado de cada participante en la jornada.")
 
-    datos_cuentas = []
+    tabla_cuentas = []
     total_general_pujas = 0.0
     total_general_premios = 0.0
     total_general_abonos = 0.0
-    total_general_saldo = 0.0
 
-    for jug, vals in st.session_state.cuentas.items():
-        pujas = vals['Pujas']
-        premios = vals['Premios']
-        abonos = vals['Abonos']
-        saldo_neto = premios + abonos - pujas
-        
-        total_general_pujas += pujas
-        total_general_premios += premios
-        total_general_abonos += abonos
-        total_general_saldo += saldo_neto
-
-        datos_cuentas.append({
-            "Jugador": jug,
-            "Total Pujas (-)": formatear_bs(pujas),
-            "Total Premios (+)": formatear_bs(premios),
-            "Abonos (+)": formatear_bs(abonos),
-            "Saldo Neto": formatear_bs(saldo_neto)
+    for jugador, valores in st.session_state.cuentas.items():
+        neto = valores['Premios'] + valores['Abonos'] - valores['Pujas']
+        tabla_cuentas.append({
+            "Jugador": jugador,
+            "Total Compras (Pujas)": formatear_bs(valores['Pujas']),
+            "Total Premios": formatear_bs(valores['Premios']),
+            "Abonos / Pagos": formatear_bs(valores['Abonos']),
+            "Neto a Pagar / Cobrar": formatear_bs(neto)
         })
+        total_general_pujas += valores['Pujas']
+        total_general_premios += valores['Premios']
+        total_general_abonos += valores['Abonos']
 
-    df_cuentas_view = pd.DataFrame(datos_cuentas)
-    st.dataframe(df_cuentas_view, use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(tabla_cuentas), use_container_width=True, hide_index=True)
+
+    c_g1, c_g2, c_g3, c_g4 = st.columns(4)
+    c_g1.metric("🛒 Total Pujas Global", formatear_bs(total_general_pujas))
+    c_g2.metric("🏆 Total Premios Global", formatear_bs(total_general_premios))
+    c_g3.metric("💵 Total Abonos Global", formatear_bs(total_general_abonos))
+    c_g4.metric("🏠 Utilidad Total Casa", formatear_bs(st.session_state.ganancia_casa))
 
     st.markdown("---")
-    c_res1, c_res2, c_res3, c_res4 = st.columns(4)
-    c_res1.metric("📉 Suma Total Pujas", formatear_bs(total_general_pujas))
-    c_res2.metric("📈 Suma Total Premios", formatear_bs(total_general_premios))
-    c_res3.metric("🏠 Ganancia Acumulada Casa", formatear_bs(st.session_state.ganancia_casa))
-    c_res4.metric("💰 Balance Neto Global", formatear_bs(total_general_saldo))
+    st.subheader("💵 Registrar Abono / Pago Manual a Jugador")
+    c_ab1, c_ab2, c_ab3 = st.columns(3)
+    with c_ab1:
+        jugador_abono = st.selectbox("Seleccionar Jugador", st.session_state.lista_jugadores, key="sel_jugador_abono")
+    with c_ab2:
+        monto_abono = st.number_input("Monto del Abono (Bs.)", min_value=0.0, value=1000.0, step=100.0, key="input_monto_abono")
+    with c_ab3:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("📥 Registrar Abono", use_container_width=True, type="primary"):
+            if jugador_abono not in st.session_state.cuentas:
+                st.session_state.cuentas[jugador_abono] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+            st.session_state.cuentas[jugador_abono]['Abonos'] += monto_abono
+            st.session_state.historial_transacciones.append({
+                "Carrera": "General", "Jugador": jugador_abono,
+                "Tipo": "Abono / Pago", "Detalle": "Ingreso de dinero en cuenta", "Monto (Bs.)": monto_abono
+            })
+            st.success(f"✅ Abono de {formatear_bs(monto_abono)} registrado a {jugador_abono}.")
+            st.rerun()
 
 # ==========================================
 # PESTAÑA 6: HISTORIAL DE TRANSACCIONES
 # ==========================================
 with tab6:
-    st.title("🧾 Historial de Transacciones Globales")
-    st.markdown("Registro cronológico de todas las operaciones de cargos y abonos efectuadas en el sistema.")
+    st.title("🧾 Historial Completo de Transacciones")
+    st.markdown("Registro cronológico de cargos, abonos y movimientos en la jornada.")
 
-    if st.session_state.historial_transacciones:
-        df_trans = pd.DataFrame(st.session_state.historial_transacciones)
-        st.dataframe(df_trans, use_container_width=True, hide_index=True)
-    else:
+    if not st.session_state.historial_transacciones:
         st.info("No hay transacciones registradas todavía.")
+    else:
+        df_transacciones = pd.DataFrame(st.session_state.historial_transacciones)
+        st.dataframe(df_transacciones, use_container_width=True, hide_index=True)
 
 # ==========================================
-# PESTAÑA 7: LECTOR TABULAR PDF Y ANÁLISIS DE IMAGEN
+# PESTAÑA 7: LECTOR TABULAR PDF
 # ==========================================
 with tab7:
-    st.title("📄 Lector Tabular de Archivos PDF y Análisis de Imagen")
-    st.markdown("Sube programas en PDF o imágenes de resultados para extraer datos automáticamente.")
+    st.title("📄 Lector Tabular de PDF y Extracción")
+    st.markdown("Sube un programa de carreras u hoja oficial en formato PDF para extraer su contenido de texto de forma estructurada.")
 
-    col_pdf_1, col_pdf_2 = st.columns(2)
+    pdf_subido = st.file_uploader("Subir Archivo PDF", type=["pdf"], key="uploader_pdf_tablas")
 
-    with col_pdf_1:
-        st.subheader("📥 Cargar Documento PDF")
-        archivo_pdf_subido = st.file_uploader("Selecciona un archivo PDF", type=["pdf"], key="uploader_pdf_tab")
-        if archivo_pdf_subido is not None:
-            try:
-                lector_pdf = PdfReader(archivo_pdf_subido)
-                texto_extraido = ""
-                for pagina in lector_pdf.pages:
-                    texto_extraido += pagina.extract_text() or ""
-                
-                st.success("✅ ¡PDF leído con éxito!")
-                with st.expander("Ver Texto Extraído del PDF"):
-                    st.text(texto_extraido[:3000])
-            except Exception as e:
-                st.error(f"Error al procesar el PDF: {e}")
-
-    with col_pdf_2:
-        st.subheader("📸 Imagen de Referencia Analizada")
-        st.markdown("A continuación se muestra la imagen cargada y procesada por el sistema con los datos oficiales:")
-        
+    if pdf_subido is not None:
         try:
-            st.image("images.jpg", caption="Imagen Oficial de Válidas para 5 y 6 - La Rinconada", use_column_width=True)
-        except Exception:
-            st.info("Imagen no disponible localmente.")
+            lector_pdf = PdfReader(pdf_subido)
+            texto_completo_pdf = ""
+            for idx_p, pagina in enumerate(lector_pdf.pages):
+                texto_pagina = pagina.extract_text()
+                if texto_pagina:
+                    texto_completo_pdf += f"\n--- PÁGINA {idx_p + 1} ---\n" + texto_pagina
 
-        with st.container(border=True):
-            st.markdown("### 📊 Datos Extraídos del Afiche Oficial:")
-            st.markdown("""
-* **Fecha:** Domingo 24/5/2026
-* **8VA:** EL ABUSADOR (Ejemplar #2)
-* strftime('%I:%M:%S %p')
-* **9NA:** MAXIMUS FORTUNE (Ejemplar #7)
-* **10MA:** SUCRO (Ejemplar #3)
-* **11MA:** TIME REPORT (Ejemplar #5)
-* **12MA:** HAYES BAY (USA) (Ejemplar #8)
-* **13ERA:** WAYA WAYA (Ejemplar #6)
-* **Pozo 6 Aciertos Nacional (1814):** Bs. 146.670,82
-* **Pozo 5 Aciertos Nacional (19342):** Bs. 3.566,20
-            """)
+            st.success(f"✅ ¡PDF leído con éxito! Total de páginas: {len(lector_pdf.pages)}")
+            
+            with st.expander("🔍 Ver Texto Extraído del PDF", expanded=False):
+                st.text_area("Contenido bruto", texto_completo_pdf, height=300)
+                
+            if st.button("📥 Importar como Programa del Día", type="primary"):
+                lineas = texto_completo_pdf.split("\n")
+                carrera_detectada_pdf = "Carrera 1"
+                contador_caballos = 1
+                
+                nuevo_prog_dict = {}
+                for linea in lineas:
+                    linea_limpia = linea.strip()
+                    if "carrera" in linea_limpia.lower():
+                        carrera_detectada_pdf = linea_limpia.title()
+                        if carrera_detectada_pdf not in nuevo_prog_dict:
+                            nuevo_prog_dict[carrera_detectada_pdf] = {}
+                        contador_caballos = 1
+                    elif len(linea_limpia) > 3:
+                        if carrera_detectada_pdf not in nuevo_prog_dict:
+                            nuevo_prog_dict[carrera_detectada_pdf] = {}
+                        if contador_caballos <= 17:
+                            llave_cab = f"{contador_caballos} - {linea_limpia[:30].title()}"
+                            nuevo_prog_dict[carrera_detectada_pdf][llave_cab] = {"jugador": "Sin Postor", "monto": 0.0}
+                            contador_caballos += 1
+                            
+                if nuevo_prog_dict:
+                    st.session_state.remates = nuevo_prog_dict
+                    st.success("✅ ¡Programa importado exitosamente desde el PDF!")
+                    st.rerun()
+                else:
+                    st.warning("⚠️ No se pudieron estructurar datos automáticos del PDF.")
+                    
+        except Exception as e:
+            st.error(f"Error procesando el documento PDF: {e}")
