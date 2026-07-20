@@ -702,18 +702,18 @@ with tab3:
                     if len(seleccion_pares) < 2:
                         st.error("⚠️ Debes seleccionar al menos 2 ejemplares en diferentes carreras para armar una dupleta.")
                     else:
-                        # Verificar si ya existe un ticket idéntico (mismo jugador y misma combinación exacta de selecciones)
+                        # VALIDACIÓN ESTRICTA: No permitir tickets idénticos (misma combinación exacta de carrera y ejemplar)
                         ticket_duplicado = False
+                        sel_nueva_ord = sorted([(s["Carrera"], s["Ejemplar"]) for s in seleccion_pares])
+                        
                         for t_existente in st.session_state.dupletas_tickets:
-                            if t_existente["Jugador"] == jugador_dupleta:
-                                sel_existente_ord = sorted([(s["Carrera"], s["Ejemplar"]) for s in t_existente["Selecciones"]])
-                                sel_nueva_ord = sorted([(s["Carrera"], s["Ejemplar"]) for s in seleccion_pares])
-                                if sel_existente_ord == sel_nueva_ord:
-                                    ticket_duplicado = True
-                                    break
+                            sel_existente_ord = sorted([(s["Carrera"], s["Ejemplar"]) for s in t_existente["Selecciones"]])
+                            if sel_existente_ord == sel_nueva_ord:
+                                ticket_duplicado = True
+                                break
                         
                         if ticket_duplicado:
-                            st.error("⚠️ Ya existe un ticket con exactamente esta misma combinación de ejemplares para este jugador.")
+                            st.error("⚠️ ¡Dupleta inválida! Ya existe un ticket registrado con exactamente esta misma combinación de ejemplares.")
                         else:
                             id_ticket = f"DUP-{int(datetime.now().timestamp())}"
                             nuevo_ticket = {
@@ -743,9 +743,8 @@ with tab3:
             if not st.session_state.dupletas_tickets:
                 st.info("No hay tickets de dupleta registrados en la jornada.")
             else:
-                # Calcular el pozo total sumando el monto de todos los tickets emitidos en la jornada
                 pozo_total_dupletas = sum([t['Monto'] for t in st.session_state.dupletas_tickets])
-                st.metric("💰 Pozo Acumulado de Dupletas", formatear_bs(pozo_total_dupletas))
+                st.metric("💰 Pozo Acumulado (Suma de Tickets Emitidos)", formatear_bs(pozo_total_dupletas))
                 st.markdown("---")
 
                 for idx, ticket in enumerate(st.session_state.dupletas_tickets):
@@ -761,7 +760,6 @@ with tab3:
                             if ticket['Estado'] == "Activa":
                                 if st.button("🏆 Ganadora", key=f"btn_dup_ganada_{idx}", use_container_width=True):
                                     st.session_state.dupletas_tickets[idx]['Estado'] = "Ganadora"
-                                    # El premio es la suma de todos los tickets emitidos
                                     premio_dupleta = sum([t['Monto'] for t in st.session_state.dupletas_tickets])
                                     st.session_state.cuentas[ticket['Jugador']]['Premios'] += premio_dupleta
                                     st.session_state.historial_transacciones.append({
