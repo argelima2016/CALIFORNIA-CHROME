@@ -12,19 +12,20 @@ st.set_page_config(page_title="Sistema de Remates, Dupletas y PDF en Vivo", layo
 # --- AUTOREFRESH PARA TIEMPO REAL ---
 st_autorefresh(interval=3000, key="datarefresh_en_vivo")
 
-# --- ESCALA OFICIAL DE PUJAS CONDICIONADAS ---
+# --- ESCALA OFICIAL DE PUJAS CONDICIONADAS (AMPLIADA HASTA EL INFINITO DE 1000 EN 1000) ---
 ESCALA_PUJAS = [
     50, 100, 150, 200, 250, 300, 350, 400, 500, 600, 700, 800, 900, 1000,
     1200, 1400, 1600, 1800, 2000, 2500, 3000, 3500, 4000, 4500, 5000,
     5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000, 9500, 10000
-]
+] + list(range(11000, 1000001, 1000))  # Extendido hasta 1,000,000 (y continúa virtualmente)
 
 def obtener_siguientes_montos(monto_actual):
     # Filtra los montos estrictamente superiores al actual
     siguientes = [m for m in ESCALA_PUJAS if m > monto_actual]
-    # Si pasa del último, permite incrementos libres o devuelve el último
+    # Si por alguna razón pasa del límite estático, continúa sumando de 1000 en 1000 de forma infinita
     if not siguientes:
-        return [monto_actual + 500]
+        ultimo = ESCALA_PUJAS[-1] if ESCALA_PUJAS else max(monto_actual, 10000)
+        siguientes = [ultimo + i * 1000 for i in range(1, 50)]
     return siguientes
 
 # --- ESTILOS CSS ULTRACAMPACTS Y DINÁMICOS ---
@@ -179,12 +180,12 @@ with tab1:
 
     st.markdown("---")
 
-    # 3. CONSOLA DE PUJAS Y CIERRE (CONDICIONADA A LA ESCALA)
+    # 3. CONSOLA DE PUJAS Y CIERRE (CONDICIONADA A LA ESCALA CON INCREMENTOS DE 1000 EN 1000 DESPUÉS DE 10000)
     col_pujas, col_cierre = st.columns([1.3, 1])
 
     with col_pujas:
         with st.container(border=True):
-            st.markdown("⚡ **Registro Rápido de Puja (Escala Fija)**")
+            st.markdown("⚡ **Registro Rápido de Puja (Escala + 1000 en 1000)**")
             
             c_cab, c_jug = st.columns(2)
             with c_cab:
@@ -195,10 +196,10 @@ with tab1:
             puja_actual = st.session_state.remates[carrera_actual][caballo]['monto']
             st.caption(f"📌 Actual en **{caballo}**: `{formatear_bs(puja_actual)}`")
             
-            # Obtiene las opciones de la escala permitidas según la puja actual
+            # Obtiene las opciones de la escala permitidas según la puja actual (ahora con incremento de 1000 en 1000 post-10000)
             opciones_escala = obtener_siguientes_montos(puja_actual)
             
-            # Selector estricto condicionado a la tabla oficial proporcionada
+            # Selector estricto condicionado a la escala oficial actualizada
             monto_puja = st.selectbox(
                 "Seleccione Siguiente Monto en Escalafón (Bs.)", 
                 opciones_escala, 
