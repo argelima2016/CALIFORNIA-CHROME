@@ -12,6 +12,21 @@ st.set_page_config(page_title="Sistema de Remates, Dupletas y PDF en Vivo", layo
 # --- AUTOREFRESH PARA TIEMPO REAL ---
 st_autorefresh(interval=3000, key="datarefresh_en_vivo")
 
+# --- ESCALA OFICIAL DE PUJAS CONDICIONADAS ---
+ESCALA_PUJAS = [
+    50, 100, 150, 200, 250, 300, 350, 400, 500, 600, 700, 800, 900, 1000,
+    1200, 1400, 1600, 1800, 2000, 2500, 3000, 3500, 4000, 4500, 5000,
+    5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000, 9500, 10000
+]
+
+def obtener_siguientes_montos(monto_actual):
+    # Filtra los montos estrictamente superiores al actual
+    siguientes = [m for m in ESCALA_PUJAS if m > monto_actual]
+    # Si pasa del último, permite incrementos libres o devuelve el último
+    if not siguientes:
+        return [monto_actual + 500]
+    return siguientes
+
 # --- ESTILOS CSS ULTRACAMPACTS Y DINÁMICOS ---
 st.markdown("""
     <style>
@@ -21,7 +36,6 @@ st.markdown("""
         color: #f1f2f6;
         margin-bottom: 5px;
     }
-    /* Reducir padding de contenedores y métricas para mayor dinamismo */
     div[data-testid="stVerticalBlock"] > div[style*="border"] {
         padding: 10px !important;
         border-radius: 8px;
@@ -131,7 +145,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # ==========================================
-# PESTAÑA 1: SUBASTA EN VIVO (DINÁMICA Y COMPACTA)
+# PESTAÑA 1: SUBASTA EN VIVO (DINÁMICA Y CONDICIONADA)
 # ==========================================
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 Subasta en Vivo: {carrera_actual}</div>", unsafe_allow_html=True)
@@ -165,14 +179,13 @@ with tab1:
 
     st.markdown("---")
 
-    # 3. CONSOLA DE PUJAS Y CIERRE (DISEÑO ÁGIL Y REDucido)
+    # 3. CONSOLA DE PUJAS Y CIERRE (CONDICIONADA A LA ESCALA)
     col_pujas, col_cierre = st.columns([1.3, 1])
 
     with col_pujas:
         with st.container(border=True):
-            st.markdown("⚡ **Registro Rápido de Puja**")
+            st.markdown("⚡ **Registro Rápido de Puja (Escala Fija)**")
             
-            # Distribución compacta en dos columnas pequeñas
             c_cab, c_jug = st.columns(2)
             with c_cab:
                 caballo = st.selectbox("Ejemplar", list(st.session_state.remates[carrera_actual].keys()), key=f"sel_caballo_{carrera_actual}")
@@ -182,18 +195,16 @@ with tab1:
             puja_actual = st.session_state.remates[carrera_actual][caballo]['monto']
             st.caption(f"📌 Actual en **{caballo}**: `{formatear_bs(puja_actual)}`")
             
-            # Botones de incremento rápido más estilizados
-            col_inc1, col_inc2, col_inc3 = st.columns(3)
-            incremento_elegido = 0.0
-            if col_inc1.button("➕ 50", use_container_width=True, key=f"inc_50_{carrera_actual}"):
-                incremento_elegido = 50.0
-            if col_inc2.button("➕ 100", use_container_width=True, key=f"inc_100_{carrera_actual}"):
-                incremento_elegido = 100.0
-            if col_inc3.button("➕ 500", use_container_width=True, key=f"inc_500_{carrera_actual}"):
-                incremento_elegido = 500.0
-
-            monto_propuesto = float(puja_actual + (incremento_elegido if incremento_elegido > 0 else 50.0))
-            monto_puja = st.number_input("Monto Puja (Bs.)", min_value=50.0, value=monto_propuesto, step=50.0, key=f"num_monto_{carrera_actual}_{caballo}")
+            # Obtiene las opciones de la escala permitidas según la puja actual
+            opciones_escala = obtener_siguientes_montos(puja_actual)
+            
+            # Selector estricto condicionado a la tabla oficial proporcionada
+            monto_puja = st.selectbox(
+                "Seleccione Siguiente Monto en Escalafón (Bs.)", 
+                opciones_escala, 
+                format_func=lambda x: formatear_bs(x),
+                key=f"sel_escala_monto_{carrera_actual}_{caballo}"
+            )
             
             if st.button("🔨 Confirmar Puja", key=f"btn_pujar_{carrera_actual}", use_container_width=True, type="primary"):
                 if monto_puja <= puja_actual:
@@ -207,7 +218,7 @@ with tab1:
         with st.container(border=True):
             st.markdown("🏁 **Cierre de Carrera**")
             caballo_ganador = st.selectbox("Ejemplar Ganador", list(st.session_state.remates[carrera_actual].keys()), key=f"sel_ganador_{carrera_actual}")
-            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True) # Espaciador simétrico dinámico
+            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
             
             if st.button("🏆 Liquidar Carrera", key=f"btn_cerrar_{carrera_actual}", use_container_width=True, type="primary"):
                 if carrera_actual in st.session_state.historial_ganadores:
