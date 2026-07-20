@@ -143,13 +143,18 @@ if len(st.session_state.remates[carrera_actual]) > 17:
 
 todos_los_caballos = sorted(list({cab for carr in st.session_state.remates.values() for cab in carr.keys()}))
 
-# --- BOTÓN DE PÁNICO / REINICIO ---
+# --- BOTONES DE PÁNICO Y GESTIÓN DE BANCO EN SIDEBAR ---
 st.sidebar.markdown("---")
 if st.sidebar.button("🗑️ Reiniciar Jornada Global", use_container_width=True, type="secondary"):
     for key in list(st.session_state.keys()):
         if key != 'banco_ejemplares':
             del st.session_state[key]
     st.toast("🚨 Jornada reiniciada (Banco de nombres conservado).")
+    st.rerun()
+
+if st.sidebar.button("🗑️ Reiniciar Banco de Caballos", use_container_width=True, type="secondary"):
+    st.session_state.banco_ejemplares = []
+    st.toast("🚨 ¡El banco de nombres de caballos ha sido vaciado!")
     st.rerun()
 
 # --- INTERFAZ DE PESTAÑAS ---
@@ -488,7 +493,6 @@ with tab6:
 
                                     if "CARRERA" in texto_upper or "VÁLIDA" in texto_upper or "VALIDA" in texto_upper:
                                         if ejemplares_detectados_nombres:
-                                            # Asignar numeración limpia del 1 al 17 a los nombres extraídos
                                             ejemplares_reindexados = {}
                                             for idx, nombre_puro in enumerate(ejemplares_detectados_nombres[:17], start=1):
                                                 ejemplares_reindexados[f"{idx} - {nombre_puro}"] = {"jugador": "Sin Postor", "monto": 0.0}
@@ -510,7 +514,6 @@ with tab6:
                                             celdas_restantes = [c for c in fila_texto if c != celda]
                                             if celdas_restantes:
                                                 nombre_bruto = celdas_restantes[0]
-                                                # Limpieza extrema: remover cualquier número o símbolo inicial para dejar SOLO el nombre
                                                 nombre_puro = re.sub(r'^\d+[\s\-\.\)]*', '', nombre_bruto).strip().title()
                                                 
                                                 if nombre_puro and len(nombre_puro) > 2 and nombre_puro not in ejemplares_detectados_nombres:
