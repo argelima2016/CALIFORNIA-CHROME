@@ -651,7 +651,6 @@ with tab3:
                 lista_cab_1 = list(ejemplares_dict_1.keys())
                 
                 if lista_cab_1:
-                    # Uso de radio con formato limpio para vista inmediata
                     cab_sel_1 = st.radio("Elige Ejemplar 1:", lista_cab_1, key=f"radio_cab_1_{carr_sel_1}")
                 else:
                     cab_sel_1 = None
