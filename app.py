@@ -685,8 +685,8 @@ with tab2:
 # PESTAÑA 3: MÓDULO DE DUPLETA MODERNO Y DIDÁCTICO
 # ==========================================
 with tab3:
-    st.markdown("<div class='subasta-header'>🎟️ Módulo de Dupleta Didáctico & Anti-Duplicados Avanzado</div>", unsafe_allow_html=True)
-    st.markdown("Arma tu dupleta paso a paso de forma visual. El sistema te guía de manera clara carrera por carrera y bloquea estrictamente **cualquier ticket con combinaciones duplicadas** (independientemente del orden de selección).")
+    st.markdown("<div class='subasta-header'>🎟️ Módulo de Dupleta Dinámico & Anti-Duplicados Avanzado</div>", unsafe_allow_html=True)
+    st.markdown("Arma tu dupleta de forma rápida y visual con **selección simple** (un solo clic por carrera). El sistema valida estrictamente que **no existan dos tickets con la misma combinación exacta**.")
 
     carreras_habilitadas = st.session_state.carreras_habilitadas_dupleta
 
@@ -707,7 +707,7 @@ with tab3:
 
         with col_dup_1:
             with st.container(border=True):
-                st.markdown("### ⚡ Creador Didáctico de Dupleta")
+                st.markdown("### ⚡ Creador Dinámico de Dupleta (Selección Simple)")
                 
                 jugador_dupleta = st.selectbox(
                     "👤 1. Seleccionar Comprador / Jugador", 
@@ -716,38 +716,31 @@ with tab3:
                 )
                 
                 st.markdown("---")
-                st.markdown("#### 🏇 2. Selección Guiada por Carrera")
-                st.caption("*(Despliega o revisa cada carrera. Elige un ejemplar o déjalo en '-- Omitir --' si no deseas jugar esa válida)*")
+                st.markdown("#### 🏇 2. Selección Simple por Carrera")
+                st.caption("*(Selecciona un ejemplar por carrera. Si prefieres no jugar alguna válida, déjala en la opción de omitir)*")
                 
                 seleccion_ejemplares_ticket = {}
                 
                 for carr_h in carreras_habilitadas:
                     caballos_carr = list(st.session_state.remates.get(carr_h, {}).keys())
                     
-                    sel_actual_previo = st.session_state.get(f"dup_didactico_sel_{carr_h}", "-- Omitir / Sin selección --")
-                    indicador_estado = "🟢" if sel_actual_previo != "-- Omitir / Sin selección --" else "⚪"
-                    
-                    with st.expander(f"{indicador_estado} {carr_h}", expanded=False):
-                        if not caballos_carr:
-                            st.info("No hay ejemplares cargados en esta carrera.")
-                        else:
-                            opciones_cab = ["-- Omitir / Sin selección --"] + caballos_carr
-                            
-                            sel_c = st.selectbox(
-                                f"Selecciona el ejemplar para {carr_h}:", 
-                                opciones_cab, 
-                                key=f"dup_didactico_sel_{carr_h}"
-                            )
-                            
-                            if sel_c != "-- Omitir / Sin selección --":
-                                seleccion_ejemplares_ticket[carr_h] = sel_c
-                                st.success(f"Seleccionado: **{sel_c}**")
-                            else:
-                                st.caption("Estado: Omitida en este ticket.")
+                    if not caballos_carr:
+                        st.info(f"No hay ejemplares cargados en {carr_h}.")
+                    else:
+                        opciones_cab = ["-- Omitir / Sin selección --"] + caballos_carr
+                        
+                        sel_c = st.selectbox(
+                            f"Ejemplar para {carr_h}:", 
+                            opciones_cab, 
+                            key=f"dup_didactico_sel_{carr_h}"
+                        )
+                        
+                        if sel_c != "-- Omitir / Sin selección --":
+                            seleccion_ejemplares_ticket[carr_h] = sel_c
 
                 st.markdown("---")
                 
-                # Panel Resumen Didáctico en tiempo real antes de emitir
+                # Panel Resumen Dinámico en tiempo real antes de emitir
                 st.markdown("#### 📝 Resumen de tu Selección Actual:")
                 if len(seleccion_ejemplares_ticket) > 0:
                     for c_res, e_res in seleccion_ejemplares_ticket.items():
@@ -766,13 +759,12 @@ with tab3:
 
                 if st.button("🚀 Emitir Dupleta Verificada", type="primary", use_container_width=True):
                     if len(seleccion_ejemplares_ticket) < 2:
-                        st.error("⚠️ Eine dupleta requiere obligatoriamente selecciones en al menos **2 carreras**.")
+                        st.error("⚠️ Una dupleta requiere obligatoriamente selecciones en al menos **2 carreras**.")
                     else:
-                        # VALIDACIÓN ANTI-DUPLICADOS ROBUSTA (Para el mismo jugador, bloquea si el conjunto de pares {Carrera: Caballo} es idéntico)
+                        # VALIDACIÓN ANTI-DUPLICADOS ESTRICTA (Bloquea si ya existe un ticket activo con exactamente las mismas selecciones)
                         ticket_duplicado_encontrado = False
                         for tkt_existente in st.session_state.dupletas_tickets:
                             if tkt_existente["Estado"] == "Activo" and tkt_existente["Jugador"] == jugador_dupleta:
-                                # Comparamos diccionarios de selecciones de forma estricta
                                 if tkt_existente["Selecciones"] == seleccion_ejemplares_ticket:
                                     ticket_duplicado_encontrado = True
                                     break
