@@ -153,15 +153,14 @@ with tab1:
 
     st.markdown("---")
 
-    # 2. ABAJO: POTE INCENTIVO EDITABLE Y PREMIO TOTAL (DISEÑO TARJETAS)
+    # 2. ABAJO: POTE INCENTIVO EDITABLE Y PREMIO TOTAL (SIN COMISIÓN DE LA CASA VISIBLE)
     st.markdown("### 💰 Finanzas y Premios de la Carrera")
-    col_pote1, col_pote2, col_pote3, col_pote4 = st.columns(4)
+    col_pote1, col_pote2, col_pote3 = st.columns(3)
     
-    col_pote1.metric("💰 Recaudado", formatear_bs(total_pote))
-    col_pote2.metric("🏠 Comisión Casa", formatear_bs(monto_casa))
+    col_pote1.metric("💰 Pote Recaudado", formatear_bs(total_pote))
     
     # Pote Incentivo Editable por el usuario en formato compacto
-    pote_incentivo_extra = col_pote3.number_input(
+    pote_incentivo_extra = col_pote2.number_input(
         "🎁 Incentivo Extra (Bs.)", 
         min_value=0.0, 
         value=0.0, 
@@ -170,7 +169,7 @@ with tab1:
     )
     
     premio_total_calculado = pote_neto_base + pote_incentivo_extra
-    col_pote4.metric("🏆 Premio Total", formatear_bs(premio_total_calculado))
+    col_pote3.metric("🏆 Premio Total", formatear_bs(premio_total_calculado))
 
     st.markdown("---")
 
