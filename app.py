@@ -17,29 +17,32 @@ ESCALA_PUJAS = [
     50, 100, 150, 200, 250, 300, 350, 400, 500, 600, 700, 800, 900, 1000,
     1200, 1400, 1600, 1800, 2000, 2500, 3000, 3500, 4000, 4500, 5000,
     5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000, 9500, 10000
-] + list(range(11000, 1000001, 1000))  # Extendido hasta 1,000,000 (y continúa virtualmente)
+] + list(range(11000, 1000001, 1000))
 
 def obtener_siguientes_montos(monto_actual):
-    # Filtra los montos estrictamente superiores al actual
     siguientes = [m for m in ESCALA_PUJAS if m > monto_actual]
-    # Si por alguna razón pasa del límite estático, continúa sumando de 1000 en 1000 de forma infinita
     if not siguientes:
         ultimo = ESCALA_PUJAS[-1] if ESCALA_PUJAS else max(monto_actual, 10000)
         siguientes = [ultimo + i * 1000 for i in range(1, 50)]
     return siguientes
 
-# --- ESTILOS CSS ULTRACAMPACTS Y DINÁMICOS ---
+# --- ESTILOS CSS ULTRACAMPACTS Y DISEÑO LADO A LADO ---
 st.markdown("""
     <style>
     .subasta-header {
-        font-size: 22px;
+        font-size: 20px;
         font-weight: 700;
         color: #f1f2f6;
-        margin-bottom: 5px;
+        margin-bottom: 2px;
     }
     div[data-testid="stVerticalBlock"] > div[style*="border"] {
-        padding: 10px !important;
-        border-radius: 8px;
+        padding: 8px !important;
+        border-radius: 6px;
+    }
+    /* Reducir espacios en blanco generales de la app para máxima compacidad */
+    .block-container {
+        padding-top: 1.5rem;
+        padding-bottom: 1rem;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -146,46 +149,46 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # ==========================================
-# PESTAÑA 1: SUBASTA EN VIVO (DINÁMICA Y CONDICIONADA)
+# PESTAÑA 1: SUBASTA EN VIVO (DISEÑO COMPACTO LADO A LADO)
 # ==========================================
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 Subasta en Vivo: {carrera_actual}</div>", unsafe_allow_html=True)
     
-    # 1. TABLERO DE SUBASTA EN VIVO (ARRIBA - COMPACTO)
-    datos_tabla = []
-    total_pote = 0.0
-    for cab, info in st.session_state.remates[carrera_actual].items():
-        datos_tabla.append({"Ejemplar": cab, "Comprador": info['jugador'], "Monto": formatear_bs(info['monto'])})
-        total_pote += info['monto']
+    # DISTRIBUCIÓN PRINCIPAL LADO A LADO: Izquierda Tabla (55%), Derecha Consola de Pujas (45%)
+    col_izq_tabla, col_der_pujas = st.columns([1.25, 1], gap="medium")
     
-    st.dataframe(pd.DataFrame(datos_tabla), use_container_width=True, hide_index=True, height=210, key=f"tabla_remates_{carrera_actual}")
-    
-    monto_casa = total_pote * (porcentaje_casa / 100)
-    pote_neto_base = total_pote - monto_casa
+    with col_izq_tabla:
+        # 1. TABLERO DE SUBASTA
+        datos_tabla = []
+        total_pote = 0.0
+        for cab, info in st.session_state.remates[carrera_actual].items():
+            datos_tabla.append({"Ejemplar": cab, "Comprador": info['jugador'], "Monto": formatear_bs(info['monto'])})
+            total_pote += info['monto']
+        
+        st.dataframe(pd.DataFrame(datos_tabla), use_container_width=True, hide_index=True, height=240, key=f"tabla_remates_{carrera_actual}")
+        
+        monto_casa = total_pote * (porcentaje_casa / 100)
+        pote_neto_base = total_pote - monto_casa
 
-    # 2. MÉTRICAS COMPACTAS EN LÍNEA
-    col_pote1, col_pote2, col_pote3 = st.columns(3)
-    col_pote1.metric("💰 Pote Recaudado", formatear_bs(total_pote))
-    
-    pote_incentivo_extra = col_pote2.number_input(
-        "🎁 Incentivo Extra (Bs.)", 
-        min_value=0.0, 
-        value=0.0, 
-        step=50.0, 
-        key=f"pote_incentivo_{carrera_actual}"
-    )
-    
-    premio_total_calculado = pote_neto_base + pote_incentivo_extra
-    col_pote3.metric("🏆 Premio Total", formatear_bs(premio_total_calculado))
+        # 2. MÉTRICAS COMPACTAS DEBAJO DE LA TABLA
+        c_m1, c_m2, c_m3 = st.columns(3)
+        c_m1.metric("💰 Pote", formatear_bs(total_pote))
+        
+        pote_incentivo_extra = c_m2.number_input(
+            "🎁 Extra", 
+            min_value=0.0, 
+            value=0.0, 
+            step=50.0, 
+            key=f"pote_incentivo_{carrera_actual}"
+        )
+        
+        premio_total_calculado = pote_neto_base + pote_incentivo_extra
+        c_m3.metric("🏆 Premio", formatear_bs(premio_total_calculado))
 
-    st.markdown("---")
-
-    # 3. CONSOLA DE PUJAS Y CIERRE (CONDICIONADA A LA ESCALA CON INCREMENTOS DE 1000 EN 1000 DESPUÉS DE 10000)
-    col_pujas, col_cierre = st.columns([1.3, 1])
-
-    with col_pujas:
+    with col_der_pujas:
+        # CONSOLA DE PUJAS Y CIERRE DIRECTAMENTE AL LADO
         with st.container(border=True):
-            st.markdown("⚡ **Registro Rápido de Puja (Escala + 1000 en 1000)**")
+            st.markdown("⚡ **Registro de Puja**")
             
             c_cab, c_jug = st.columns(2)
             with c_cab:
@@ -196,12 +199,10 @@ with tab1:
             puja_actual = st.session_state.remates[carrera_actual][caballo]['monto']
             st.caption(f"📌 Actual en **{caballo}**: `{formatear_bs(puja_actual)}`")
             
-            # Obtiene las opciones de la escala permitidas según la puja actual (ahora con incremento de 1000 en 1000 post-10000)
             opciones_escala = obtener_siguientes_montos(puja_actual)
             
-            # Selector estricto condicionado a la escala oficial actualizada
             monto_puja = st.selectbox(
-                "Seleccione Siguiente Monto en Escalafón (Bs.)", 
+                "Siguiente Monto (Escala)", 
                 opciones_escala, 
                 format_func=lambda x: formatear_bs(x),
                 key=f"sel_escala_monto_{carrera_actual}_{caballo}"
@@ -215,11 +216,9 @@ with tab1:
                     st.toast(f"✅ {caballo} ➡️ {jugador} ({formatear_bs(monto_puja)})")
                     st.rerun()
 
-    with col_cierre:
         with st.container(border=True):
             st.markdown("🏁 **Cierre de Carrera**")
             caballo_ganador = st.selectbox("Ejemplar Ganador", list(st.session_state.remates[carrera_actual].keys()), key=f"sel_ganador_{carrera_actual}")
-            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
             
             if st.button("🏆 Liquidar Carrera", key=f"btn_cerrar_{carrera_actual}", use_container_width=True, type="primary"):
                 if carrera_actual in st.session_state.historial_ganadores:
