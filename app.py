@@ -169,9 +169,9 @@ if 'dupletas_tickets' not in st.session_state:
 if 'carreras_habilitadas_dupleta' not in st.session_state:
     st.session_state.carreras_habilitadas_dupleta = []
 
-# --- ESTADO DE BLOQUEO PERMANENTE DE TICKETS DE DUPLETA ---
+# --- ESTADO DE BLOQUEO DE TICKET DE DUPLETA ---
 if 'dupleta_bloqueada' not in st.session_state:
-    st.session_state.dupleta_bloqueada = True
+    st.session_state.dupleta_bloqueada = False
 
 def formatear_bs(monto):
     return f"Bs. {monto:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -388,9 +388,21 @@ with st.sidebar.expander("🛠️ Admin: Carreras de Dupleta", expanded=False):
         st.rerun()
 
 st.sidebar.markdown("---")
-# --- BLOQUEO PERMANENTE DE TICKETS DE DUPLETA ---
-with st.sidebar.expander("🔒 Estado de Dupletas", expanded=True):
-    st.markdown("<p style='color: #ff4757; font-weight: bold;'>🔴 Dupletas BLOQUEADAS (Inalterables / No se permiten modificaciones ni nuevos registros)</p>", unsafe_allow_html=True)
+# --- BLOQUEO GENERAL DE TICKETS DE DUPLETA ---
+with st.sidebar.expander("🔒 Bloqueo de Tickets de Dupleta", expanded=True):
+    estado_actual_bloqueo = st.session_state.dupleta_bloqueada
+    if estado_actual_bloqueo:
+        st.markdown("<p style='color: #ff4757; font-weight: bold;'>🔴 Dupletas BLOQUEADAS (No se aceptan más tickets)</p>", unsafe_allow_html=True)
+        if st.button("🔓 Desbloquear Dupletas", key="btn_desbloquear_dupleta_side", use_container_width=True, type="primary"):
+            st.session_state.dupleta_bloqueada = False
+            st.toast("🔓 ¡Módulo de dupletas desbloqueado!")
+            st.rerun()
+    else:
+        st.markdown("<p style='color: #00d2d3; font-weight: bold;'>🟢 Dupletas ABIERTAS</p>", unsafe_allow_html=True)
+        if st.button("🔒 Bloquear Dupletas", key="btn_bloquear_dupleta_side", use_container_width=True, type="secondary"):
+            st.session_state.dupleta_bloqueada = True
+            st.toast("🔒 ¡Módulo de dupletas bloqueado contra nuevos registros!")
+            st.rerun()
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🗑️ Reiniciar Jornada Global", use_container_width=True, type="secondary"):
@@ -687,32 +699,103 @@ with tab2:
                 st.rerun()
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETA PRO (BLOQUEADO E INALTERABLE)
+# PESTAÑA 3: MÓDULO DE DUPLETA PRO (DINÁMICO, SIN DUPLICADOS Y BLOQUEABLE)
 # ==========================================
 with tab3:
-    st.title("🎟️ Módulo de Dupletas Pro (Bloqueado e Inalterable)")
-    st.markdown("⚠️ **Módulo bloqueado e inalterable:** Los tickets de dupleta registrados se muestran exclusivamente en modo consulta. No se admiten nuevos registros ni modificaciones de ningún tipo.")
+    st.title("🎟️ Módulo de Dupletas Pro")
+    st.markdown("Configura y registra jugadas combinadas (dupletas). **El pozo total de la dupleta se calcula sumando exactamente el valor de todos los tickets vendidos.** Los ejemplares se cargan dinámicamente según las carreras habilitadas, **el sistema prohíbe de forma estricta tickets repetidos**, y puedes **bloquear/desbloquear** el registro desde la barra lateral.")
 
-    pozo_total_dupletas = sum([t.get("Monto", 0.0) for t in st.session_state.dupletas_tickets])
-    st.metric("💰 Pozo Acumulado de Dupletas", formatear_bs(pozo_total_dupletas))
+    carreras_habilitadas = st.session_state.carreras_habilitadas_dupleta
 
-    st.markdown("---")
-    st.subheader("📋 Listado Oficial de Tickets Registrados")
+    col_dup_1, col_dup_2 = st.columns([1, 1], gap="large")
 
-    if not st.session_state.dupletas_tickets:
-        st.info("No hay tickets de dupleta registrados en esta jornada.")
-    else:
-        datos_dup_tabla = []
-        for idx, t in enumerate(st.session_state.dupletas_tickets):
-            datos_dup_tabla.append({
-                "ID": idx + 1,
-                "Jugador": t.get("Jugador", "Desconocido"),
-                "Monto": formatear_bs(t.get("Monto", 0.0)),
-                "1era Válida": t.get("Leg_1", "-"),
-                "2da Válida": t.get("Leg_2", "-"),
-                "Estado": t.get("Estado", "En Curso")
-            })
-        st.dataframe(pd.DataFrame(datos_dup_tabla), use_container_width=True, hide_index=True)
+    with col_dup_1:
+        st.subheader("📝 Registrar Nueva Dupleta")
+        
+        if st.session_state.dupleta_bloqueada:
+            st.warning("🔒 **Módulo de Dupletas Bloqueado:** El administrador ha cerrado la recepción de nuevos tickets de dupleta.")
+        
+        jugador_dupleta = st.selectbox("Jugador / Comprador", st.session_state.lista_jugadores, key="sel_jugador_dupleta")
+        monto_dupleta = st.number_input("Monto de la Dupleta (Bs.)", min_value=50.0, value=100.0, step=50.0, key="input_monto_dupleta")
+        
+        if len(carreras_habilitadas) < 2:
+            st.warning("⚠️ Se necesitan al menos 2 carreras habilitadas en el administrador lateral para armar dupletas.")
+        else:
+            carrera_leg_1 = st.selectbox("1ra Carrera de la Dupleta", carreras_habilitadas, key="sel_dup_carr_1")
+            
+            # --- SELECCIÓN DINÁMICA DE EJEMPLARES (1RA VÁLIDA) ---
+            caballos_carr_1 = list(st.session_state.remates.get(carrera_leg_1, {}).keys())
+            caballo_leg_1 = st.selectbox("Ejemplar 1ra Válida (Dinámico)", caballos_carr_1 if caballos_carr_1 else ["Sin ejemplares"], key="sel_dup_cab_1")
+            
+            carreras_restantes = [c for c in carreras_habilitadas if c != carrera_leg_1]
+            carrera_leg_2 = st.selectbox("2da Carrera de la Dupleta", carreras_restantes if carreras_restantes else [carrera_leg_1], key="sel_dup_carr_2")
+            
+            # --- SELECCIÓN DINÁMICA DE EJEMPLARES (2DA VÁLIDA) ---
+            caballos_carr_2 = list(st.session_state.remates.get(carrera_leg_2, {}).keys())
+            caballo_leg_2 = st.selectbox("Ejemplar 2da Válida (Dinámico)", caballos_carr_2 if caballos_carr_2 else ["Sin ejemplares"], key="sel_dup_cab_2")
+            
+            if st.session_state.dupleta_bloqueada:
+                st.button("💾 Guardar Ticket de Dupleta", use_container_width=True, type="primary", disabled=True)
+            else:
+                if st.button("💾 Guardar Ticket de Dupleta", use_container_width=True, type="primary"):
+                    leg_1_str = f"{carrera_leg_1} ({caballo_leg_1})"
+                    leg_2_str = f"{carrera_leg_2} ({caballo_leg_2})"
+                    
+                    # --- VALIDACIÓN ESTRICTA: NINGÚN TICKET REPETIDO ---
+                    duplicado_encontrado = False
+                    for t in st.session_state.dupletas_tickets:
+                        if (t.get("Jugador") == jugador_dupleta and 
+                            t.get("Leg_1") == leg_1_str and 
+                            t.get("Leg_2") == leg_2_str):
+                            duplicado_encontrado = True
+                            break
+                    
+                    if duplicado_encontrado:
+                        st.error("⚠️ **¡Ticket Duplicado!** Este jugador ya tiene registrada exactamente esta misma combinación de ejemplares para esta dupleta. Ningún ticket puede ser igual.")
+                    else:
+                        ticket_nuevo = {
+                            "Jugador": jugador_dupleta,
+                            "Monto": monto_dupleta,
+                            "Leg_1": leg_1_str,
+                            "Leg_2": leg_2_str,
+                            "Estado": "En Curso"
+                        }
+                        st.session_state.dupletas_tickets.append(ticket_nuevo)
+                        
+                        if jugador_dupleta not in st.session_state.cuentas:
+                            st.session_state.cuentas[jugador_dupleta] = {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0}
+                        st.session_state.cuentas[jugador_dupleta]['Pujas'] += monto_dupleta
+                        
+                        st.session_state.historial_transacciones.append({
+                            "Carrera": "Dupleta", "Jugador": jugador_dupleta,
+                            "Tipo": "Cargo (Dupleta)", "Detalle": f"Ticket: {ticket_nuevo['Leg_1']} + {ticket_nuevo['Leg_2']}", "Monto (Bs.)": -monto_dupleta
+                        })
+                        
+                        st.toast(f"✅ ¡Dupleta registrada con éxito para {jugador_dupleta}!")
+                        st.rerun()
+
+    with col_dup_2:
+        st.subheader("📊 Tickets de Dupletas Activos y Pozo Total")
+        
+        # --- CÁLCULO DEL POZO COMO LA SUMA DE LOS TICKETS ---
+        pozo_total_dupletas = sum([t.get("Monto", 0.0) for t in st.session_state.dupletas_tickets])
+        st.metric("💰 Pozo Acumulado de Dupletas (Suma de Tickets)", formatear_bs(pozo_total_dupletas))
+        st.markdown("---")
+
+        if not st.session_state.dupletas_tickets:
+            st.info("No hay tickets de dupleta registrados en esta jornada.")
+        else:
+            datos_dup_tabla = []
+            for idx, t in enumerate(st.session_state.dupletas_tickets):
+                datos_dup_tabla.append({
+                    "ID": idx + 1,
+                    "Jugador": t.get("Jugador", "Desconocido"),
+                    "Monto": formatear_bs(t.get("Monto", 0.0)),
+                    "1era Válida": t.get("Leg_1", "-"),
+                    "2da Válida": t.get("Leg_2", "-"),
+                    "Estado": t.get("Estado", "En Curso")
+                })
+            st.dataframe(pd.DataFrame(datos_dup_tabla), use_container_width=True, hide_index=True)
 
 # ==========================================
 # PESTAÑA 4: CIERRE Y LIQUIDACIÓN
@@ -779,7 +862,7 @@ with tab5:
     if not jugadores_con_deuda:
         st.success("🎉 ¡Excelente! No hay jugadores con deudas pendientes en este momento.")
     else:
-        st.markdown("Selecciona el jugador de la lista de deudores para aplicar sus pagos de forma directa:")
+        st.markdown("Selecciona el jugador de la lista de deudores para aplicar su **Pago Total** de forma directa:")
         
         for jug_deudor, monto_deuda in jugadores_con_deuda:
             col_d1, col_d2, col_d3 = st.columns([2, 2, 1])
