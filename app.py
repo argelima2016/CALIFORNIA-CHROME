@@ -7,6 +7,8 @@ from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 from pypdf import PdfReader, PdfWriter
 from streamlit_autorefresh import st_autorefresh
+import urllib.request
+import json
 
 # Configuración de la página web
 st.set_page_config(page_title="Sistema de Remates, Dupletas y PDF en Vivo", layout="wide", page_icon="🏇")
@@ -14,13 +16,27 @@ st.set_page_config(page_title="Sistema de Remates, Dupletas y PDF en Vivo", layo
 # --- AUTOREFRESH PARA TIEMPO REAL (1 SEGUNDO PARA PRECISIÓN DE CONTEO) ---
 st_autorefresh(interval=1000, key="datarefresh_en_vivo")
 
-# --- FUNCIÓN LOCAL PARA OBTENER LA HORA EXACTA DE VENEZUELA (AMERICA/CARACAS) ---
+# --- FUNCIÓN PARA OBTENER LA HORA DE VENEZUELA DESDE INTERNET ---
 @st.cache_data(ttl=15)
-def obtener_hora_venezuela():
+def obtener_hora_venezuela_internet():
     """
-    Obtiene la hora exacta actual para la zona horaria de Venezuela (America/Caracas).
-    Utiliza zoneinfo de Python con respaldo a UTC-4.
+    Obtiene la hora exacta actual de internet utilizando una API pública de zona horaria
+    para America/Caracas, con respaldo local a zoneinfo o UTC-4.
     """
+    try:
+        url = "http://worldtimeapi.org/api/timezone/America/Caracas"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=3) as response:
+            data = json.loads(response.read().decode())
+            datetime_str = data.get("datetime")
+            if datetime_str:
+                # El formato de la API es ISO 8601 (ej: 2026-07-19T22:58:00-04:00)
+                dt_internet = datetime.fromisoformat(datetime_str).replace(tzinfo=None)
+                return dt_internet
+    except Exception:
+        pass
+
+    # Respaldo 1: zoneinfo de Python
     try:
         zona_venezuela = ZoneInfo("America/Caracas")
         dt_zonificado = datetime.now(zona_venezuela).replace(tzinfo=None)
@@ -28,6 +44,7 @@ def obtener_hora_venezuela():
     except Exception:
         pass
     
+    # Respaldo 2: UTC-4 fijo
     tz_venezuela = timezone(timedelta(hours=-4))
     dt_venezuela = datetime.now(tz_venezuela).replace(tzinfo=None)
     return dt_venezuela
@@ -155,7 +172,8 @@ def formatear_bs(monto):
 # ==========================================
 st.sidebar.header("⚙️ Control de Carrera en Vivo")
 
-ahora_dt = obtener_hora_venezuela()
+ahora_dt = obtener_hora_venezuela_internet()
+st.sidebar.markdown(f"🕒 **Hora Venezuela (Internet):** `{ahora_dt.strftime('%H:%M:%S')}`")
 
 def cargar_programa_automatico():
     archivo_fijo = "programa_del_dia.xlsx" 
@@ -284,7 +302,7 @@ with tab1:
     estado_conteo = st.session_state.estado_conteo_carrera.get(carrera_actual, "INACTIVO")
     
     if hora_limite:
-        st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta para <b>{carrera_actual}</b>: <b>{hora_limite.strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta para <b>{carrera_actual}</b>: <b>{hora_limite.strftime('%H:%M:%S')}</b> (Internet)</div>", unsafe_allow_html=True)
     else:
         st.markdown(f"<div class='cierre-info-box'>⚠️ Sin hora de cierre estricta configurada para <b>{carrera_actual}</b></div>", unsafe_allow_html=True)
 
