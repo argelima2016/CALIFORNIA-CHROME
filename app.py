@@ -166,7 +166,7 @@ def formatear_bs(monto):
 st.sidebar.header("⚙️ Barra Lateral")
 
 ahora_dt = obtener_hora_venezuela_internet()
-st.sidebar.markdown(f"🕒 **Hora Venezuela (Internet):** `{ahora_dt.strftime('%H:%M:%S')}`")
+st.sidebar.markdown(f"🕒 **Hora Venezuela (Internet):** `{ahora_dt.strftime('%I:%M:%S %p')}`")
 
 def cargar_programa_automatico():
     archivo_fijo = "programa_del_dia.xlsx" 
@@ -234,7 +234,11 @@ with st.sidebar.expander("⏰ ⚙️ Ajustar Hora de Cierre Estricta", expanded=
         if st.button("💾 Guardar", key=f"btn_save_hora_{carrera_actual}", use_container_width=True):
             st.session_state.horas_cierre_remate[carrera_actual] = hora_seleccionada
             st.session_state.estado_conteo_carrera[carrera_actual] = "INACTIVO"
-            st.toast(f"✅ ¡Hora estricta guardada a las {hora_seleccionada.strftime('%H:%M:%S')} para {carrera_actual}!")
+            
+            # Formato 12 horas para el mensaje toast
+            dt_dummy = datetime.combine(datetime.today(), hora_seleccionada)
+            hora_12h_str = dt_dummy.strftime('%I:%M:%S %p')
+            st.toast(f"✅ ¡Hora estricta guardada a las {hora_12h_str} para {carrera_actual}!")
             st.rerun()
             
     with col_btn_h2:
@@ -347,14 +351,16 @@ with tab1:
     with col_t_title:
         st.markdown(f"<div class='subasta-header'>🎯 Remate Adelantado: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
     with col_t_clock:
-        st.markdown(f"<div style='text-align: right; font-size: 16px; font-weight: bold; background-color: #1e1e2f; padding: 6px 12px; border-radius: 6px; border: 1px solid #4f4f6f; color: #00d2d3;'>🕒 Hora Venezuela: {ahora_dt.strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: right; font-size: 16px; font-weight: bold; background-color: #1e1e2f; padding: 6px 12px; border-radius: 6px; border: 1px solid #4f4f6f; color: #00d2d3;'>🕒 Hora Venezuela: {ahora_dt.strftime('%I:%M:%S %p')}</div>", unsafe_allow_html=True)
     
     hora_limite = st.session_state.horas_cierre_remate.get(carrera_actual)
     carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carrera_actual, False)
     estado_conteo = st.session_state.estado_conteo_carrera.get(carrera_actual, "INACTIVO")
     
     if hora_limite:
-        st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta para <b>{carrera_actual}</b>: <b>{hora_limite.strftime('%H:%M:%S')}</b> (Internet)</div>", unsafe_allow_html=True)
+        dt_limite_dummy = datetime.combine(ahora_dt.date(), hora_limite)
+        hora_limite_12h_str = dt_limite_dummy.strftime('%I:%M:%S %p')
+        st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta para <b>{carrera_actual}</b>: <b>{hora_limite_12h_str}</b> (Internet)</div>", unsafe_allow_html=True)
     else:
         st.markdown(f"<div class='cierre-info-box'>⚠️ Sin hora de cierre estricta configurada para <b>{carrera_actual}</b></div>", unsafe_allow_html=True)
 
