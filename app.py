@@ -74,6 +74,9 @@ if 'banco_ejemplares' not in st.session_state:
 if 'historial_ganadores' not in st.session_state:
     st.session_state.historial_ganadores = {}
 
+if 'carreras_cerradas_remate' not in st.session_state:
+    st.session_state.carreras_cerradas_remate = {}
+
 if 'cuentas' not in st.session_state:
     st.session_state.cuentas = {j: {'Pujas': 0.0, 'Premios': 0.0, 'Abonos': 0.0} for j in st.session_state.lista_jugadores}
 
@@ -192,7 +195,7 @@ if st.sidebar.button("🗑️ Reiniciar Banco de Caballos", use_container_width=
 
 # --- INTERFAZ DE PESTAÑAS ---
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "🏇 Subasta en Vivo (Bs.)", 
+    "🏇 Remate Adelantado", 
     "✍️ Gestión Manual (Caballos)", 
     "🎟️ Módulo de Dupleta", 
     "📊 Cuentas por Jugador", 
@@ -201,10 +204,10 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 ])
 
 # ==========================================
-# PESTAÑA 1: SUBASTA EN VIVO
+# PESTAÑA 1: REMATE ADELANTADO (ANTERIORMENTE SUBASTA EN VIVO)
 # ==========================================
 with tab1:
-    st.markdown(f"<div class='subasta-header'>🎯 Subasta en Vivo: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='subasta-header'>🎯 Remate Adelantado: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
     
     col_izq_tabla, col_der_pujas = st.columns([1.5, 1], gap="medium")
     
@@ -235,6 +238,8 @@ with tab1:
         c_m3.metric("🏆 Premio", formatear_bs(premio_total_calculado))
 
     with col_der_pujas:
+        carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carrera_actual, False)
+        
         with st.container(border=True):
             st.markdown("⚡ **Registro de Puja**")
             
@@ -256,16 +261,34 @@ with tab1:
                 key=f"sel_escala_monto_{carrera_actual}_{caballo}"
             )
             
-            if st.button("🔨 Confirmar Puja", key=f"btn_pujar_{carrera_actual}", use_container_width=True, type="primary"):
-                if monto_puja <= puja_actual:
-                    st.error(f"Debe ser mayor a {formatear_bs(puja_actual)}")
-                else:
-                    st.session_state.remates[carrera_actual][caballo] = {"jugador": jugador, "monto": monto_puja}
-                    st.toast(f"✅ {caballo} ➡️ {jugador} ({formatear_bs(monto_puja)})")
-                    st.rerun()
+            if carrera_cerrada:
+                st.warning("🔒 Este remate está cerrado para nuevas pujas.")
+                st.button("🔨 Confirmar Puja", key=f"btn_pujar_{carrera_actual}", use_container_width=True, type="primary", disabled=True)
+            else:
+                if st.button("🔨 Confirmar Puja", key=f"btn_pujar_{carrera_actual}", use_container_width=True, type="primary"):
+                    if monto_puja <= puja_actual:
+                        st.error(f"Debe ser mayor a {formatear_bs(puja_actual)}")
+                    else:
+                        st.session_state.remates[carrera_actual][caballo] = {"jugador": jugador, "monto": monto_puja}
+                        st.toast(f"✅ {caballo} ➡️ {jugador} ({formatear_bs(monto_puja)})")
+                        st.rerun()
 
         with st.container(border=True):
-            st.markdown("🏁 **Cierre de Carrera**")
+            st.markdown("🏁 **Gestión de Cierre y Liquidación**")
+            
+            if not carrera_cerrada:
+                if st.button("🔒 Cerrar Remate de esta Carrera", key=f"btn_cerrar_remate_{carrera_actual}", use_container_width=True, type="secondary"):
+                    st.session_state.carreras_cerradas_remate[carrera_actual] = True
+                    st.toast(f"🔒 ¡El remate para {carrera_actual} ha sido cerrado exitosamente!")
+                    st.rerun()
+            else:
+                st.success("🔒 El remate de esta carrera está cerrado.")
+                if st.button("🔓 Reabrir Remate", key=f"btn_reabrir_remate_{carrera_actual}", use_container_width=True):
+                    st.session_state.carreras_cerradas_remate[carrera_actual] = False
+                    st.toast(f"🔓 Remate reabierto para {carrera_actual}.")
+                    st.rerun()
+            
+            st.markdown("---")
             caballo_ganador = st.selectbox("Ejemplar Ganador", list(st.session_state.remates[carrera_actual].keys()), key=f"sel_ganador_{carrera_actual}")
             
             if st.button("🏆 Liquidar Carrera", key=f"btn_cerrar_{carrera_actual}", use_container_width=True, type="primary"):
