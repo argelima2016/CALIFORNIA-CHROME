@@ -354,10 +354,9 @@ if st.button("Unificar PDFs"):
             label="Descargar PDF unificado",
             data=output_pdf,
             file_name="archivo_unificado.pdf",
-            mime="application/pdf"
+            mime="application/pdf",
+            use_container_width=True
         )
-                    use_container_width=True
-                )
                 
             except Exception as e:
                 st.error(f"Ocurrió un error al intentar fusionar los archivos PDF: {e}")
