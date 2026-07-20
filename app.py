@@ -56,37 +56,72 @@ def obtener_siguientes_montos(monto_actual):
         siguientes = [ultimo + i * 1000 for i in range(1, 50)]
     return siguientes
 
-# --- ESTILOS CSS PARA ALERTAS Y TEMPORIZADOR ---
+# --- PALETA DE COLORES E INYECCIÓN DE ESTILOS CSS ---
 st.markdown("""
     <style>
-    .subasta-header {
-        font-size: 20px;
-        font-weight: 700;
-        color: #f1f2f6;
-        margin-bottom: 2px;
+    /* Paleta de Colores Corporativa / Hípica Elegante */
+    :root {
+        --bg-main: #0e1117;
+        --bg-card: #161b22;
+        --border-color: #30363d;
+        --text-primary: #f0f6fc;
+        --accent-gold: #f1e05a;
+        --accent-red: #ff4757;
+        --accent-cyan: #00d2d3;
     }
+
+    /* Estilos Generales y Paneles */
+    .stApp {
+        background-color: var(--bg-main);
+        color: var(--text-primary);
+    }
+    
+    .subasta-header {
+        font-size: 22px;
+        font-weight: 800;
+        color: var(--accent-gold);
+        margin-bottom: 5px;
+        border-bottom: 2px solid var(--accent-gold);
+        padding-bottom: 5px;
+    }
+    
     .timer-box {
-        background-color: #1e1e2f;
-        border: 2px solid #ff4757;
+        background-color: var(--bg-card);
+        border: 2px solid var(--accent-red);
         padding: 15px;
         border-radius: 8px;
         text-align: center;
         font-size: 24px;
         font-weight: bold;
-        color: #ff4757;
+        color: var(--accent-red);
         margin-bottom: 15px;
         box-shadow: 0 0 15px rgba(255, 71, 87, 0.4);
     }
+    
     .cierre-info-box {
-        background-color: #2f2f42;
-        border: 1px solid #4f4f6f;
+        background-color: var(--bg-card);
+        border: 1px solid var(--border-color);
         padding: 10px;
         border-radius: 6px;
         text-align: center;
         font-size: 16px;
-        color: #f1f2f6;
+        color: var(--text-primary);
         margin-bottom: 15px;
     }
+
+    div[data-testid="stMetric"] {
+        background-color: var(--bg-card);
+        border: 1px solid var(--border-color);
+        padding: 10px 15px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+
+    div[data-testid="stMetricValue"] {
+        color: var(--accent-gold) !important;
+        font-weight: 700;
+    }
+
     .block-container {
         padding-top: 1.2rem;
         padding-bottom: 1rem;
@@ -398,7 +433,7 @@ with tab1:
     with col_t_title:
         st.markdown(f"<div class='subasta-header'>🎯 Remate Adelantado: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
     with col_t_clock:
-        st.markdown(f"<div style='text-align: right; font-size: 16px; font-weight: bold; background-color: #1e1e2f; padding: 6px 12px; border-radius: 6px; border: 1px solid #4f4f6f; color: #00d2d3;'>🕒 Hora Venezuela: {ahora_dt.strftime('%I:%M:%S %p')}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: right; font-size: 16px; font-weight: bold; background-color: #161b22; padding: 6px 12px; border-radius: 6px; border: 1px solid #30363d; color: #00d2d3;'>🕒 Hora Venezuela: {ahora_dt.strftime('%I:%M:%S %p')}</div>", unsafe_allow_html=True)
     
     hora_limite = st.session_state.horas_cierre_remate.get(carrera_actual)
     carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carrera_actual, False)
@@ -825,7 +860,7 @@ with tab7:
             try:
                 lector_pdf = PdfReader(archivo_pdf_subido)
                 texto_extraido = ""
-                for pagina in lector_pdf.pages:
+        for pagina in lector_pdf.pages:
                     texto_extraido += pagina.extract_text() or ""
                 
                 st.success("✅ ¡PDF leído con éxito!")
