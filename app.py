@@ -706,7 +706,6 @@ with tab3:
                         ticket_duplicado = False
                         for t_existente in st.session_state.dupletas_tickets:
                             if t_existente["Jugador"] == jugador_dupleta:
-                                # Comparamos las selecciones ordenadas para asegurar igualdad exacta
                                 sel_existente_ord = sorted([(s["Carrera"], s["Ejemplar"]) for s in t_existente["Selecciones"]])
                                 sel_nueva_ord = sorted([(s["Carrera"], s["Ejemplar"]) for s in seleccion_pares])
                                 if sel_existente_ord == sel_nueva_ord:
@@ -744,6 +743,11 @@ with tab3:
             if not st.session_state.dupletas_tickets:
                 st.info("No hay tickets de dupleta registrados en la jornada.")
             else:
+                # Calcular el pozo total sumando el monto de todos los tickets emitidos en la jornada
+                pozo_total_dupletas = sum([t['Monto'] for t in st.session_state.dupletas_tickets])
+                st.metric("💰 Pozo Acumulado de Dupletas", formatear_bs(pozo_total_dupletas))
+                st.markdown("---")
+
                 for idx, ticket in enumerate(st.session_state.dupletas_tickets):
                     with st.container(border=True):
                         st.markdown(f"**Ticket:** `{ticket['ID']}` | **Jugador:** `{ticket['Jugador']}`")
@@ -757,13 +761,14 @@ with tab3:
                             if ticket['Estado'] == "Activa":
                                 if st.button("🏆 Ganadora", key=f"btn_dup_ganada_{idx}", use_container_width=True):
                                     st.session_state.dupletas_tickets[idx]['Estado'] = "Ganadora"
-                                    premio_dupleta = ticket['Monto'] * len(ticket['Selecciones']) * 2
+                                    # El premio es la suma de todos los tickets emitidos
+                                    premio_dupleta = sum([t['Monto'] for t in st.session_state.dupletas_tickets])
                                     st.session_state.cuentas[ticket['Jugador']]['Premios'] += premio_dupleta
                                     st.session_state.historial_transacciones.append({
                                         "Carrera": "Dupleta", "Jugador": ticket['Jugador'],
-                                        "Tipo": "Abono (Premio Dupleta)", "Detalle": f"Premio Ticket {ticket['ID']}", "Monto (Bs.)": premio_dupleta
+                                        "Tipo": "Abono (Premio Dupleta)", "Detalle": f"Premio Pozo Total Ticket {ticket['ID']}", "Monto (Bs.)": premio_dupleta
                                     })
-                                    st.success(f"¡Dupleta {ticket['ID']} pagada con {formatear_bs(premio_dupleta)}!")
+                                    st.success(f"¡Dupleta {ticket['ID']} pagada con el pozo total de {formatear_bs(premio_dupleta)}!")
                                     st.rerun()
                         with col_dt_2:
                             if ticket['Estado'] == "Activa":
