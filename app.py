@@ -167,9 +167,9 @@ def formatear_bs(monto):
     return f"Bs. {monto:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 # ==========================================
-# ⚙️ CONTROL LATERAL Y CARGA DE PROGRAMA
+# ⚙️ BARRA LATERAL Y CARGA DE PROGRAMA
 # ==========================================
-st.sidebar.header("⚙️ Control de Carrera en Vivo")
+st.sidebar.header("⚙️ Barra Lateral")
 
 ahora_dt = obtener_hora_venezuela_internet()
 st.sidebar.markdown(f"🕒 **Hora Venezuela (Internet):** `{ahora_dt.strftime('%H:%M:%S')}`")
