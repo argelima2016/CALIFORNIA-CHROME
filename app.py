@@ -860,7 +860,7 @@ with tab7:
             try:
                 lector_pdf = PdfReader(archivo_pdf_subido)
                 texto_extraido = ""
-        for pagina in lector_pdf.pages:
+                for pagina in lector_pdf.pages:
                     texto_extraido += pagina.extract_text() or ""
                 
                 st.success("✅ ¡PDF leído con éxito!")
