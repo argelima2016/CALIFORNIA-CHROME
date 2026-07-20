@@ -739,11 +739,11 @@ with tab3:
             for idx, t in enumerate(st.session_state.dupletas_tickets):
                 datos_dup_tabla.append({
                     "ID": idx + 1,
-                    "Jugador": t["Jugador"],
-                    "Monto": formatear_bs(t["Monto"]),
-                    "1era Válida": t["Leg_1"],
-                    "2da Válida": t["Leg_2"],
-                    "Estado": t["Estado"]
+                    "Jugador": t.get("Jugador", "Desconocido"),
+                    "Monto": formatear_bs(t.get("Monto", 0.0)),
+                    "1era Válida": t.get("Leg_1", t.get("1era Válida", "-")),
+                    "2da Válida": t.get("Leg_2", t.get("2da Válida", "-")),
+                    "Estado": t.get("Estado", "En Curso")
                 })
             st.dataframe(pd.DataFrame(datos_dup_tabla), use_container_width=True, hide_index=True)
 
