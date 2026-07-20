@@ -308,10 +308,7 @@ with tab2:
         st.markdown("---")
         st.subheader("📚 Cargar desde Banco Guardado (Búsqueda Inteligente)")
         if st.session_state.banco_ejemplares:
-            # 🔍 BARRA DE BÚSQUEDA / FILTRO EN TIEMPO REAL PARA EL BANCO
             filtro_banco = st.text_input("🔍 Escribe para buscar rápido en el banco", placeholder="Ej: Rayo...", key="filtro_rapido_banco")
-            
-            # Filtrar la lista del banco según lo que escriba el usuario (sin importar mayúsculas/minúsculas)
             banco_filtrado = [e for e in st.session_state.banco_ejemplares if filtro_banco.lower() in e.lower()]
             
             if not banco_filtrado:
@@ -370,11 +367,11 @@ with tab2:
     st.write(list(st.session_state.remates[carrera_actual].keys()))
 
 # ==========================================
-# PESTAÑA 3: MÓDULO DE DUPLETAS
+# PESTAÑA 3: MÓDULO DE DUPLETAS (VALIDACIÓN ANTI-DUPLICADOS ESTRICTA)
 # ==========================================
 with tab3:
-    st.title("🎟️ Control y Gestión de Dupletas")
-    st.markdown("Registre y valide los tickets de dupletas jugados durante la jornada hípica.")
+    st.title("🎟️ Control y Gestión de Dupletas (Antiduplicados)")
+    st.markdown("Registre y valide los tickets de dupletas jugados. El sistema impedirá registrar combinaciones idénticas de selecciones para evitar duplicados.")
     
     col_dup_reg, col_dup_list = st.columns([1, 2])
     
@@ -394,28 +391,41 @@ with tab3:
             if carrera_dup_1 == carrera_dup_2:
                 st.error("⚠️ Las dos carreras de la dupleta deben ser distintas.")
             else:
-                nuevo_ticket = {
-                    "ID": len(st.session_state.dupletas_tickets) + 1,
-                    "Jugador": jugador_dupleta,
-                    "1era Selección": f"{carrera_dup_1} - {caballo_dup_1}",
-                    "2da Selección": f"{carrera_dup_2} - {caballo_dup_2}",
-                    "Monto": monto_dupleta,
-                    "Estado": "Pendiente ⏳"
-                }
-                st.session_state.dupletas_tickets.append(nuevo_ticket)
+                # Validación estricta anti-duplicados por combinaciones de selecciones
+                sel_1_str = f"{carrera_dup_1} - {caballo_dup_1}"
+                sel_2_str = f"{carrera_dup_2} - {caballo_dup_2}"
                 
-                if jugador_dupleta in st.session_state.cuentas:
-                    st.session_state.cuentas[jugador_dupleta]['Pujas'] += monto_dupleta
-                    st.session_state.historial_transacciones.append({
-                        "Carrera": "Dupleta", 
-                        "Jugador": jugador_dupleta, 
-                        "Tipo": "Cargo (Dupleta)", 
-                        "Detalle": f"Ticket #{nuevo_ticket['ID']}", 
-                        "Monto (Bs.)": -monto_dupleta
-                    })
+                ticket_duplicado = False
+                for t in st.session_state.dupletas_tickets:
+                    if t["1era Selección"] == sel_1_str and t["2da Selección"] == sel_2_str:
+                        ticket_duplicado = True
+                        break
                 
-                st.toast(f"✅ Ticket #{nuevo_ticket['ID']} emitido con éxito para {jugador_dupleta}.")
-                st.rerun()
+                if ticket_duplicado:
+                    st.error("⚠️ **¡Ticket Duplicado!** Ya existe una dupleta registrada exactamente con esta misma combinación de ejemplares y carreras.")
+                else:
+                    nuevo_ticket = {
+                        "ID": len(st.session_state.dupletas_tickets) + 1,
+                        "Jugador": jugador_dupleta,
+                        "1era Selección": sel_1_str,
+                        "2da Selección": sel_2_str,
+                        "Monto": monto_dupleta,
+                        "Estado": "Pendiente ⏳"
+                    }
+                    st.session_state.dupletas_tickets.append(nuevo_ticket)
+                    
+                    if jugador_dupleta in st.session_state.cuentas:
+                        st.session_state.cuentas[jugador_dupleta]['Pujas'] += monto_dupleta
+                        st.session_state.historial_transacciones.append({
+                            "Carrera": "Dupleta", 
+                            "Jugador": jugador_dupleta, 
+                            "Tipo": "Cargo (Dupleta)", 
+                            "Detalle": f"Ticket #{nuevo_ticket['ID']}", 
+                            "Monto (Bs.)": -monto_dupleta
+                        })
+                    
+                    st.toast(f"✅ Ticket #{nuevo_ticket['ID']} emitido con éxito para {jugador_dupleta}.")
+                    st.rerun()
 
     with col_dup_list:
         st.subheader("📋 Tickets de Dupletas Emitidos")
@@ -527,7 +537,6 @@ with tab6:
                                     if nombre_puro and len(nombre_puro) > 2 and not tiene_precio_o_invalido and nombre_puro not in ejemplares_detectados_nombres:
                                         ejemplares_detectados_nombres.append(nombre_puro)
 
-                # Agregar los nuevos nombres detectados exclusivamente al banco guardado
                 agregados_nuevos = 0
                 for nombre in ejemplares_detectados_nombres:
                     if nombre not in st.session_state.banco_ejemplares:
