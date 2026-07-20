@@ -23,7 +23,6 @@ def obtener_hora_venezuela():
     Utiliza zoneinfo de Python con respaldo a UTC-4 y API externa para máxima precisión.
     """
     try:
-        # Intento mediante API web oficial de sincronización horaria
         respuesta = requests.get("https://timeapi.world/timezone/America/Caracas", timeout=3)
         if respuesta.status_code == 200:
             data = respuesta.json()
@@ -35,14 +34,12 @@ def obtener_hora_venezuela():
         pass
     
     try:
-        # Intento mediante la base de datos local del sistema (zoneinfo)
         zona_venezuela = ZoneInfo("America/Caracas")
         dt_zonificado = datetime.now(zona_venezuela).replace(tzinfo=None)
         return dt_zonificado, True
     except Exception:
         pass
     
-    # Fallback estricto de respaldo manual UTC-4 para Venezuela
     tz_venezuela = timezone(timedelta(hours=-4))
     dt_venezuela = datetime.now(tz_venezuela).replace(tzinfo=None)
     return dt_venezuela, False
@@ -170,7 +167,6 @@ def formatear_bs(monto):
 # ==========================================
 st.sidebar.header("⚙️ Control de Carrera en Vivo")
 
-# Obtención de la hora actual sincronizada específicamente para VENEZUELA (America/Caracas)
 ahora_dt, conexion_internet = obtener_hora_venezuela()
 if conexion_internet:
     st.sidebar.caption("🇻🇪 🌐 Hora Oficial de Venezuela (Sincronizada)")
@@ -293,7 +289,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 ])
 
 # ==========================================
-# PESTAÑA 1: REMATE ADELANTADO (CON HORA DE CIERRE VISIBLE Y CONTEO DE 10S EN PANTALLA)
+# PESTAÑA 1: REMATE ADELANTADO (CON SELECTOR RÁPIDO DE EJEMPLAR)
 # ==========================================
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 Remate Adelantado: {carrera_actual} (Máx. 17 Ejemplares)</div>", unsafe_allow_html=True)
@@ -303,7 +299,6 @@ with tab1:
     carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carrera_actual, False)
     estado_conteo = st.session_state.estado_conteo_carrera.get(carrera_actual, "INACTIVO")
     
-    # Mostrar siempre la hora de cierre estricta y la hora actual de Venezuela en vivo
     if hora_limite:
         st.markdown(f"<div class='cierre-info-box'>⏰ Hora de Cierre Estricta para <b>{carrera_actual}</b>: <b>{hora_limite.strftime('%H:%M:%S')}</b> | 🇻🇪 Hora Actual Venezuela: <b>{ahora_dt.strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
     else:
@@ -380,44 +375,75 @@ with tab1:
         carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carrera_actual, False)
         
         with st.container(border=True):
-            st.markdown("⚡ **Registro de Puja**")
+            st.markdown("⚡ **Registro Dinámico de Puja**")
             
-            c_cab, c_jug = st.columns(2)
-            with c_cab:
-                caballo = st.selectbox("Ejemplar (Máx. 17)", list(st.session_state.remates[carrera_actual].keys()), key=f"sel_caballo_{carrera_actual}")
-            with c_jug:
-                jugador = st.selectbox("Jugador", st.session_state.lista_jugadores, key=f"sel_jugador_{carrera_actual}")
+            # --- MEJORA: BUSCADOR INSTANTÁNEO Y BOTONES DE ACCESO RÁPIDO PARA EL CABALLO ---
+            lista_caballos_activos = list(st.session_state.remates[carrera_actual].keys())
             
-            puja_actual = st.session_state.remates[carrera_actual][caballo]['monto']
-            st.caption(f"📌 Actual en **{caballo}**: `{formatear_bs(puja_actual)}`")
-            
-            opciones_escala = obtener_siguientes_montos(puja_actual)
-            
-            monto_puja = st.selectbox(
-                "Siguiente Monto (Escala)", 
-                opciones_escala, 
-                format_func=lambda x: formatear_bs(x),
-                key=f"sel_escala_monto_{carrera_actual}_{caballo}"
-            )
-            
-            if carrera_cerrada:
-                st.warning("🔒 Este remate está cerrado estrictamente para nuevas pujas.")
-                st.button("🔨 Confirmar Puja", key=f"btn_pujar_{carrera_actual}", use_container_width=True, type="primary", disabled=True)
+            if not lista_caballos_activos:
+                st.warning("No hay ejemplares en esta carrera.")
             else:
-                if st.button("🔨 Confirmar Puja", key=f"btn_pujar_{carrera_actual}", use_container_width=True, type="primary"):
-                    if monto_puja <= puja_actual:
-                        st.error(f"Debe ser mayor a {formatear_bs(puja_actual)}")
-                    else:
-                        st.session_state.remates[carrera_actual][caballo] = {"jugador": jugador, "monto": monto_puja}
+                # Pestañas o selector rápido para elegir entre lista desplegable filtrable o botones visuales
+                modo_seleccion = st.radio("Método de Selección de Ejemplar", ["🔍 Buscador Inteligente", "🔢 Botones Rápidos (Pista)"], horizontal=True, key=f"modo_sel_cab_{carrera_actual}")
+                
+                caballo_seleccionado = None
+                
+                if modo_seleccion == "🔍 Buscador Inteligente":
+                    caballo_seleccionado = st.selectbox(
+                        "Seleccionar Ejemplar (Número o Nombre)", 
+                        lista_caballos_activos, 
+                        key=f"sel_caballo_inteligente_{carrera_actual}"
+                    )
+                else:
+                    st.markdown("Haz clic en el número del ejemplar para seleccionarlo al instante:")
+                    # Creamos una botonera visual tipo grilla de 3 o 4 columnas para elegir rápido
+                    cols_botones = st.columns(4)
+                    if f"caballo_seleccionado_click_{carrera_actual}" not in st.session_state:
+                        st.session_state[f"caballo_seleccionado_click_{carrera_actual}"] = lista_caballos_activos[0]
                         
-                        if estado_conteo in ["CONTEO_10S", "ESPERA_POST_PUJA"]:
-                            st.session_state.estado_conteo_carrera[carrera_actual] = "CONTEO_10S"
-                            st.session_state.tiempo_inicio_conteo[carrera_actual] = ahora_dt
-                            st.toast("⚡ ¡Nueva puja registrada! El conteo regresivo se ha reiniciado por 10 segundos.")
+                    for idx, cab_item in enumerate(lista_caballos_activos):
+                        # Extraer solo el número o primer nombre corto para el botón compacto
+                        num_parte = cab_item.split(" - ")[0]
+                        with cols_botones[idx % 4]:
+                            if st.button(f"#{num_parte}", key=f"btn_rapido_cab_{carrera_actual}_{idx}", use_container_width=True):
+                                st.session_state[f"caballo_seleccionado_click_{carrera_actual}"] = cab_item
+                    
+                    caballo_seleccionado = st.session_state[f"caballo_seleccionado_click_{carrera_actual}"]
+                    st.info(f"🎯 Seleccionado: **{caballo_seleccionado}**")
+
+                st.markdown("---")
+                jugador = st.selectbox("Comprador / Jugador", st.session_state.lista_jugadores, key=f"sel_jugador_{carrera_actual}")
+                
+                puja_actual = st.session_state.remates[carrera_actual][caballo_seleccionado]['monto']
+                st.caption(f"📌 Actual en **{caballo_seleccionado}**: `{formatear_bs(puja_actual)}`")
+                
+                opciones_escala = obtener_siguientes_montos(puja_actual)
+                
+                monto_puja = st.selectbox(
+                    "Siguiente Monto (Escala)", 
+                    opciones_escala, 
+                    format_func=lambda x: formatear_bs(x),
+                    key=f"sel_escala_monto_{carrera_actual}_{caballo_seleccionado}"
+                )
+                
+                if carrera_cerrada:
+                    st.warning("🔒 Este remate está cerrado estrictamente para nuevas pujas.")
+                    st.button("🔨 Confirmar Puja", key=f"btn_pujar_{carrera_actual}", use_container_width=True, type="primary", disabled=True)
+                else:
+                    if st.button("🔨 Confirmar Puja", key=f"btn_pujar_{carrera_actual}", use_container_width=True, type="primary"):
+                        if monto_puja <= puja_actual:
+                            st.error(f"Debe ser mayor a {formatear_bs(puja_actual)}")
                         else:
-                            st.toast(f"✅ {caballo} ➡️ {jugador} ({formatear_bs(monto_puja)})")
+                            st.session_state.remates[carrera_actual][caballo_seleccionado] = {"jugador": jugador, "monto": monto_puja}
                             
-                        st.rerun()
+                            if estado_conteo in ["CONTEO_10S", "ESPERA_POST_PUJA"]:
+                                st.session_state.estado_conteo_carrera[carrera_actual] = "CONTEO_10S"
+                                st.session_state.tiempo_inicio_conteo[carrera_actual] = ahora_dt
+                                st.toast("⚡ ¡Nueva puja registrada! El conteo regresivo se ha reiniciado por 10 segundos.")
+                            else:
+                                st.toast(f"✅ {caballo_seleccionado} ➡️ {jugador} ({formatear_bs(monto_puja)})")
+                                
+                            st.rerun()
 
         with st.container(border=True):
             st.markdown("🏁 **Gestión de Cierre y Liquidación**")
