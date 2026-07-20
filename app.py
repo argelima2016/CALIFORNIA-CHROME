@@ -686,7 +686,7 @@ with tab2:
 # ==========================================
 with tab3:
     st.markdown("<div class='subasta-header'>🎟️ Módulo de Dupleta Dinámico & Anti-Duplicados Avanzado</div>", unsafe_allow_html=True)
-    st.markdown("Arma tu dupleta de forma rápida y visual con **selección simple** (un solo clic por carrera). El sistema valida estrictamente que **no existan dos tickets con la misma combinación exacta**.")
+    st.markdown("Arma tu dupleta de forma rápida y visual con **selección simple** (un solo clic por carrera). El sistema valida estrictamente que **no existan dos tickets con la misma combinación exacta** y que **no se repita el mismo caballo** en diferentes carreras dentro de la misma dupleta.")
 
     carreras_habilitadas = st.session_state.carreras_habilitadas_dupleta
 
@@ -758,8 +758,14 @@ with tab3:
                 )
 
                 if st.button("🚀 Emitir Dupleta Verificada", type="primary", use_container_width=True):
+                    # VALIDACIÓN: Verificar si hay caballos repetidos en la selección actual
+                    caballos_seleccionados_lista = list(seleccion_ejemplares_ticket.values())
+                    hay_caballos_repetidos = len(caballos_seleccionados_lista) != len(set(caballos_seleccionados_lista))
+
                     if len(seleccion_ejemplares_ticket) < 2:
                         st.error("⚠️ Una dupleta requiere obligatoriamente selecciones en al menos **2 carreras**.")
+                    elif hay_caballos_repetidos:
+                        st.error("🚨 **¡Caballo Repetido Bloqueado!** No puedes seleccionar el mismo ejemplar en dos carreras distintas dentro de la misma dupleta.")
                     else:
                         # VALIDACIÓN ANTI-DUPLICADOS ESTRICTA (Bloquea si ya existe un ticket activo con exactamente las mismas selecciones)
                         ticket_duplicado_encontrado = False
@@ -944,6 +950,7 @@ with tab7:
             st.markdown("""
 * **Fecha:** Domingo 24/5/2026
 * **8VA:** EL ABUSADOR (Ejemplar #2)
+* strftime('%I:%M:%S %p')
 * **9NA:** MAXIMUS FORTUNE (Ejemplar #7)
 * **10MA:** SUCRO (Ejemplar #3)
 * **11MA:** TIME REPORT (Ejemplar #5)
