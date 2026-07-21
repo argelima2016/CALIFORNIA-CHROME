@@ -40,7 +40,7 @@ def obtener_siguientes_montos(monto_actual):
         siguientes = [ultimo + i * 1000 for i in range(1, 50)]
     return siguientes
 
-# --- ESTILOS CSS MULTIPLATAFORMA ---
+# --- ESTILOS CSS MULTIPLATAFORMA Y CONTROL MÓVIL ---
 st.markdown("""
     <style>
     .stApp {
@@ -89,6 +89,19 @@ st.markdown("""
         font-weight: bold !important;
         padding: 0.6rem !important;
         min-height: 42px !important;
+    }
+
+    /* --- LÓGICA RESPONSIVA PARA OCULTAR/MOSTRAR SIDEBAR EN TELÉFONOS --- */
+    @media (max-width: 768px) {
+        /* Fuerza a que la sidebar esté oculta por defecto en pantallas de celulares (Android/iOS) */
+        section[data-testid="stSidebar"] {
+            width: 0px !important;
+            min-width: 0px !important;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease-in-out;
+        }
+        /* Cuando el usuario presiona el botón de despliegue, Streamlit le añade clases o podemos forzar su apertura si se desea, 
+           pero el botón oficial superior de Streamlit se encargará de desplegarla limpiamente al tocarlo */
     }
     </style>
 """, unsafe_allow_html=True)
@@ -198,7 +211,6 @@ def procesar_programa_pdf(archivo_pdf):
         st.sidebar.error(f"Error: {e}")
     return False
 
-# Inicializar carreras por defecto si no existen
 if not st.session_state.remates:
     for i in range(1, 11):
         carr_nombre = f"Carrera {i}"
