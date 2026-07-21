@@ -79,8 +79,8 @@ st.markdown("""
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 2rem !important;
-        padding-left: 0.8rem !important;
-        padding-right: 0.8rem !important;
+        padding-left: 0.6rem !important;
+        padding-right: 0.6rem !important;
         max-width: 100% !important;
     }
     .stButton button {
@@ -88,20 +88,22 @@ st.markdown("""
         border-radius: 8px !important;
         font-weight: bold !important;
         padding: 0.6rem !important;
-        min-height: 42px !important;
+        min-height: 44px !important;
     }
 
-    /* --- LÓGICA RESPONSIVA PARA OCULTAR/MOSTRAR SIDEBAR EN TELÉFONOS --- */
+    /* --- ADAPTACIÓN MÓVIL MEJORADA (RESPONSIVE) --- */
     @media (max-width: 768px) {
-        /* Fuerza a que la sidebar esté oculta por defecto en pantallas de celulares (Android/iOS) */
-        section[data-testid="stSidebar"] {
-            width: 0px !important;
-            min-width: 0px !important;
-            transform: translateX(-100%);
-            transition: transform 0.3s ease-in-out;
+        /* Asegura que los contenedores principales apilen sus columnas en pantallas pequeñas */
+        [data-testid="column"] {
+            width: 100% !important;
+            flex: 1 1 100% !important;
+            min-width: 100% !important;
+            margin-bottom: 10px;
         }
-        /* Cuando el usuario presiona el botón de despliegue, Streamlit le añade clases o podemos forzar su apertura si se desea, 
-           pero el botón oficial superior de Streamlit se encargará de desplegarla limpiamente al tocarlo */
+        /* Ajuste de tablas para scroll horizontal fluido en celulares */
+        div[data-testid="stDataFrame"] {
+            overflow-x: auto;
+        }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -534,7 +536,7 @@ with tab6:
 
 # 7. PDF
 with tab7:
-    st.markdown("<div class='subasta-header'>📄 Lector PDF e Importador</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subase-header'>📄 Lector PDF e Importador</div>" if False else "<div class='subasta-header'>📄 Lector PDF e Importador</div>", unsafe_allow_html=True)
     pdf_subido = st.file_uploader("Sube el programa en PDF", type=["pdf"])
     if pdf_subido is not None:
         if st.button("🚀 Procesar e Importar", use_container_width=True, type="primary"):
