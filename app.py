@@ -93,14 +93,12 @@ st.markdown("""
 
     /* --- ADAPTACIÓN MÓVIL MEJORADA (RESPONSIVE) --- */
     @media (max-width: 768px) {
-        /* Asegura que los contenedores principales apilen sus columnas en pantallas pequeñas */
         [data-testid="column"] {
             width: 100% !important;
             flex: 1 1 100% !important;
             min-width: 100% !important;
             margin-bottom: 10px;
         }
-        /* Ajuste de tablas para scroll horizontal fluido en celulares */
         div[data-testid="stDataFrame"] {
             overflow-x: auto;
         }
@@ -283,7 +281,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remate", "✍️ Banco", "🎟️ Dupletas", "🏁 Cierre", "📊 Cuentas", "🧾 Hist.", "📄 PDF"
 ])
 
-# 1. REMATE
+# 1. REMATE (DISEÑO 100% VERTICAL: TABLA/POTE ARRIBA, REGISTRO DE PUJA ABAJO)
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 {carrera_actual}</div>", unsafe_allow_html=True)
     
@@ -318,64 +316,64 @@ with tab1:
                 st.session_state.estado_conteo_carrera[carrera_actual] = "CERRADO"
                 st.rerun()
 
-    col_izq_puja, col_der_tabla = st.columns([1.1, 1.9], gap="medium")
+    # --- SECCIÓN SUPERIOR: ESTADO ACTUAL Y POTE ---
+    st.subheader("📋 Estado Actual")
+    datos_tabla = []
+    total_pote = 0.0
+    for cab, info in st.session_state.remates[carrera_actual].items():
+        datos_tabla.append({"Ejemplar": cab, "Comprador": info['jugador'], "Monto": formatear_bs(info['monto'])})
+        total_pote += info['monto']
+    
+    st.dataframe(pd.DataFrame(datos_tabla), use_container_width=True, hide_index=True)
+    
+    monto_casa = total_pote * (porcentaje_casa / 100)
+    pote_neto_base = total_pote - monto_casa
 
-    with col_izq_puja:
-        with st.container(border=True):
-            st.markdown("⚡ **Registro Rápido de Puja**")
-            lista_caballos_activos = list(st.session_state.remates[carrera_actual].keys())
+    c_m1, c_m2 = st.columns(2)
+    c_m1.metric("💰 Pote", formatear_bs(total_pote))
+    pote_incentivo_extra = c_m2.number_input("🎁 Extra", min_value=0.0, value=0.0, step=50.0, key=f"pote_inc_{carrera_actual}")
+    premio_total_calculado = pote_neto_base + pote_incentivo_extra
+    st.metric("🏆 Premio Total", formatear_bs(premio_total_calculado))
+
+    st.markdown("---")
+
+    # --- SECCIÓN INFERIOR: REGISTRO RÁPIDO DE PUJA ---
+    with st.container(border=True):
+        st.markdown("⚡ **Registro Rápido de Puja**")
+        lista_caballos_activos = list(st.session_state.remates[carrera_actual].keys())
+        
+        if not lista_caballos_activos:
+            st.warning("Sin ejemplares.")
+        else:
+            k_sel = f"caballo_seleccionado_click_{carrera_actual}"
+            if k_sel not in st.session_state or st.session_state[k_sel] not in lista_caballos_activos:
+                st.session_state[k_sel] = lista_caballos_activos[0]
+                
+            cols_botones = st.columns(4)
+            for idx, cab_item in enumerate(lista_caballos_activos):
+                num_parte = cab_item.split(" - ")[0]
+                with cols_botones[idx % 4]:
+                    if st.button(f"#{num_parte}", key=f"btn_r_cab_{carrera_actual}_{idx}", use_container_width=True):
+                        st.session_state[k_sel] = cab_item
             
-            if not lista_caballos_activos:
-                st.warning("Sin ejemplares.")
+            caballo_seleccionado = st.session_state[k_sel]
+            st.markdown(f"Seleccionado: **{caballo_seleccionado}**")
+
+            jugador = st.selectbox("Jugador", st.session_state.lista_jugadores, key=f"sel_jug_{carrera_actual}")
+            puja_actual = st.session_state.remates[carrera_actual][caballo_seleccionado]['monto']
+            
+            opciones_escala = obtener_siguientes_montos(puja_actual)
+            monto_puja = st.selectbox("Monto", opciones_escala, format_func=lambda x: formatear_bs(x), key=f"sel_esc_{carrera_actual}_{caballo_seleccionado}")
+            
+            if carrera_cerrada:
+                st.button("🔨 Confirmar Puja", key=f"btn_p_{carrera_actual}", use_container_width=True, type="primary", disabled=True)
             else:
-                k_sel = f"caballo_seleccionado_click_{carrera_actual}"
-                if k_sel not in st.session_state or st.session_state[k_sel] not in lista_caballos_activos:
-                    st.session_state[k_sel] = lista_caballos_activos[0]
-                    
-                cols_botones = st.columns(4)
-                for idx, cab_item in enumerate(lista_caballos_activos):
-                    num_parte = cab_item.split(" - ")[0]
-                    with cols_botones[idx % 4]:
-                        if st.button(f"#{num_parte}", key=f"btn_r_cab_{carrera_actual}_{idx}", use_container_width=True):
-                            st.session_state[k_sel] = cab_item
-                
-                caballo_seleccionado = st.session_state[k_sel]
-                st.markdown(f"Seleccionado: **{caballo_seleccionado}**")
-
-                jugador = st.selectbox("Jugador", st.session_state.lista_jugadores, key=f"sel_jug_{carrera_actual}")
-                puja_actual = st.session_state.remates[carrera_actual][caballo_seleccionado]['monto']
-                
-                opciones_escala = obtener_siguientes_montos(puja_actual)
-                monto_puja = st.selectbox("Monto", opciones_escala, format_func=lambda x: formatear_bs(x), key=f"sel_esc_{carrera_actual}_{caballo_seleccionado}")
-                
-                if carrera_cerrada:
-                    st.button("🔨 Confirmar Puja", key=f"btn_p_{carrera_actual}", use_container_width=True, type="primary", disabled=True)
-                else:
-                    if st.button("🔨 Confirmar Puja", key=f"btn_p_{carrera_actual}", use_container_width=True, type="primary"):
-                        if monto_puja <= puja_actual:
-                            st.error("Debe ser mayor")
-                        else:
-                            st.session_state.remates[carrera_actual][caballo_seleccionado] = {"jugador": jugador, "monto": monto_puja}
-                            st.rerun()
-
-    with col_der_tabla:
-        st.subheader("📋 Estado Actual")
-        datos_tabla = []
-        total_pote = 0.0
-        for cab, info in st.session_state.remates[carrera_actual].items():
-            datos_tabla.append({"Ejemplar": cab, "Comprador": info['jugador'], "Monto": formatear_bs(info['monto'])})
-            total_pote += info['monto']
-        
-        st.dataframe(pd.DataFrame(datos_tabla), use_container_width=True, hide_index=True)
-        
-        monto_casa = total_pote * (porcentaje_casa / 100)
-        pote_neto_base = total_pote - monto_casa
-
-        c_m1, c_m2 = st.columns(2)
-        c_m1.metric("💰 Pote", formatear_bs(total_pote))
-        pote_incentivo_extra = c_m2.number_input("🎁 Extra", min_value=0.0, value=0.0, step=50.0, key=f"pote_inc_{carrera_actual}")
-        premio_total_calculado = pote_neto_base + pote_incentivo_extra
-        st.metric("🏆 Premio Total", formatear_bs(premio_total_calculado))
+                if st.button("🔨 Confirmar Puja", key=f"btn_p_{carrera_actual}", use_container_width=True, type="primary"):
+                    if monto_puja <= puja_actual:
+                        st.error("Debe ser mayor")
+                    else:
+                        st.session_state.remates[carrera_actual][caballo_seleccionado] = {"jugador": jugador, "monto": monto_puja}
+                        st.rerun()
 
 # 2. BANCO
 with tab2:
@@ -536,7 +534,7 @@ with tab6:
 
 # 7. PDF
 with tab7:
-    st.markdown("<div class='subase-header'>📄 Lector PDF e Importador</div>" if False else "<div class='subasta-header'>📄 Lector PDF e Importador</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subasta-header'>📄 Lector PDF e Importador</div>", unsafe_allow_html=True)
     pdf_subido = st.file_uploader("Sube el programa en PDF", type=["pdf"])
     if pdf_subido is not None:
         if st.button("🚀 Procesar e Importar", use_container_width=True, type="primary"):
