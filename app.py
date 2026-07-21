@@ -283,7 +283,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remate", "✍️ Banco", "🎟️ Dupletas", "🏁 Cierre", "📊 Cuentas", "🧾 Hist.", "📄 PDF"
 ])
 
-# 1. REMATE (VERTICAL)
+# 1. REMATE (VERTICAL Y CON TABLA AMPLIADA PARA TODOS LOS CABALLOS)
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 {carrera_actual}</div>", unsafe_allow_html=True)
     
@@ -316,7 +316,7 @@ with tab1:
                 st.session_state.estado_conteo_carrera[carrera_actual] = "CERRADO"
                 st.rerun()
 
-    # --- SECCIÓN SUPERIOR: ESTADO ACTUAL Y POTE ---
+    # --- SECCIÓN SUPERIOR: ESTADO ACTUAL (TODOS LOS CABALLOS VISIBLES) Y POTE ---
     st.subheader("📋 Estado Actual")
     datos_tabla = []
     total_pote = 0.0
@@ -324,7 +324,11 @@ with tab1:
         datos_tabla.append({"Ejemplar": cab, "Comprador": info['jugador'], "Monto": formatear_bs(info['monto'])})
         total_pote += info['monto']
     
-    st.dataframe(pd.DataFrame(datos_tabla), use_container_width=True, hide_index=True)
+    # Altura dinámica calculada para mostrar todos los caballos sin recortar
+    cantidad_filas = len(datos_tabla)
+    altura_tabla = min(max(150, (cantidad_filas + 1) * 35), 450)
+    
+    st.dataframe(pd.DataFrame(datos_tabla), use_container_width=True, hide_index=True, height=altura_tabla)
     
     monto_casa = total_pote * (porcentaje_casa / 100)
     pote_neto_base = total_pote - monto_casa
