@@ -283,7 +283,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remate", "✍️ Banco", "🎟️ Dupletas", "🏁 Cierre", "📊 Cuentas", "🧾 Hist.", "📄 PDF"
 ])
 
-# 1. REMATE (VERTICAL Y CON TABLA AMPLIADA PARA TODOS LOS CABALLOS)
+# 1. REMATE (VERTICAL, TODOS LOS CABALLOS VISIBLES, SIN JUGADORES VISIBLES)
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 {carrera_actual}</div>", unsafe_allow_html=True)
     
@@ -324,7 +324,6 @@ with tab1:
         datos_tabla.append({"Ejemplar": cab, "Comprador": info['jugador'], "Monto": formatear_bs(info['monto'])})
         total_pote += info['monto']
     
-    # Altura dinámica calculada para mostrar todos los caballos sin recortar
     cantidad_filas = len(datos_tabla)
     altura_tabla = min(max(150, (cantidad_filas + 1) * 35), 450)
     
@@ -341,7 +340,7 @@ with tab1:
 
     st.markdown("---")
 
-    # --- SECCIÓN INFERIOR: REGISTRO RÁPIDO DE PUJA ---
+    # --- SECCIÓN INFERIOR: REGISTRO RÁPIDO DE PUJA (SOLO CABALLOS Y MONTO) ---
     with st.container(border=True):
         st.markdown("⚡ **Registro Rápido de Puja**")
         lista_caballos_activos = list(st.session_state.remates[carrera_actual].keys())
@@ -349,34 +348,35 @@ with tab1:
         if not lista_caballos_activos:
             st.warning("Sin ejemplares.")
         else:
-            k_sel = f"caballo_seleccionado_click_{carrera_actual}"
-            if k_sel not in st.session_state or st.session_state[k_sel] not in lista_caballos_activos:
-                st.session_state[k_sel] = lista_caballos_activos[0]
+            k_sel_cab = f"caballo_seleccionado_click_{carrera_actual}"
+            if k_sel_cab not in st.session_state or st.session_state[k_sel_cab] not in lista_caballos_activos:
+                st.session_state[k_sel_cab] = lista_caballos_activos[0]
                 
+            st.markdown("🔹 **1. Seleccionar Ejemplar:**")
             cols_botones = st.columns(4)
             for idx, cab_item in enumerate(lista_caballos_activos):
                 num_parte = cab_item.split(" - ")[0]
                 with cols_botones[idx % 4]:
                     if st.button(f"#{num_parte}", key=f"btn_r_cab_{carrera_actual}_{idx}", use_container_width=True):
-                        st.session_state[k_sel] = cab_item
+                        st.session_state[k_sel_cab] = cab_item
             
-            caballo_seleccionado = st.session_state[k_sel]
-            st.markdown(f"Seleccionado: **{caballo_seleccionado}**")
+            caballo_seleccionado = st.session_state[k_sel_cab]
+            st.info(f"Ejemplar activo: **{caballo_seleccionado}**")
 
-            jugador = st.selectbox("Jugador", st.session_state.lista_jugadores, key=f"sel_jug_{carrera_actual}")
+            # --- MONTO DE PUJA ---
             puja_actual = st.session_state.remates[carrera_actual][caballo_seleccionado]['monto']
-            
             opciones_escala = obtener_siguientes_montos(puja_actual)
-            monto_puja = st.selectbox("Monto", opciones_escala, format_func=lambda x: formatear_bs(x), key=f"sel_esc_{carrera_actual}_{caballo_seleccionado}")
+            monto_puja = st.selectbox("💰 **2. Monto de Puja**", opciones_escala, format_func=lambda x: formatear_bs(x), key=f"sel_esc_{carrera_actual}_{caballo_seleccionado}")
             
             if carrera_cerrada:
                 st.button("🔨 Confirmar Puja", key=f"btn_p_{carrera_actual}", use_container_width=True, type="primary", disabled=True)
             else:
                 if st.button("🔨 Confirmar Puja", key=f"btn_p_{carrera_actual}", use_container_width=True, type="primary"):
                     if monto_puja <= puja_actual:
-                        st.error("Debe ser mayor")
+                        st.error("El monto debe ser mayor a la puja actual.")
                     else:
-                        st.session_state.remates[carrera_actual][caballo_seleccionado] = {"jugador": jugador, "monto": monto_puja}
+                        st.session_state.remates[carrera_actual][caballo_seleccionado] = {"jugador": "Sin Postor", "monto": monto_puja}
+                        st.success("✅ ¡Puja registrada correctamente!")
                         st.rerun()
 
 # 2. BANCO
