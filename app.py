@@ -51,9 +51,20 @@ st.markdown("""
         font-size: clamp(20px, 4vw, 26px);
         font-weight: 800;
         color: #f1e05a;
-        margin-bottom: 12px;
+        margin-bottom: 4px;
         border-bottom: 2px solid #f1e05a;
         padding-bottom: 6px;
+    }
+    .live-clock-banner {
+        background-color: #161b22;
+        border: 1px solid #30363d;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 14px;
+        color: #58a6ff;
+        font-weight: 600;
+        margin-bottom: 12px;
+        display: inline-block;
     }
     .timer-box {
         background-color: #161b22;
@@ -283,9 +294,10 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remate", "✍️ Banco", "🎟️ Dupletas", "🏁 Cierre", "📊 Cuentas", "🧾 Hist.", "📄 PDF"
 ])
 
-# 1. REMATE (VERTICAL, TODOS LOS CABALLOS VISIBLES, SIN JUGADORES VISIBLES)
+# 1. REMATE (CON HORA Y FECHA EN VIVO, TODOS LOS CABALLOS VISIBLES, SIN JUGADORES VISIBLES)
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 {carrera_actual}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='live-clock-banner'>📅 Fecha y Hora en Vivo: <b>{ahora_dt.strftime('%d/%m/%Y - %I:%M:%S %p')}</b></div>", unsafe_allow_html=True)
     
     dt_limite = st.session_state.fechas_horas_cierre_remate.get(carrera_actual)
     carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carrera_actual, False)
@@ -340,25 +352,36 @@ with tab1:
 
     st.markdown("---")
 
-    # --- SECCIÓN INFERIOR: REGISTRO RÁPIDO DE PUJA (SOLO CABALLOS Y MONTO) ---
+    # --- SECCIÓN INFERIOR: REGISTRO RÁPIDO DE PUJA (ADAPTADO A LA CANTIDAD DE EJEMPLARES INSCRITOS) ---
     with st.container(border=True):
         st.markdown("⚡ **Registro Rápido de Puja**")
         lista_caballos_activos = list(st.session_state.remates[carrera_actual].keys())
         
         if not lista_caballos_activos:
-            st.warning("Sin ejemplares.")
+            st.warning("Sin ejemplares inscritos en esta carrera.")
         else:
             k_sel_cab = f"caballo_seleccionado_click_{carrera_actual}"
             if k_sel_cab not in st.session_state or st.session_state[k_sel_cab] not in lista_caballos_activos:
                 st.session_state[k_sel_cab] = lista_caballos_activos[0]
                 
-            st.markdown("🔹 **1. Seleccionar Ejemplar:**")
-            cols_botones = st.columns(4)
-            for idx, cab_item in enumerate(lista_caballos_activos):
-                num_parte = cab_item.split(" - ")[0]
-                with cols_botones[idx % 4]:
-                    if st.button(f"#{num_parte}", key=f"btn_r_cab_{carrera_actual}_{idx}", use_container_width=True):
-                        st.session_state[k_sel_cab] = cab_item
+            st.markdown(f"🔹 **1. Seleccionar Ejemplar (Total inscritos: {len(lista_caballos_activos)}):**")
+            
+            # Distribución dinámica en filas de 4 columnas adaptada al total de ejemplares
+            cantidad_ejemplares = len(lista_caballos_activos)
+            columnas_por_fila = 4
+            num_filas = (cantidad_ejemplares + columnas_por_fila - 1) // columnas_por_fila
+            
+            idx_cab = 0
+            for f in range(num_filas):
+                cols_fila = st.columns(columnas_por_fila)
+                for c in range(columnas_por_fila):
+                    if idx_cab < cantidad_ejemplares:
+                        cab_item = lista_caballos_activos[idx_cab]
+                        num_parte = cab_item.split(" - ")[0]
+                        with cols_fila[c]:
+                            if st.button(f"#{num_parte}", key=f"btn_r_cab_{carrera_actual}_{idx_cab}", use_container_width=True):
+                                st.session_state[k_sel_cab] = cab_item
+                        idx_cab += 1
             
             caballo_seleccionado = st.session_state[k_sel_cab]
             st.info(f"Ejemplar activo: **{caballo_seleccionado}**")
