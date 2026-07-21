@@ -130,8 +130,8 @@ if 'carreras_cerradas_remate' not in st.session_state:
 if 'remates_cargados_en_cuentas' not in st.session_state:
     st.session_state.remates_cargados_en_cuentas = {}
 
-if 'horas_cierre_remate' not in st.session_state:
-    st.session_state.horas_cierre_remate = {}
+if 'fechas_horas_cierre_remate' not in st.session_state:
+    st.session_state.fechas_horas_cierre_remate = {}
 
 if 'estado_conteo_carrera' not in st.session_state:
     st.session_state.estado_conteo_carrera = {}
@@ -231,7 +231,8 @@ carrera_actual = st.sidebar.selectbox("Carrera Activa", lista_carreras_disponibl
 with st.sidebar.expander("🏠 Retención de la Casa", expanded=False):
     porcentaje_casa = st.slider("Retención (%)", 0, 50, 30, key="slider_retencion_casa")
 
-with st.sidebar.expander("⏰ Hora de Cierre Estricta", expanded=False):
+with st.sidebar.expander("📅⏰ Cierre Estricto (Fecha y Hora)", expanded=False):
+    fecha_sel = st.date_input("Fecha de Cierre", value=ahora_dt.date(), key=f"sel_f_{carrera_actual}")
     periodo_sel = st.radio("Periodo", ["AM", "PM"], key=f"radio_p_{carrera_actual}", horizontal=True)
     hora_12 = st.selectbox("Hora", list(range(1, 13)), key=f"sel_h_{carrera_actual}")
     minuto_sel = st.selectbox("Minutos", list(range(0, 60)), key=f"sel_m_{carrera_actual}")
@@ -241,18 +242,19 @@ with st.sidebar.expander("⏰ Hora de Cierre Estricta", expanded=False):
     elif periodo_sel == "AM" and h_24_conv == 12: h_24_conv = 0
     
     hora_seleccionada = time(h_24_conv, int(minuto_sel))
+    dt_cierre_completo = datetime.combine(fecha_sel, hora_seleccionada)
     
     col_bh1, col_bh2 = st.sidebar.columns(2)
     with col_bh1:
         if st.button("💾 Guardar", key=f"bs_h_{carrera_actual}"):
-            st.session_state.horas_cierre_remate[carrera_actual] = hora_seleccionada
+            st.session_state.fechas_horas_cierre_remate[carrera_actual] = dt_cierre_completo
             st.session_state.estado_conteo_carrera[carrera_actual] = "INACTIVO"
-            st.toast("✅ Hora guardada")
+            st.toast("✅ Fecha y hora guardadas")
             st.rerun()
     with col_bh2:
         if st.button("🗑️ Borrar", key=f"bc_h_{carrera_actual}"):
-            if carrera_actual in st.session_state.horas_cierre_remate:
-                del st.session_state.horas_cierre_remate[carrera_actual]
+            if carrera_actual in st.session_state.fechas_horas_cierre_remate:
+                del st.session_state.fechas_horas_cierre_remate[carrera_actual]
             st.session_state.estado_conteo_carrera[carrera_actual] = "INACTIVO"
             st.toast("🗑️ Removida")
             st.rerun()
@@ -281,20 +283,18 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remate", "✍️ Banco", "🎟️ Dupletas", "🏁 Cierre", "📊 Cuentas", "🧾 Hist.", "📄 PDF"
 ])
 
-# 1. REMATE (DISEÑO 100% VERTICAL: TABLA/POTE ARRIBA, REGISTRO DE PUJA ABAJO)
+# 1. REMATE (VERTICAL)
 with tab1:
     st.markdown(f"<div class='subasta-header'>🎯 {carrera_actual}</div>", unsafe_allow_html=True)
     
-    hora_limite = st.session_state.horas_cierre_remate.get(carrera_actual)
+    dt_limite = st.session_state.fechas_horas_cierre_remate.get(carrera_actual)
     carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carrera_actual, False)
     estado_conteo = st.session_state.estado_conteo_carrera.get(carrera_actual, "INACTIVO")
     
-    if hora_limite:
-        dt_limite_dummy = datetime.combine(ahora_dt.date(), hora_limite)
-        st.markdown(f"<div class='cierre-info-box'>⏰ Cierre: <b>{dt_limite_dummy.strftime('%I:%M %p')}</b></div>", unsafe_allow_html=True)
+    if dt_limite:
+        st.markdown(f"<div class='cierre-info-box'>⏰ Cierre Estricto: <b>{dt_limite.strftime('%d/%m/%Y - %I:%M %p')}</b></div>", unsafe_allow_html=True)
 
-    if hora_limite and not carrera_cerrada:
-        dt_limite = datetime.combine(ahora_dt.date(), hora_limite)
+    if dt_limite and not carrera_cerrada:
         diferencia_segundos = (dt_limite - ahora_dt).total_seconds()
         
         if estado_conteo == "INACTIVO":
