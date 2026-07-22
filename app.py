@@ -1011,7 +1011,7 @@ with tab6:
         hide_index=True,
     )
 
-streamlit.errors.StreamlitDuplicateElementKey: This app has encountered an error...
+streamlit.errors.StreamlitDuplicateElementllave: This app has encountered an error...
 Traceback:
 File "/mount/src/california-chrome/app.py", line 1132, in <module>
     url_web = st.text_input(
