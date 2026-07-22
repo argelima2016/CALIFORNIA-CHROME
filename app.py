@@ -360,15 +360,16 @@ def procesar_texto_para_remates(texto_a_procesar):
             key=lambda x: int(re.match(r"^(\d+)", x).group(1))
         )
       st.session_state.banco_caballos_por_carrera = banco_temp
+      
+      # LIMPIAR Y RECONSTRUIR COMPLETAMENTE LOS REMATES CON LOS NUEVOS DATOS DEL PDF
+      st.session_state.remates = {}
       for c_key, c_vals in banco_temp.items():
-        if c_key not in st.session_state.remates:
-          st.session_state.remates[c_key] = {}
+        st.session_state.remates[c_key] = {}
         for ev in c_vals:
-          if ev not in st.session_state.remates[c_key]:
-            st.session_state.remates[c_key][ev] = {
-                "jugador": "Sin Postor",
-                "monto": 0.0,
-            }
+          st.session_state.remates[c_key][ev] = {
+              "jugador": "Sin Postor",
+              "monto": 0.0,
+          }
 
       st.session_state.carreras_activas_remate = list(banco_temp.keys())
       st.session_state.carreras_habilitadas_dupleta = list(banco_temp.keys())
