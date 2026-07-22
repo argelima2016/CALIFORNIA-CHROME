@@ -5,3 +5,5 @@ xlsxwriter
 streamlit
 streamlit-autorefresh
 pypdf
+requests
+beautifulsoup4
