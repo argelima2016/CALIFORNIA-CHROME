@@ -125,79 +125,13 @@ def cargar_jugadores_base():
   ]
 
 
-# --- FUNCIONES DE SCRAPING AUTOMÁTICO ---
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,"
-        " like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    )
-}
-
-
-@st.cache_data(ttl=1800)
-def obtener_inscritos_web_automaticos(url_fuente):
-  try:
-    respuesta = requests.get(url_fuente, headers=HEADERS, timeout=10)
-    if respuesta.status_code != 200:
-      return None, f"Error HTTP {respuesta.status_code}"
-
-    soup = BeautifulSoup(respuesta.text, "html.parser")
-    banco_carreras = {}
-
-    bloques = soup.find_all(
-        ["div", "section", "table"],
-        class_=re.compile(r"carrera|programa|tabla", re.I),
-    )
-    if not bloques:
-      bloques = [soup]
-
-    carrera_cont = 1
-    for bloque in bloques:
-      ejemplares = []
-      filas = bloque.find_all("tr")
-      for fila in filas:
-        cols = fila.find_all(["td", "th"])
-        if len(cols) >= 2:
-          pos = cols[0].text.strip()
-          nom = cols[1].text.strip().title()
-          if pos.isdigit() and len(nom) > 1:
-            ejemplares.append(f"{pos} - {nom}")
-
-      if ejemplares:
-        banco_carreras[f"Carrera {carrera_cont}"] = ejemplares
-        carrera_cont += 1
-
-    return (
-        (banco_carreras, "OK")
-        if banco_carreras
-        else (None, "No se estructuraron carreras válidas")
-    )
-  except Exception as e:
-    return None, f"Excepción: {e}"
-
-
-def obtener_ganador_en_vivo(url_resultados, num_carrera):
-  try:
-    resp = requests.get(url_resultados, headers=HEADERS, timeout=6)
-    if resp.status_code == 200:
-      soup = BeautifulSoup(resp.text, "html.parser")
-      elem_carrera = soup.find(id=re.compile(f"carrera-?{num_carrera}", re.I))
-      if elem_carrera:
-        ganador = elem_carrera.find(
-            ["td", "span", "div"], class_=re.compile(r"ganador|primer", re.I)
-        )
-        if ganador:
-          return ganador.text.strip().title()
-  except Exception:
-    pass
-  return None
-
-
 # --- ESTADO GLOBAL ---
 if "lista_jugadores" not in st.session_state:
   st.session_state.lista_jugadores = cargar_jugadores_base()
 if "banco_caballos_por_carrera" not in st.session_state:
   st.session_state.banco_caballos_por_carrera = {}
+if "banco_general_extraido" not in st.session_state:
+  st.session_state.banco_general_extraido = []
 if "remates" not in st.session_state:
   st.session_state.remates = {}
 if "historial_ganadores" not in st.session_state:
@@ -307,75 +241,42 @@ def extraer_texto_pdf(archivo_pdf):
   return False
 
 
-def procesar_texto_para_remates(texto_a_procesar):
+def extraer_banco_flexible_pdf(texto_a_procesar):
   try:
     lineas = texto_a_procesar.split("\n")
-    carrera_actual = None
-    banco_temp = {}
+    ejemplares_encontrados = []
     
-    patron_carrera = re.compile(
-        r"(?:carrera|primera|segunda|tercera|cuarta|quinta|sexta|septima|octava|novena|decima|\d+)\s*(?:ª|º|\.)?\s*carrera",
-        re.IGNORECASE,
-    )
+    excluir = [
+        "retirado", "jinete", "entrenador", "distancia", 
+        "premio", "propietario", "haras", "stud", "aprox",
+        "srf", "gsf", "lbs", "kg", "hipodromo", "carrera", "la rinconada", "valencia"
+    ]
 
     for linea in lineas:
       linea_limpia = linea.strip()
-      if not linea_limpia:
+      if not linea_limpia or len(linea_limpia) < 3:
         continue
         
-      if patron_carrera.search(linea_limpia) or ("carrera" in linea_limpia.lower() and len(linea_limpia) < 35):
-        for c_n in range(1, 15):
-          if str(c_n) in linea_limpia or f"carrera {c_n}" in linea_limpia.lower():
-            carrera_actual = f"Carrera {c_n}"
-            if carrera_actual not in banco_temp:
-              banco_temp[carrera_actual] = []
-            break
+      # Detectar patrones estilo "1 NombreEjemplar" o "(1) Nombre"
+      match_ej = re.match(r"^\(?(\d{1,2})\)?[\s\-\.\)]+(.+)", linea_limpia)
+      if match_ej:
+        nom_ej = match_ej.group(2).strip()
+        nom_ej_limpio = re.split(r'\s{2,}|\d+[\.,]\d+|\b[A-Z]{2,}\b', nom_ej)[0].strip()
+        
+        if (
+            len(nom_ej_limpio) > 1
+            and not any(p in nom_ej_limpio.lower() for p in excluir)
+            and not nom_ej_limpio.isdigit()
+        ):
+          formato_ej = nom_ej_limpio.title()
+          if formato_ej not in ejemplares_encontrados:
+            ejemplares_encontrados.append(formato_ej)
 
-      if carrera_actual:
-        match_ej = re.match(r"^\(?(\d{1,2})\)?[\s\-\.\)]+(.+)", linea_limpia)
-        if match_ej:
-          num_pos = int(match_ej.group(1))
-          nom_ej = match_ej.group(2).strip()
-          
-          excluir = [
-              "retirado", "jinete", "entrenador", "distancia", 
-              "premio", "propietario", "haras", "stud", "aprox",
-              "srf", "gsf", "lbs", "kg"
-          ]
-          
-          nom_ej_limpio = re.split(r'\s{2,}|\d+[\.,]\d+|\b[A-Z]{2,}\b', nom_ej)[0].strip()
-          
-          if (
-              1 <= num_pos <= 25
-              and len(nom_ej_limpio) > 1
-              and not any(p in nom_ej_limpio.lower() for p in excluir)
-          ):
-            formato_ej = f"{num_pos} - {nom_ej_limpio.title()}"
-            if formato_ej not in banco_temp[carrera_actual]:
-              banco_temp[carrera_actual].append(formato_ej)
-
-    if banco_temp:
-      for c_key in banco_temp:
-        banco_temp[c_key].sort(
-            key=lambda x: int(re.match(r"^(\d+)", x).group(1))
-        )
-      st.session_state.banco_caballos_por_carrera = banco_temp
-      
-      # LIMPIAR Y RECONSTRUIR COMPLETAMENTE LOS REMATES CON LOS NUEVOS DATOS DEL PDF
-      st.session_state.remates = {}
-      for c_key, c_vals in banco_temp.items():
-        st.session_state.remates[c_key] = {}
-        for ev in c_vals:
-          st.session_state.remates[c_key][ev] = {
-              "jugador": "Sin Postor",
-              "monto": 0.0,
-          }
-
-      st.session_state.carreras_activas_remate = list(banco_temp.keys())
-      st.session_state.carreras_habilitadas_dupleta = list(banco_temp.keys())
+    if ejemplares_encontrados:
+      st.session_state.banco_general_extraido = sorted(ejemplares_encontrados)
       return True
   except Exception as e:
-    st.error(f"Error procesando: {e}")
+    st.error(f"Error extrayendo banco: {e}")
   return False
 
 
@@ -502,7 +403,7 @@ if st.sidebar.button("🗑️ Reiniciar Jornada", use_container_width=True):
 # --- PESTAÑAS PRINCIPALES ---
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remates Adelantados Activos",
-    "✍️ Banco",
+    "✍️ Banco y Selección",
     "🎟️ Dupletas",
     "🏁 Cierre",
     "📊 Cuentas",
@@ -718,78 +619,98 @@ with tab1:
             st.success("✅ ¡Puja registrada!")
             st.rerun()
 
-# 2. BANCO
+# 2. BANCO Y SELECCIÓN PARA CARRERAS
 with tab2:
   st.markdown(
-      "<div class='subasta-header'>✍️ Banco de Caballos por Carrera</div>",
+      "<div class='subasta-header'>✍️ Banco General y Asignación por Carrera</div>",
       unsafe_allow_html=True,
   )
+
   carr_banco_sel = st.selectbox(
-      "Seleccionar Carrera", lista_carreras_disponibles, key="sel_c_banco"
+      "Seleccionar Carrera a Configurar", lista_carreras_disponibles, key="sel_c_banco_asignar"
   )
 
-  if carr_banco_sel not in st.session_state.banco_caballos_por_carrera:
-    st.session_state.banco_caballos_por_carrera[carr_banco_sel] = []
-
-  with st.container(border=True):
-    nuevo_nom = st.text_input(
-        "Nombre del Ejemplar",
-        placeholder="Ej: Rey David",
-        key=f"in_b_{carr_banco_sel}",
-    )
-    if st.button(
-        "💾 Agregar al Banco", use_container_width=True, type="primary"
-    ):
-      nom_l = nuevo_nom.strip().title()
-      if nom_l:
-        nums = [
-            int(re.match(r"^(\d+)", e).group(1))
-            for e in st.session_state.banco_caballos_por_carrera[carr_banco_sel]
-            if re.match(r"^(\d+)", e)
-        ]
-        sig_num = 1
-        while sig_num in nums and sig_num <= 25:
-          sig_num += 1
-        formato = f"{sig_num} - {nom_l}"
-
-        if (
-            formato
-            not in st.session_state.banco_caballos_por_carrera[carr_banco_sel]
-        ):
-          st.session_state.banco_caballos_por_carrera[carr_banco_sel].append(
-              formato
-          )
-          st.session_state.banco_caballos_por_carrera[carr_banco_sel].sort(
-              key=lambda x: int(re.match(r"^(\d+)", x).group(1))
-          )
-
+  col_b1, col_b2 = st.columns(2)
+  
+  with col_b1:
+    st.markdown("### 📋 Caballos Disponibles en el Banco")
+    if not st.session_state.banco_general_extraido:
+      st.info("ℹ️ Sube un PDF en la pestaña 'PDF / Auto' para poblar el banco automáticamente, o agrega ejemplares abajo.")
+    else:
+      # Mostrar lista de caballos extraídos para seleccionar y asignar
+      caballos_seleccionados_para_carrera = st.multiselect(
+          "Selecciona los ejemplares que corren en esta carrera:",
+          options=st.session_state.banco_general_extraido,
+          key=f"ms_banco_carr_{carr_banco_sel}"
+      )
+      if st.button("➕ Agregar seleccionados a la Carrera", type="primary", use_container_width=True):
         if carr_banco_sel not in st.session_state.remates:
           st.session_state.remates[carr_banco_sel] = {}
-        if formato not in st.session_state.remates[carr_banco_sel]:
-          st.session_state.remates[carr_banco_sel][formato] = {
-              "jugador": "Sin Postor",
-              "monto": 0.0,
-          }
-        st.toast("✅ Ejemplar agregado")
+        if carr_banco_sel not in st.session_state.banco_caballos_por_carrera:
+          st.session_state.banco_caballos_por_carrera[carr_banco_sel] = []
+
+        for idx_nom, nom_c in enumerate(caballos_seleccionados_para_carrera, start=1):
+          # Buscar siguiente número disponible
+          nums = [
+              int(re.match(r"^(\d+)", e).group(1))
+              for e in st.session_state.banco_caballos_por_carrera[carr_banco_sel]
+              if re.match(r"^(\d+)", e)
+          ]
+          sig_num = 1
+          while sig_num in nums and sig_num <= 25:
+            sig_num += 1
+          formato = f"{sig_num} - {nom_c}"
+
+          if formato not in st.session_state.banco_caballos_por_carrera[carr_banco_sel]:
+            st.session_state.banco_caballos_por_carrera[carr_banco_sel].append(formato)
+            st.session_state.banco_caballos_por_carrera[carr_banco_sel].sort(
+                key=lambda x: int(re.match(r"^(\d+)", x).group(1))
+            )
+
+          if formato not in st.session_state.remates[carr_banco_sel]:
+            st.session_state.remates[carr_banco_sel][formato] = {
+                "jugador": "Sin Postor",
+                "monto": 0.0,
+            }
+        st.success(f"✅ Ejemplares agregados a {carr_banco_sel}")
         st.rerun()
 
-  for idx_b, ej_item in enumerate(
-      st.session_state.banco_caballos_por_carrera[carr_banco_sel]
-  ):
-    col_ib1, col_ib2 = st.columns([5, 1])
-    with col_ib1:
-      st.text(ej_item)
-    with col_ib2:
-      if st.button(
-          "🗑️", key=f"del_b_{carr_banco_sel}_{idx_b}", use_container_width=True
-      ):
-        st.session_state.banco_caballos_por_carrera[carr_banco_sel].pop(idx_b)
-        if (
-            carr_banco_sel in st.session_state.remates
-            and ej_item in st.session_state.remates[carr_banco_sel]
-        ):
-          del st.session_state.remates[carr_banco_sel][ej_item]
-        st.rerun()
+    with st.container(border=True):
+      st.markdown("##### ➕ Agregar Manual al Banco General")
+      nuevo_nom = st.text_input(
+          "Nombre del Ejemplar",
+          placeholder="Ej: Rey David",
+          key="in_b_general",
+      )
+      if st.button("💾 Guardar en Banco General", use_container_width=True):
+        nom_l = nuevo_nom.strip().title()
+        if nom_l and nom_l not in st.session_state.banco_general_extraido:
+          st.session_state.banco_general_extraido.append(nom_l)
+          st.session_state.banco_general_extraido.sort()
+          st.success("✅ Agregado al banco general")
+          st.rerun()
+
+  with col_b2:
+    st.markdown(f"### 🏇 Inscritos Actuales en: {carr_banco_sel}")
+    caballos_actuales = st.session_state.banco_caballos_por_carrera.get(carr_banco_sel, [])
+    if not caballos_actuales:
+      st.info("No hay caballos asignados a esta carrera.")
+    else:
+      for idx_b, ej_item in enumerate(caballos_actuales):
+        col_ib1, col_ib2 = st.columns([5, 1])
+        with col_ib1:
+          st.text(ej_item)
+        with col_ib2:
+          if st.button(
+              "🗑️", key=f"del_b_{carr_banco_sel}_{idx_b}", use_container_width=True
+          ):
+            st.session_state.banco_caballos_por_carrera[carr_banco_sel].pop(idx_b)
+            if (
+                carr_banco_sel in st.session_state.remates
+                and ej_item in st.session_state.remates[carr_banco_sel]
+            ):
+              del st.session_state.remates[carr_banco_sel][ej_item]
+            st.rerun()
 
 # 3. DUPLETAS
 with tab3:
@@ -914,22 +835,8 @@ with tab4:
         st.session_state.remates_cargados_en_cuentas[carr_liq] = False
         st.rerun()
 
-    # LIQUIDACIÓN AUTOMÁTICA O MANUAL
     st.markdown("---")
     st.markdown("### 🏆 Liquidar Ganador")
-
-    url_res_web = st.text_input(
-        "URL de Resultados en Vivo (Opcional):",
-        placeholder="https://ejemplo.com/resultados",
-        key="url_res_envivo",
-    )
-    if st.button("🔍 Consultar Ganador Oficial Web", use_container_width=True):
-      num_c = obtener_abreviatura_carrera(carr_liq).replace("C", "")
-      ganador_web = obtener_ganador_en_vivo(url_res_web, num_c)
-      if ganador_web:
-        st.success(f"🏆 Ganador detectado en web: **{ganador_web}**")
-      else:
-        st.info("⏳ Aún no hay resultado oficial en la web consultada.")
 
     if carr_liq in st.session_state.historial_ganadores:
       st.success("✅ Carrera ya liquidada.")
@@ -1053,29 +960,9 @@ with tab7:
     if archivo_subido is not None:
         if extraer_texto_pdf(archivo_subido):
             st.success("✅ PDF leído correctamente.")
-            if st.button("🚀 Procesar e Importar Carreras e Inscritos", type="primary", use_container_width=True):
-                if procesar_texto_para_remates(st.session_state.texto_completo_pdf):
-                    st.success("✅ ¡Carreras y ejemplares importados con éxito desde el PDF!")
+            if st.button("🚀 Extraer Caballos al Banco General", type="primary", use_container_width=True):
+                if extraer_banco_flexible_pdf(st.session_state.texto_completo_pdf):
+                    st.success("✅ ¡Caballos extraídos con éxito al banco general! Ve a la pestaña **'✍️ Banco y Selección'** para asignarlos a cada carrera.")
                     st.rerun()
                 else:
-                    st.error("⚠️ No se pudieron extraer estructuras de carreras válidas del PDF.")
-
-    st.markdown("---")
-    st.markdown("### 🌐 Automatización Web (Scraping)")
-    url_scraping = st.text_input("URL del Programa Web", placeholder="https://ejemplo.com/inscritos")
-    if st.button("📥 Importar desde URL", use_container_width=True):
-        banco_auto, mensaje_auto = obtener_inscritos_web_automaticos(url_scraping)
-        if banco_auto:
-            st.session_state.banco_caballos_por_carrera = banco_auto
-            for c_key, c_vals in banco_auto.items():
-                if c_key not in st.session_state.remates:
-                    st.session_state.remates[c_key] = {}
-                for ev in c_vals:
-                    if ev not in st.session_state.remates[c_key]:
-                        st.session_state.remates[c_key][ev] = {"jugador": "Sin Postor", "monto": 0.0}
-            st.session_state.carreras_activas_remate = list(banco_auto.keys())
-            st.session_state.carreras_habilitadas_dupleta = list(banco_auto.keys())
-            st.success("✅ Datos importados correctamente desde la web.")
-            st.rerun()
-        else:
-            st.error(f"❌ Error al importar: {mensaje_auto}")
+                    st.error("⚠️ No se pudieron extraer nombres válidos del PDF.")
