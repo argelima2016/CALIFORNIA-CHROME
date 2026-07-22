@@ -215,13 +215,14 @@ def extraer_texto_pdf(archivo_pdf):
         st.sidebar.error(f"Error al leer PDF: {e}")
     return False
 
-# --- PROCESADOR DE TEXTO (AUTOMÁTICO O SEGMENTO ESPECÍFICO) ---
+# --- MOTOR DE EXTRACCIÓN Y ORGANIZACIÓN ESTRICTA POR POSICIÓN Y CARRERA ---
 def procesar_texto_para_remates(texto_a_procesar):
     try:
         lineas = texto_a_procesar.split('\n')
         carrera_actual_detectada = None
         banco_temporal = {}
         
+        # Patrón flexible para detectar títulos de carrera (ej: "1RA. CARRERA", "PRIMERA CARRERA", "Carrera 3", etc.)
         patron_carrera = re.compile(
             r'(?:carrera|primera|segunda|tercera|cuarta|quinta|sexta|septima|octava|novena|decima|\d+)\s*(?:ª|º|\.)?\s*carrera', 
             re.IGNORECASE
@@ -232,32 +233,41 @@ def procesar_texto_para_remates(texto_a_procesar):
             if not linea_limpia:
                 continue
             
+            # Detectar cambio de carrera
             match_carr = patron_carrera.search(linea_limpia)
-            if match_carr or ("carrera" in linea_limpia.lower() and len(linea_limpia) < 30):
+            if match_carr or ("carrera" in linea_limpia.lower() and len(linea_limpia) < 35):
                 for c_n in range(1, 15):
-                    if str(c_n) in linea_limpia or f"carrera {c_n}" in linea_limpia.lower():
+                    if str(c_n) in linea_limpia or f"carrera {c_n}" in linea_limpia.lower() or f"{c_n}ra" in linea_limpia.lower() or f"{c_n}da" in linea_limpia.lower() or f"{c_n}ta" in linea_limpia.lower():
                         carrera_actual_detectada = f"Carrera {c_n}"
                         if carrera_actual_detectada not in banco_temporal:
                             banco_temporal[carrera_actual_detectada] = []
                         break
             
             if carrera_actual_detectada:
-                # Detecta formatos con número de ejemplar y nombre, ignorando palabras clave de retiro o condiciones
-                match_ejemplar = re.match(r'^(\d{1,2})[\s\-\.\)]+(.*)', linea_limpia)
+                # Captura estricta del número de posición/ejemplar y el nombre exacto del ejemplar correspondiente
+                # Ejemplos válidos: "1 NombreEjemplar", "01 - Nombre", "1. Nombre"
+                match_ejemplar = re.match(r'^(?:[Pp][Oo][Ss]\.?\s*)?(\d{1,2})[\s\-\.\)]+(.+)', linea_limpia)
                 if match_ejemplar:
-                    num_ej = match_ejemplar.group(1)
+                    num_pos = int(match_ejemplar.group(1))
                     nom_ej = match_ejemplar.group(2).strip()
-                    if len(nom_ej) > 2 and not any(p in nom_ej.lower() for p in ['retirado', 'jinete', 'entrenador', 'distancia', 'premio', 'propietario']):
-                        formato_ej = f"{num_ej} - {nom_ej.title()}"
+                    
+                    # Filtrar palabras clave de la condición o encabezados irrelevantes para asegurar pureza en el nombre del ejemplar
+                    palabras_excluir = ['retirado', 'jinete', 'entrenador', 'distancia', 'premio', 'propietario', 'condicion', 'hipodromo', 'metros', 'haras', 'stud', 'aprox']
+                    if 1 <= num_pos <= 25 and len(nom_ej) > 1 and not any(p in nom_ej.lower() for p in palabras_excluir):
+                        formato_ej = f"{num_pos} - {nom_ej.title()}"
                         if formato_ej not in banco_temporal[carrera_actual_detectada]:
                             banco_temporal[carrera_actual_detectada].append(formato_ej)
 
         if banco_temporal:
+            # Ordenar estrictamente cada carrera por el número de posición de menor a mayor (1, 2, 3...)
+            for c_key in banco_temporal:
+                banco_temporal[c_key].sort(key=lambda x: int(re.match(r'^(\d+)', x).group(1)))
+
             st.session_state.banco_caballos_por_carrera = banco_temporal
             for c_key, c_vals in banco_temporal.items():
                 if c_key not in st.session_state.remates:
                     st.session_state.remates[c_key] = {}
-                for ev in c_vals[:17]:
+                for ev in c_vals:
                     if ev not in st.session_state.remates[c_key]:
                         st.session_state.remates[c_key][ev] = {"jugador": "Sin Postor", "monto": 0.0}
             
@@ -550,16 +560,18 @@ with tab2:
             if nom_limp:
                 nums = [int(re.match(r'^(\d+)', e).group(1)) for e in st.session_state.banco_caballos_por_carrera[carr_banco_sel] if re.match(r'^(\d+)', e)]
                 sig_num = 1
-                while sig_num in nums and sig_num <= 17: sig_num += 1
+                while sig_num in nums and sig_num <= 25: sig_num += 1
                 formato_nuevo = f"{sig_num} - {nom_limp}"
                 
                 if formato_nuevo not in st.session_state.banco_caballos_por_carrera[carr_banco_sel]:
                     st.session_state.banco_caballos_por_carrera[carr_banco_sel].append(formato_nuevo)
+                    st.session_state.banco_caballos_por_carrera[carr_banco_sel].sort(key=lambda x: int(re.match(r'^(\d+)', x).group(1)))
+
                 if carr_banco_sel not in st.session_state.remates:
                     st.session_state.remates[carr_banco_sel] = {}
                 if formato_nuevo not in st.session_state.remates[carr_banco_sel]:
                     st.session_state.remates[carr_banco_sel][formato_nuevo] = {"jugador": "Sin Postor", "monto": 0.0}
-                st.toast("✅ ¡Agregado con éxito!")
+                st.toast("✅ ¡Agregado con éxito y ordenado por posición!")
                 st.rerun()
 
     for idx_b, ej_item in enumerate(st.session_state.banco_caballos_por_carrera[carr_banco_sel]):
@@ -692,41 +704,41 @@ with tab6:
     else:
         st.dataframe(pd.DataFrame(st.session_state.historial_transacciones), use_container_width=True, hide_index=True)
 
-# 7. PDF (CON LECTOR MANUAL / SELECTOR DE PARTES ESPECÍFICAS)
+# 7. PDF (CON LECTOR MANUAL Y ORGANIZACIÓN ESTRICTA POR POSICIÓN)
 with tab7:
-    st.markdown("<div class='subasta-header'>📄 Lector PDF e Importador Selectivo</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subasta-header'>📄 Lector PDF e Importador Organizado por Posición</div>", unsafe_allow_html=True)
     
     pdf_subido = st.file_uploader("Sube el programa oficial en PDF", type=["pdf"])
     if pdf_subido is not None:
         if st.button("📥 Cargar PDF en Memoria", use_container_width=True):
             if extraer_texto_pdf(pdf_subido):
-                st.success("✅ ¡PDF cargado correctamente! Ahora puedes procesarlo todo o seleccionar partes específicas abajo.")
+                st.success("✅ ¡PDF cargado correctamente! Ya puedes procesarlo abajo.")
                 st.rerun()
 
     if st.session_state.programa_pdf_bytes is not None:
         st.markdown("---")
-        st.markdown("### ✂️ Selección Manual y Específica de Partes del PDF")
-        st.markdown("Pega aquí abajo únicamente el texto o la sección específica que deseas procesar (por ejemplo, el bloque correspondiente a una **Carrera N**, sus **Condiciones** y la lista de **Número de Ejemplar / Ejemplar**):")
+        st.markdown("### ✂️ Segmento Específico y Ordenamiento Estricto")
+        st.markdown("Pega aquí abajo el texto seleccionado o la sección que deseas procesar. El sistema extraerá de forma automática la **Carrera N**, ordenando cada ejemplar por su **Número de Posición / Ejemplar** de menor a mayor:")
         
         texto_seleccion_usuario = st.text_area(
             "Texto del segmento específico a sincronizar:",
             value=st.session_state.texto_completo_pdf[:2000] if st.session_state.texto_completo_pdf else "",
             height=250,
-            placeholder="Ejemplo:\nTERCERA CARRERA. CONDICIÓN: ...\n1 - REY DAVID\n2 - GRAN AMIGO..."
+            placeholder="Ejemplo:\nPRIMERA CARRERA. CONDICIÓN: ...\n1 REY DAVID\n2 GRAN AMIGO..."
         )
         
         col_ps1, col_ps2 = st.columns(2)
         with col_ps1:
-            if st.button("🚀 Sincronizar Segmento Seleccionado", use_container_width=True, type="primary"):
+            if st.button("🚀 Sincronizar y Ordenar por Posición", use_container_width=True, type="primary"):
                 if procesar_texto_para_remates(texto_seleccion_usuario):
-                    st.success("✅ ¡Segmento seleccionado sincronizado con éxito con las carreras y ejemplares de la semana!")
+                    st.success("✅ ¡Segmento procesado, ordenado por posición y sincronizado con éxito!")
                     st.rerun()
                 else:
-                    st.error("⚠️ No se pudo extraer la estructura de Carrera y Ejemplares del texto seleccionado. Revisa el formato.")
+                    st.error("⚠️ No se pudo extraer la estructura correcta. Revisa que el texto contenga el nombre de la carrera y los números de posición.")
         with col_ps2:
-            if st.button("⚡ Procesar PDF Completo Automáticamente", use_container_width=True):
+            if st.button("⚡ Procesar PDF Completo Organizado", use_container_width=True):
                 if procesar_texto_para_remates(st.session_state.texto_completo_pdf):
-                    st.success("✅ ¡Programa completo procesado y sincronizado!")
+                    st.success("✅ ¡Programa completo procesado y ordenado por posición!")
                     st.rerun()
                 else:
                     st.error("⚠️ No se pudo procesar automáticamente el documento.")
