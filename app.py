@@ -136,7 +136,6 @@ HEADERS = {
 
 @st.cache_data(ttl=1800)
 def obtener_inscritos_web_automaticos(url_fuente):
-  """Extrae automáticamente los inscritos por carrera desde una URL web."""
   try:
     respuesta = requests.get(url_fuente, headers=HEADERS, timeout=10)
     if respuesta.status_code != 200:
@@ -178,7 +177,6 @@ def obtener_inscritos_web_automaticos(url_fuente):
 
 
 def obtener_ganador_en_vivo(url_resultados, num_carrera):
-  """Consulta el ganador oficial publicado en la web."""
   try:
     resp = requests.get(url_resultados, headers=HEADERS, timeout=6)
     if resp.status_code == 200:
@@ -314,6 +312,7 @@ def procesar_texto_para_remates(texto_a_procesar):
     lineas = texto_a_procesar.split("\n")
     carrera_actual = None
     banco_temp = {}
+    
     patron_carrera = re.compile(
         r"(?:carrera|primera|segunda|tercera|cuarta|quinta|sexta|septima|octava|novena|decima|\d+)\s*(?:ª|º|\.)?\s*carrera",
         re.IGNORECASE,
@@ -323,9 +322,8 @@ def procesar_texto_para_remates(texto_a_procesar):
       linea_limpia = linea.strip()
       if not linea_limpia:
         continue
-      if patron_carrera.search(linea_limpia) or (
-          "carrera" in linea_limpia.lower() and len(linea_limpia) < 35
-      ):
+        
+      if patron_carrera.search(linea_limpia) or ("carrera" in linea_limpia.lower() and len(linea_limpia) < 35):
         for c_n in range(1, 15):
           if str(c_n) in linea_limpia or f"carrera {c_n}" in linea_limpia.lower():
             carrera_actual = f"Carrera {c_n}"
@@ -334,26 +332,25 @@ def procesar_texto_para_remates(texto_a_procesar):
             break
 
       if carrera_actual:
-        match_ej = re.match(
-            r"^(?:[Pp][Oo][Ss]\.?\s*)?(\d{1,2})[\s\-\.\)]+(.+)", linea_limpia
-        )
+        match_ej = re.match(r"^\(?(\d{1,2})\)?[\s\-\.\)]+(.+)", linea_limpia)
         if match_ej:
           num_pos = int(match_ej.group(1))
           nom_ej = match_ej.group(2).strip()
+          
           excluir = [
-              "retirado",
-              "jinete",
-              "entrenador",
-              "distancia",
-              "premio",
-              "propietario",
+              "retirado", "jinete", "entrenador", "distancia", 
+              "premio", "propietario", "haras", "stud", "aprox",
+              "srf", "gsf", "lbs", "kg"
           ]
+          
+          nom_ej_limpio = re.split(r'\s{2,}|\d+[\.,]\d+|\b[A-Z]{2,}\b', nom_ej)[0].strip()
+          
           if (
               1 <= num_pos <= 25
-              and len(nom_ej) > 1
-              and not any(p in nom_ej.lower() for p in excluir)
+              and len(nom_ej_limpio) > 1
+              and not any(p in nom_ej_limpio.lower() for p in excluir)
           ):
-            formato_ej = f"{num_pos} - {nom_ej.title()}"
+            formato_ej = f"{num_pos} - {nom_ej_limpio.title()}"
             if formato_ej not in banco_temp[carrera_actual]:
               banco_temp[carrera_actual].append(formato_ej)
 
@@ -936,169 +933,148 @@ with tab4:
     if carr_liq in st.session_state.historial_ganadores:
       st.success("✅ Carrera ya liquidada.")
     else:
-      pote_carr = sum(
-          [info["monto"] for info in st.session_state.remates[carr_liq].values()]
-      )
-      monto_casa_c = pote_carr * (porcentaje_casa / 100)
-      premio_final = (
-          pote_carr - monto_casa_c + st.session_state.get(f"pote_inc_{carr_liq}", 0.0)
-      )
+        cabs_disponibles = list(st.session_state.remates.get(carr_liq, {}).keys())
+        ganador_sel = st.selectbox(
+            "Seleccionar Ejemplar Ganador Oficial",
+            cabs_disponibles if cabs_disponibles else ["Sin Ejemplares"],
+            key=f"ganador_{carr_liq}",
+        )
+        
+        extra_liq = st.number_input(
+            "🎁 Monto Extra / Bono para este Premio",
+            min_value=0.0,
+            value=0.0,
+            step=50.0,
+            key=f"extra_liq_{carr_liq}",
+        )
 
-      cab_ganador = st.selectbox(
-          "Seleccionar Ejemplar Ganador",
-          list(st.session_state.remates[carr_liq].keys()),
-          key=f"g_{carr_liq}",
-      )
+        if st.button(f"🏁 Liquidar y Pagar {carr_liq}", type="primary", use_container_width=True):
+            if not cabs_disponibles:
+                st.error("No hay ejemplares registrados en esta carrera.")
+            else:
+                total_pote = sum([info["monto"] for info in st.session_state.remates[carr_liq].values()])
+                monto_casa_ret = total_pote * (porcentaje_casa / 100)
+                pote_neto = total_pote - monto_casa_ret
+                premio_total = pote_neto + extra_liq
 
-      if st.button(
-          "🎯 Liquidar Premio",
-          key=f"l_{carr_liq}",
-          use_container_width=True,
-          type="primary",
-      ):
-        info_g = st.session_state.remates[carr_liq][cab_ganador]
-        if info_g["jugador"] != "Sin Postor":
-          if info_g["jugador"] not in st.session_state.cuentas:
-            st.session_state.cuentas[info_g["jugador"]] = {
-                "Pujas": 0.0,
-                "Premios": 0.0,
-                "Abonos": 0.0,
-            }
-          st.session_state.cuentas[info_g["jugador"]]["Premios"] += premio_final
-        st.session_state.ganancia_casa += monto_casa_c
-        st.session_state.historial_ganadores[carr_liq] = {
-            "Ganador": info_g["jugador"],
-            "Premio": formatear_bs(premio_final),
-        }
-        st.success("¡Carrera Liquidada!")
-        st.rerun()
+                st.session_state.ganancia_casa += monto_casa_ret
+
+                info_ganador = st.session_state.remates[carr_liq].get(ganador_sel, {"jugador": "Sin Postor", "monto": 0.0})
+                propietario_ganador = info_ganador["jugador"]
+
+                if propietario_ganador != "Sin Postor":
+                    if propietario_ganador not in st.session_state.cuentas:
+                        st.session_state.cuentas[propietario_ganador] = {"Pujas": 0.0, "Premios": 0.0, "Abonos": 0.0}
+                    st.session_state.cuentas[propietario_ganador]["Premios"] += premio_total
+
+                st.session_state.historial_ganadores[carr_liq] = {
+                    "ganador": ganador_sel,
+                    "propietario": propietario_ganador,
+                    "premio": premio_total,
+                    "pote": total_pote
+                }
+
+                st.session_state.historial_transacciones.insert(0, {
+                    "fecha": ahora_dt.strftime("%d/%m/%Y %I:%M:%S %p"),
+                    "descripcion": f"Liquidación {carr_liq}: Ganador {ganador_sel} ({propietario_ganador}) - Premio: {formatear_bs(premio_total)}"
+                })
+
+                st.success(f"✅ ¡Carrera {carr_liq} liquidada con éxito! Ganador: **{ganador_sel}** (Jugador: **{propietario_ganador}**). Premio: **{formatear_bs(premio_total)}**")
+                st.rerun()
 
 # 5. CUENTAS
 with tab5:
-  st.markdown(
-      "<div class='subasta-header'>📊 Cuentas y Balances</div>",
-      unsafe_allow_html=True,
-  )
-  datos_cuentas = []
-  for jugador, vals in st.session_state.cuentas.items():
-    pujas, premios, abonos = vals["Pujas"], vals["Premios"], vals["Abonos"]
-    neto = pujas - abonos - premios
-    datos_cuentas.append({
-        "Jugador": jugador,
-        "Compras": formatear_bs(pujas),
-        "Premios": formatear_bs(premios),
-        "Neto": formatear_bs(neto),
-    })
-  st.dataframe(
-      pd.DataFrame(datos_cuentas), use_container_width=True, hide_index=True
-  )
-  st.metric(
-      "Ganancia Total Casa", formatear_bs(st.session_state.ganancia_casa)
-  )
+    st.markdown("<div class='subasta-header'>📊 Estado de Cuentas y Balances</div>", unsafe_allow_html=True)
+    
+    total_general_pujas = sum([v["Pujas"] for v in st.session_state.cuentas.values()])
+    total_general_premios = sum([v["Premios"] for v in st.session_state.cuentas.values()])
+    total_general_abonos = sum([v["Abonos"] for v in st.session_state.cuentas.values()])
 
-# 6. HISTORIAL
-with tab6:
-  st.markdown(
-      "<div class='subasta-header'>🧾 Historial de Transacciones</div>",
-      unsafe_allow_html=True,
-  )
-  if not st.session_state.historial_transacciones:
-    st.info("Sin transacciones registradas.")
-  else:
-    st.dataframe(
-        pd.DataFrame(st.session_state.historial_transacciones),
-        use_container_width=True,
-        hide_index=True,
-    )
-
-# 7. PDF Y EXTRACCIÓN AUTOMÁTICA WEB
-with tab7:
-    st.markdown(
-        "<div class='subasta-header'>📄 Importador PDF / Extracción Web Automática</div>",
-        unsafe_allow_html=True,
-    )
-
-    # --- OPCIÓN A: EXTRACCIÓN AUTOMÁTICA DESDE WEB ---
-    with st.expander("🌐 Opción A: Importar Inscritos desde URL Web", expanded=True):
-        url_fuente_input = st.text_input(
-            "URL de la Revista/Programa Web:",
-            value="https://ejemplo.com/inscritos",
-            key="input_url_scraping_tab7_v2",
-        )
-        if st.button(
-            "🚀 Scraping e Importar Carreras",
-            use_container_width=True,
-            type="primary",
-            key="btn_scraping_importar_tab7_v2",
-        ):
-            with st.spinner("Extrayendo carreras desde la web..."):
-                res_dict, err = obtener_inscritos_web_automaticos(url_fuente_input)
-                if res_dict:
-                    st.session_state.banco_caballos_por_carrera = res_dict
-                    for c_k, c_v in res_dict.items():
-                        if c_k not in st.session_state.remates:
-                            st.session_state.remates[c_k] = {}
-                        for ej in c_v:
-                            if ej not in st.session_state.remates[c_k]:
-                                st.session_state.remates[c_k][ej] = {
-                                    "jugador": "Sin Postor",
-                                    "monto": 0.0,
-                                }
-                    st.session_state.carreras_activas_remate = list(res_dict.keys())
-                    st.toast("✅ ¡Carreras importadas desde la web exitosamente!")
-                    st.rerun()
-                else:
-                    st.error(f"⚠️ No se pudo extraer la información: {err}")
+    col_cg1, col_cg2, col_cg3, col_cg4 = st.columns(4)
+    col_cg1.metric("💰 Total Pujas", formatear_bs(total_general_pujas))
+    col_cg2.metric("🏆 Total Premios", formatear_bs(total_general_premios))
+    col_cg3.metric("💳 Total Abonos", formatear_bs(total_general_abonos))
+    col_cg4.metric("🏠 Ganancia Casa", formatear_bs(st.session_state.ganancia_casa))
 
     st.markdown("---")
+    
+    datos_cuentas = []
+    for jug, vals in st.session_state.cuentas.items():
+        neto = vals["Premios"] - vals["Pujas"] + vals["Abonos"]
+        datos_cuentas.append({
+            "Jugador": jug,
+            "Pujas (- )": formatear_bs(vals["Pujas"]),
+            "Premios (+ )": formatear_bs(vals["Premios"]),
+            "Abonos (+ )": formatear_bs(vals["Abonos"]),
+            "Balance Neto": formatear_bs(neto)
+        })
 
-    # --- OPCIÓN B: CARGA DE PDF / TEXTO ---
-    with st.expander("📄 Opción B: Subir Documento PDF", expanded=False):
-        pdf_subido = st.file_uploader(
-            "Sube el programa oficial en PDF",
-            type=["pdf"],
-            key="file_uploader_pdf_tab7_v2",
-        )
-        if pdf_subido is not None:
-            if st.button(
-                "📥 Cargar PDF en Memoria",
-                use_container_width=True,
-                key="btn_cargar_pdf_tab7_v2",
-            ):
-                if extraer_texto_pdf(pdf_subido):
-                    st.success("✅ ¡PDF cargado correctamente!")
+    if datos_cuentas:
+        st.dataframe(pd.DataFrame(datos_cuentas), use_container_width=True, hide_index=True)
+    
+    with st.expander("🛠️ Ajuste Manual de Cuentas", expanded=False):
+        jug_ajuste = st.selectbox("Seleccionar Jugador", st.session_state.lista_jugadores, key="jug_ajuste_sel")
+        tipo_ajuste = st.selectbox("Tipo de Operación", ["Abono (Pago)", "Pérdida/Cargo Extra"], key="tipo_aj_sel")
+        monto_ajuste = st.number_input("Monto (Bs.)", min_value=0.0, value=100.0, step=50.0, key="monto_aj_sel")
+        
+        if st.button("💾 Aplicar Ajuste a Cuenta", use_container_width=True):
+            if jug_ajuste not in st.session_state.cuentas:
+                st.session_state.cuentas[jug_ajuste] = {"Pujas": 0.0, "Premios": 0.0, "Abonos": 0.0}
+            
+            if tipo_ajuste == "Abono (Pago)":
+                st.session_state.cuentas[jug_ajuste]["Abonos"] += monto_ajuste
+                desc = f"Abono registrado a {jug_ajuste}: {formatear_bs(monto_ajuste)}"
+            else:
+                st.session_state.cuentas[jug_ajuste]["Pujas"] += monto_ajuste
+                desc = f"Cargo extra registrado a {jug_ajuste}: {formatear_bs(monto_ajuste)}"
+                
+            st.session_state.historial_transacciones.insert(0, {
+                "fecha": ahora_dt.strftime("%d/%m/%Y %I:%M:%S %p"),
+                "descripcion": desc
+            })
+            st.success("✅ Ajuste aplicado correctamente.")
+            st.rerun()
+
+# 6. HISTORIAL Y TRANSACCIONES
+with tab6:
+    st.markdown("<div class='subasta-header'>🧾 Historial de Transacciones</div>", unsafe_allow_html=True)
+    if not st.session_state.historial_transacciones:
+        st.info("No hay transacciones registradas aún.")
+    else:
+        for t in st.session_state.historial_transacciones:
+            st.markdown(f"- **{t['fecha']}** : {t['descripcion']}")
+
+# 7. PDF Y AUTOMATIZACIÓN
+with tab7:
+    st.markdown("<div class='subasta-header'>📄 Carga de Programa y Automatización</div>", unsafe_allow_html=True)
+    
+    archivo_subido = st.file_uploader("Subir Programa Oficial (PDF)", type=["pdf"])
+    if archivo_subido is not None:
+        if extraer_texto_pdf(archivo_subido):
+            st.success("✅ PDF leído correctamente.")
+            if st.button("🚀 Procesar e Importar Carreras e Inscritos", type="primary", use_container_width=True):
+                if procesar_texto_para_remates(st.session_state.texto_completo_pdf):
+                    st.success("✅ ¡Carreras y ejemplares importados con éxito desde el PDF!")
                     st.rerun()
+                else:
+                    st.error("⚠️ No se pudieron extraer estructuras de carreras válidas del PDF.")
 
-        if st.session_state.programa_pdf_bytes is not None:
-            texto_seleccion_usuario = st.text_area(
-                "Texto del segmento específico a sincronizar:",
-                value=(
-                    st.session_state.texto_completo_pdf[:2000]
-                    if st.session_state.texto_completo_pdf
-                    else ""
-                ),
-                height=200,
-                key="text_area_pdf_segmento_tab7_v2",
-            )
-            col_ps1, col_ps2 = st.columns(2)
-            with col_ps1:
-                if st.button(
-                    "🚀 Sincronizar y Ordenar por Posición",
-                    use_container_width=True,
-                    type="primary",
-                    key="btn_sincronizar_segmento_tab7_v2",
-                ):
-                    if procesar_texto_para_remates(texto_seleccion_usuario):
-                        st.success("✅ ¡Segmento procesado con éxito!")
-                        st.rerun()
-            with col_ps2:
-                if st.button(
-                    "⚡ Procesar PDF Completo Organizado",
-                    use_container_width=True,
-                    key="btn_procesar_pdf_completo_tab7_v2",
-                ):
-                    if procesar_texto_para_remates(
-                        st.session_state.texto_completo_pdf
-                    ):
-                        st.success("✅ ¡Programa completo procesado!")
-                        st.rerun()
+    st.markdown("---")
+    st.markdown("### 🌐 Automatización Web (Scraping)")
+    url_scraping = st.text_input("URL del Programa Web", placeholder="https://ejemplo.com/inscritos")
+    if st.button("📥 Importar desde URL", use_container_width=True):
+        banco_auto, mensaje_auto = obtener_inscritos_web_automaticos(url_scraping)
+        if banco_auto:
+            st.session_state.banco_caballos_por_carrera = banco_auto
+            for c_key, c_vals in banco_auto.items():
+                if c_key not in st.session_state.remates:
+                    st.session_state.remates[c_key] = {}
+                for ev in c_vals:
+                    if ev not in st.session_state.remates[c_key]:
+                        st.session_state.remates[c_key][ev] = {"jugador": "Sin Postor", "monto": 0.0}
+            st.session_state.carreras_activas_remate = list(banco_auto.keys())
+            st.session_state.carreras_habilitadas_dupleta = list(banco_auto.keys())
+            st.success("✅ Datos importados correctamente desde la web.")
+            st.rerun()
+        else:
+            st.error(f"❌ Error al importar: {mensaje_auto}")
