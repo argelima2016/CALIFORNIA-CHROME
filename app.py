@@ -316,30 +316,67 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remates Adelantados Activos", "✍️ Banco", "🎟️ Dupletas", "🏁 Cierre", "📊 Cuentas", "🧾 Hist.", "📄 PDF"
 ])
 
-# 1. REMATES ADELANTADOS ACTIVOS
+# 1. REMATES ADELANTADOS ACTIVOS (SELECTOR DIDÁCTICO E INTERACTIVO DE CARRERAS)
 with tab1:
     st.markdown("<div class='subasta-header'>🎯 Remates Adelantados Activos</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='live-clock-banner'>📅 Fecha y Hora Actual: <b>{ahora_dt.strftime('%d/%m/%Y - %I:%M:%S %p')}</b></div>", unsafe_allow_html=True)
     
-    carreras_disponibles_para_rematar = [c for c in st.session_state.carreras_activas_remate if c in lista_carreras_disponibles]
-    
-    if not carreras_disponibles_para_rematar:
-        st.warning("⚠️ No hay carreras activas seleccionadas en el Menú de Control lateral. Por favor, marca al menos una carrera para visualizarla.")
+    if not lista_carreras_disponibles:
+        st.warning("⚠️ No hay carreras cargadas en el sistema.")
     else:
-        carr_activa = st.selectbox(
-            "⚡ Selecciona la carrera activa que deseas rematar:",
-            carreras_disponibles_para_rematar,
-            key="selector_carrera_remate_activo"
-        )
+        # --- SELECCIONADOR DIDÁCTICO E INTERACTIVO DE CARRERAS ---
+        st.markdown("##### 📌 Selecciona la Carrera a Rematar (🟢 Activas / 🔴 Cerradas):")
         
+        cols_carreras = st.columns(min(len(lista_carreras_disponibles), 5))
+        for idx, c_nombre in enumerate(lista_carreras_disponibles):
+            col_target = cols_carreras[idx % len(cols_carreras)]
+            
+            # Verificamos si la carrera está marcada como activa en la barra lateral y si no está cerrada manualmente/por tiempo
+            esta_activa_menu = c_nombre in st.session_state.carreras_activas_remate
+            c_cerrada = st.session_state.carreras_cerradas_remate.get(c_nombre, False)
+            
+            # Etiqueta y estilo visual diferenciado según estado
+            if not esta_activa_menu:
+                label_btn = f"⚪ {c_nombre}\n(Inactiva)"
+                tipo_btn = "secondary"
+            elif c_cerrada:
+                label_btn = f"🔴 {c_nombre}\n(CERRADA)"
+                tipo_btn = "secondary"
+            else:
+                label_btn = f"🟢 {c_nombre}\n(ACTIVA)"
+                tipo_btn = "primary"
+            
+            with col_target:
+                if st.button(label_btn, key=f"btn_sel_carr_didactico_{idx}", use_container_width=True, type=tipo_btn):
+                    st.session_state["carrera_remate_activa_seleccionada"] = c_nombre
+                    st.rerun()
+
+        # Mantener o establecer una carrera seleccionada por defecto
+        if "carrera_remate_activa_seleccionada" not in st.session_state or st.session_state["carrera_remate_activa_seleccionada"] not in lista_carreras_disponibles:
+            carr_activa = lista_carreras_disponibles[0]
+            st.session_state["carrera_remate_activa_seleccionada"] = carr_activa
+        else:
+            carr_activa = st.session_state["carrera_remate_activa_seleccionada"]
+
         if not carr_activa:
             st.info("👆 Selecciona una carrera arriba para ver su panel.")
         else:
             st.markdown(f"---")
+            
+            # Cabecera visual del estado de la carrera seleccionada
+            esta_activa_menu_actual = carr_activa in st.session_state.carreras_activas_remate
+            carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carr_activa, False)
+            
+            if not esta_activa_menu_actual:
+                st.warning(f"⚠️ La carrera **{carr_activa}** está desactivada en el Menú de Control lateral.")
+            elif carrera_cerrada:
+                st.error(f"🔴 La carrera **{carr_activa}** se encuentra **CERRADA** para nuevas pujas.")
+            else:
+                st.success(f"🟢 Panel activo y abierto para: **{carr_activa}**")
+
             st.markdown(f"### 🏁 {carr_activa}")
             
             dt_limite = st.session_state.fechas_horas_cierre_remate.get(carr_activa)
-            carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carr_activa, False)
             estado_conteo = st.session_state.estado_conteo_carrera.get(carr_activa, "INACTIVO")
             
             if dt_limite:
@@ -361,7 +398,6 @@ with tab1:
                     tiempo_inicio = st.session_state.tiempo_inicio_conteo.get(carr_activa, ahora_dt)
                     transcurridos = (ahora_dt - tiempo_inicio).total_seconds()
                     
-                    # REGLA: Si pasan más de 12 segundos desde que inició el conteo/última puja, se cierra automáticamente
                     if transcurridos >= 12:
                         st.session_state.carreras_cerradas_remate[carr_activa] = True
                         st.session_state.estado_conteo_carrera[carr_activa] = "CERRADO"
@@ -432,7 +468,7 @@ with tab1:
                     opciones_escala = obtener_siguientes_montos(puja_actual)
                     monto_puja = st.selectbox("💰 **2. Monto de Puja**", opciones_escala, format_func=lambda x: formatear_bs(x), key=f"sel_esc_{carr_activa}_{caballo_seleccionado}")
                     
-                    if carrera_cerrada:
+                    if carrera_cerrada or not esta_activa_menu_actual:
                         st.button(f"🔨 Confirmar Puja ({carr_activa})", key=f"btn_p_{carr_activa}", use_container_width=True, type="primary", disabled=True)
                     else:
                         if st.button(f"🔨 Confirmar Puja ({carr_activa})", key=f"btn_p_{carr_activa}", use_container_width=True, type="primary"):
@@ -441,7 +477,6 @@ with tab1:
                             else:
                                 st.session_state.remates[carr_activa][caballo_seleccionado] = {"jugador": "Sin Postor", "monto": monto_puja}
                                 
-                                # REGLA: Si se hace una puja durante el conteo, reiniciamos el tiempo de inicio a ahora mismo (reanudando los 10s)
                                 if estado_conteo == "CONTEO_10S":
                                     st.session_state.tiempo_inicio_conteo[carr_activa] = obtener_hora_venezuela_local()
                                     
