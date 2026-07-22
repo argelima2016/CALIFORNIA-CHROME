@@ -1011,8 +1011,7 @@ with tab6:
         hide_index=True,
     )
 
-streamlit.errors.StreamlitDuplicateElementKey: This app has encountered an error. The original error message is redacted to prevent data leaks. Full error details have been recorded in the logs (if you're on Streamlit Cloud, click on 'Manage app' in the lower right of your app).
-
+streamlit.errors.StreamlitDuplicateElementKey: This app has encountered an error...
 Traceback:
 File "/mount/src/california-chrome/app.py", line 1132, in <module>
     url_web = st.text_input(
