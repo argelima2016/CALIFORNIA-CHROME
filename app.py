@@ -183,6 +183,9 @@ if 'programa_pdf_bytes' not in st.session_state:
 if 'programa_pdf_nombre' not in st.session_state:
     st.session_state.programa_pdf_nombre = None
 
+if 'texto_completo_pdf' not in st.session_state:
+    st.session_state.texto_completo_pdf = ""
+
 def formatear_bs(monto):
     return f"Bs. {monto:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
@@ -192,8 +195,8 @@ def obtener_abreviatura_carrera(nombre_carrera):
         return f"C{match.group(0)}"
     return nombre_carrera[:3].upper()
 
-# --- PROCESADOR DE PDF ---
-def procesar_programa_pdf(archivo_pdf):
+# --- EXTRACCIÓN GENERAL DE TEXTO DEL PDF ---
+def extraer_texto_pdf(archivo_pdf):
     try:
         bytes_data = archivo_pdf.getvalue()
         st.session_state.programa_pdf_bytes = bytes_data
@@ -206,15 +209,29 @@ def procesar_programa_pdf(archivo_pdf):
             if t_pag:
                 texto_extraido += t_pag + "\n"
         
-        lineas = texto_extraido.split('\n')
+        st.session_state.texto_completo_pdf = texto_extraido
+        return True
+    except Exception as e:
+        st.sidebar.error(f"Error al leer PDF: {e}")
+    return False
+
+# --- PROCESADOR DE TEXTO (AUTOMÁTICO O SEGMENTO ESPECÍFICO) ---
+def procesar_texto_para_remates(texto_a_procesar):
+    try:
+        lineas = texto_a_procesar.split('\n')
         carrera_actual_detectada = None
         banco_temporal = {}
-        patron_carrera = re.compile(r'(?:carrera|primera|segunda|tercera|cuarta|quinta|sexta|septima|octava|novena|decima|\d+)\s*(?:ª|º|\.)?\s*carrera', re.IGNORECASE)
+        
+        patron_carrera = re.compile(
+            r'(?:carrera|primera|segunda|tercera|cuarta|quinta|sexta|septima|octava|novena|decima|\d+)\s*(?:ª|º|\.)?\s*carrera', 
+            re.IGNORECASE
+        )
         
         for linea in lineas:
             linea_limpia = linea.strip()
             if not linea_limpia:
                 continue
+            
             match_carr = patron_carrera.search(linea_limpia)
             if match_carr or ("carrera" in linea_limpia.lower() and len(linea_limpia) < 30):
                 for c_n in range(1, 15):
@@ -225,11 +242,12 @@ def procesar_programa_pdf(archivo_pdf):
                         break
             
             if carrera_actual_detectada:
+                # Detecta formatos con número de ejemplar y nombre, ignorando palabras clave de retiro o condiciones
                 match_ejemplar = re.match(r'^(\d{1,2})[\s\-\.\)]+(.*)', linea_limpia)
                 if match_ejemplar:
                     num_ej = match_ejemplar.group(1)
                     nom_ej = match_ejemplar.group(2).strip()
-                    if len(nom_ej) > 2 and not any(p in nom_ej.lower() for p in ['retirado', 'jinete', 'entrenador', 'distancia']):
+                    if len(nom_ej) > 2 and not any(p in nom_ej.lower() for p in ['retirado', 'jinete', 'entrenador', 'distancia', 'premio', 'propietario']):
                         formato_ej = f"{num_ej} - {nom_ej.title()}"
                         if formato_ej not in banco_temporal[carrera_actual_detectada]:
                             banco_temporal[carrera_actual_detectada].append(formato_ej)
@@ -244,11 +262,11 @@ def procesar_programa_pdf(archivo_pdf):
                         st.session_state.remates[c_key][ev] = {"jugador": "Sin Postor", "monto": 0.0}
             
             todas_carr = list(banco_temporal.keys())
-            if not st.session_state.carreras_activas_remate:
-                st.session_state.carreras_activas_remate = list(todas_carr)
+            st.session_state.carreras_activas_remate = list(todas_carr)
+            st.session_state.carreras_habilitadas_dupleta = list(todas_carr)
             return True
     except Exception as e:
-        st.sidebar.error(f"Error: {e}")
+        st.error(f"Error procesando el segmento: {e}")
     return False
 
 if not st.session_state.remates:
@@ -340,7 +358,6 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 
 # 1. REMATES ADELANTADOS ACTIVOS
 with tab1:
-    # Encabezado con título e icono compacto de PDF al lado si hay archivo cargado
     col_t_title, col_t_pdf = st.columns([5, 1])
     with col_t_title:
         st.markdown("<div class='subasta-header' style='margin-bottom:0;'>🎯 Remates Adelantados Activos</div>", unsafe_allow_html=True)
@@ -352,7 +369,7 @@ with tab1:
                 file_name=st.session_state.programa_pdf_nombre or "Inscritos_Semana.pdf",
                 mime="application/pdf",
                 key="btn_descarga_pdf_compacto_top",
-                help="📥 Ver/Descargar Inquisitos de la Semana (PDF)"
+                help="📥 Ver/Descargar Programa de la Semana (PDF)"
             )
         else:
             st.markdown("<div style='font-size: 11px; color: #8b949e; text-align: right; padding-top: 10px;'>Sin PDF</div>", unsafe_allow_html=True)
@@ -370,7 +387,6 @@ with tab1:
         if not carreras_filtradas_visibles:
             st.info("ℹ️ No hay carreras activas ni cerradas para mostrar. Selecciona carreras en el menú lateral de control.")
         else:
-            # Alineados a la izquierda: se usa el ancho exacto para los botones y se deja el espacio restante a la derecha
             num_carreras_visibles = len(carreras_filtradas_visibles)
             anchos_columnas = [1] * num_carreras_visibles + [max(1, 7 - num_carreras_visibles)]
             cols_selector = st.columns(anchos_columnas)
@@ -500,7 +516,6 @@ with tab1:
                         caballo_seleccionado = st.session_state[k_sel_cab]
                         st.info(f"Ejemplar activo en {carr_activa}: **{caballo_seleccionado}**")
 
-                        # --- MONTO DE PUJA ---
                         puja_actual = st.session_state.remates[carr_activa][caballo_seleccionado]['monto']
                         opciones_escala = obtener_siguientes_montos(puja_actual)
                         monto_puja = st.selectbox("💰 **2. Monto de Puja**", opciones_escala, format_func=lambda x: formatear_bs(x), key=f"sel_esc_{carr_activa}_{caballo_seleccionado}")
@@ -677,14 +692,41 @@ with tab6:
     else:
         st.dataframe(pd.DataFrame(st.session_state.historial_transacciones), use_container_width=True, hide_index=True)
 
-# 7. PDF
+# 7. PDF (CON LECTOR MANUAL / SELECTOR DE PARTES ESPECÍFICAS)
 with tab7:
-    st.markdown("<div class='subasta-header'>📄 Lector PDF e Importador</div>", unsafe_allow_html=True)
-    pdf_subido = st.file_uploader("Sube el programa en PDF", type=["pdf"])
+    st.markdown("<div class='subasta-header'>📄 Lector PDF e Importador Selectivo</div>", unsafe_allow_html=True)
+    
+    pdf_subido = st.file_uploader("Sube el programa oficial en PDF", type=["pdf"])
     if pdf_subido is not None:
-        if st.button("🚀 Procesar e Importar", use_container_width=True, type="primary"):
-            if procesar_programa_pdf(pdf_subido):
-                st.success("¡Importado con éxito!")
+        if st.button("📥 Cargar PDF en Memoria", use_container_width=True):
+            if extraer_texto_pdf(pdf_subido):
+                st.success("✅ ¡PDF cargado correctamente! Ahora puedes procesarlo todo o seleccionar partes específicas abajo.")
                 st.rerun()
-            else:
-                st.error("No se pudo leer el PDF.")
+
+    if st.session_state.programa_pdf_bytes is not None:
+        st.markdown("---")
+        st.markdown("### ✂️ Selección Manual y Específica de Partes del PDF")
+        st.markdown("Pega aquí abajo únicamente el texto o la sección específica que deseas procesar (por ejemplo, el bloque correspondiente a una **Carrera N**, sus **Condiciones** y la lista de **Número de Ejemplar / Ejemplar**):")
+        
+        texto_seleccion_usuario = st.text_area(
+            "Texto del segmento específico a sincronizar:",
+            value=st.session_state.texto_completo_pdf[:2000] if st.session_state.texto_completo_pdf else "",
+            height=250,
+            placeholder="Ejemplo:\nTERCERA CARRERA. CONDICIÓN: ...\n1 - REY DAVID\n2 - GRAN AMIGO..."
+        )
+        
+        col_ps1, col_ps2 = st.columns(2)
+        with col_ps1:
+            if st.button("🚀 Sincronizar Segmento Seleccionado", use_container_width=True, type="primary"):
+                if procesar_texto_para_remates(texto_seleccion_usuario):
+                    st.success("✅ ¡Segmento seleccionado sincronizado con éxito con las carreras y ejemplares de la semana!")
+                    st.rerun()
+                else:
+                    st.error("⚠️ No se pudo extraer la estructura de Carrera y Ejemplares del texto seleccionado. Revisa el formato.")
+        with col_ps2:
+            if st.button("⚡ Procesar PDF Completo Automáticamente", use_container_width=True):
+                if procesar_texto_para_remates(st.session_state.texto_completo_pdf):
+                    st.success("✅ ¡Programa completo procesado y sincronizado!")
+                    st.rerun()
+                else:
+                    st.error("⚠️ No se pudo procesar automáticamente el documento.")
