@@ -221,7 +221,6 @@ def procesar_programa_pdf(archivo_pdf):
                     if ev not in st.session_state.remates[c_key]:
                         st.session_state.remates[c_key][ev] = {"jugador": "Sin Postor", "monto": 0.0}
             
-            # Sincronizar activas por defecto si están vacías
             todas_carr = list(banco_temporal.keys())
             if not st.session_state.carreras_activas_remate:
                 st.session_state.carreras_activas_remate = list(todas_carr)
@@ -238,7 +237,6 @@ if not st.session_state.remates:
 
 lista_carreras_disponibles = list(st.session_state.remates.keys())
 
-# Asegurar que al inicio todas estén activas si la lista está vacía
 if not st.session_state.carreras_activas_remate and lista_carreras_disponibles:
     st.session_state.carreras_activas_remate = list(lista_carreras_disponibles)
 
@@ -252,8 +250,6 @@ st.sidebar.markdown(f"🕒 **Hora:** `{ahora_dt.strftime('%I:%M:%S %p')}`")
 
 with st.sidebar.expander("⚡ Carreras Activas para Remate", expanded=True):
     st.markdown("Selecciona cuáles carreras están disponibles y activas en el panel principal:")
-    
-    # Selector múltiple para habilitar/deshabilitar carreras en vivo
     carreras_seleccionadas_activas = st.multiselect(
         "Carreras Activas",
         options=lista_carreras_disponibles,
@@ -320,7 +316,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remates Adelantados Activos", "✍️ Banco", "🎟️ Dupletas", "🏁 Cierre", "📊 Cuentas", "🧾 Hist.", "📄 PDF"
 ])
 
-# 1. REMATES ADELANTADOS ACTIVOS (LIMITADO A LAS CARRERAS ACTIVADAS EN EL MENÚ LATERAL)
+# 1. REMATES ADELANTADOS ACTIVOS
 with tab1:
     st.markdown("<div class='subasta-header'>🎯 Remates Adelantados Activos</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='live-clock-banner'>📅 Fecha y Hora Actual: <b>{ahora_dt.strftime('%d/%m/%Y - %I:%M:%S %p')}</b></div>", unsafe_allow_html=True)
@@ -363,13 +359,19 @@ with tab1:
                         st.rerun()
                 elif estado_conteo == "CONTEO_10S":
                     tiempo_inicio = st.session_state.tiempo_inicio_conteo.get(carr_activa, ahora_dt)
-                    restantes_10s = max(0, 10 - int((ahora_dt - tiempo_inicio).total_seconds()))
-                    if restantes_10s > 0:
-                        st.markdown(f"<div class='timer-box'>⚠️ CIERRE EN: <b>{restantes_10s}s</b> ({carr_activa})</div>", unsafe_allow_html=True)
-                    else:
+                    transcurridos = (ahora_dt - tiempo_inicio).total_seconds()
+                    
+                    # REGLA: Si pasan más de 12 segundos desde que inició el conteo/última puja, se cierra automáticamente
+                    if transcurridos >= 12:
                         st.session_state.carreras_cerradas_remate[carr_activa] = True
                         st.session_state.estado_conteo_carrera[carr_activa] = "CERRADO"
                         st.rerun()
+                    else:
+                        restantes_10s = max(0, 10 - int(transcurridos))
+                        if restantes_10s > 0:
+                            st.markdown(f"<div class='timer-box'>⚠️ CIERRE EN: <b>{restantes_10s}s</b> ({carr_activa})</div>", unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"<div class='timer-box'>⚠️ ULTIMOS SEGUNDOS ANTES DE CIERRE ({carr_activa})</div>", unsafe_allow_html=True)
 
             # --- ESTADO ACTUAL Y POTE ---
             datos_tabla = []
@@ -438,7 +440,12 @@ with tab1:
                                 st.error("El monto debe ser mayor a la puja actual.")
                             else:
                                 st.session_state.remates[carr_activa][caballo_seleccionado] = {"jugador": "Sin Postor", "monto": monto_puja}
-                                st.success("✅ ¡Puja registrada correctamente!")
+                                
+                                # REGLA: Si se hace una puja durante el conteo, reiniciamos el tiempo de inicio a ahora mismo (reanudando los 10s)
+                                if estado_conteo == "CONTEO_10S":
+                                    st.session_state.tiempo_inicio_conteo[carr_activa] = obtener_hora_venezuela_local()
+                                    
+                                st.success("✅ ¡Puja registrada correctamente y conteo reiniciado!")
                                 st.rerun()
 
 # 2. BANCO
