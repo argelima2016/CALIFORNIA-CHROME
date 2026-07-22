@@ -174,6 +174,12 @@ if 'carreras_activas_remate' not in st.session_state:
 def formatear_bs(monto):
     return f"Bs. {monto:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+def obtener_abreviatura_carrera(nombre_carrera):
+    match = re.search(r'\d+', nombre_carrera)
+    if match:
+        return f"C{match.group(0)}"
+    return nombre_carrera[:3].upper()
+
 # --- PROCESADOR DE PDF ---
 def procesar_programa_pdf(archivo_pdf):
     try:
@@ -324,10 +330,13 @@ with tab1:
     if not lista_carreras_disponibles:
         st.warning("⚠️ No hay carreras cargadas en el sistema.")
     else:
-        # --- SELECCIONADOR DIDÁCTICO E INTERACTIVO DE CARRERAS ---
+        # --- SELECCIONADOR DIDÁCTICO E INTERACTIVO DE CARRERAS (BOTONES COMPACTOS CON ABREVIATURA) ---
         st.markdown("##### 📌 Selecciona la Carrera a Rematar (🟢 Activas / 🔴 Cerradas):")
         
-        cols_carreras = st.columns(min(len(lista_carreras_disponibles), 5))
+        # Agrupamos los botones en columnas compactas (hasta 10 por fila si es necesario para que sean pequeños y estéticos)
+        columnas_por_fila_selector = min(max(len(lista_carreras_disponibles), 1), 10)
+        cols_carreras = st.columns(columnas_por_fila_selector)
+        
         for idx, c_nombre in enumerate(lista_carreras_disponibles):
             col_target = cols_carreras[idx % len(cols_carreras)]
             
@@ -335,19 +344,21 @@ with tab1:
             esta_activa_menu = c_nombre in st.session_state.carreras_activas_remate
             c_cerrada = st.session_state.carreras_cerradas_remate.get(c_nombre, False)
             
-            # Etiqueta y estilo visual diferenciado según estado
+            abreviatura = obtener_abreviatura_carrera(c_nombre)
+            
+            # Etiqueta y estilo visual diferenciado según estado (más compacto)
             if not esta_activa_menu:
-                label_btn = f"⚪ {c_nombre}\n(Inactiva)"
+                label_btn = f"⚪ {abreviatura}"
                 tipo_btn = "secondary"
             elif c_cerrada:
-                label_btn = f"🔴 {c_nombre}\n(CERRADA)"
+                label_btn = f"🔴 {abreviatura}"
                 tipo_btn = "secondary"
             else:
-                label_btn = f"🟢 {c_nombre}\n(ACTIVA)"
+                label_btn = f"🟢 {abreviatura}"
                 tipo_btn = "primary"
             
             with col_target:
-                if st.button(label_btn, key=f"btn_sel_carr_didactico_{idx}", use_container_width=True, type=tipo_btn):
+                if st.button(label_btn, key=f"btn_sel_carr_didactico_{idx}", use_container_width=True, type=tipo_btn, help=f"{c_nombre} - {'Cerrada' if c_cerrada else 'Activa'}"):
                     st.session_state["carrera_remate_activa_seleccionada"] = c_nombre
                     st.rerun()
 
