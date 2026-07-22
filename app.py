@@ -1052,39 +1052,154 @@ with tab7:
 
   st.markdown("---")
 
-  # --- OPCIÓN B: CARGA DE PDF / TEXTO ---
-  with st.expander("📄 Option B: Subir Documento PDF", expanded=False):
-    pdf_subido = st.file_uploader("Sube el programa oficial en PDF", type=["pdf"])
-    if pdf_subido is not None:
-      if st.button("📥 Cargar PDF en Memoria", use_container_width=True):
-        if extraer_texto_pdf(pdf_subido):
-          st.success("✅ ¡PDF cargado correctamente!")
-          st.rerun()
+ # ==========================================
+# FUNCIÓN DE EXTRACCIÓN AUTOMÁTICA DE PDF
+# ==========================================
+def extraer_datos_pdf(pdf_file):
+  """Extrae carreras y ejemplares adaptado al formato del programa del INH (La Rinconada)."""
+  carreras_detectadas = {}
 
-    if st.session_state.programa_pdf_bytes is not None:
-      texto_seleccion_usuario = st.text_area(
-          "Texto del segmento específico a sincronizar:",
-          value=(
-              st.session_state.texto_completo_pdf[:2000]
-              if st.session_state.texto_completo_pdf
-              else ""
-          ),
-          height=200,
+  with pdfplumber.open(pdf_file) as pdf:
+    texto_completo = ""
+    for page in pdf.pages:
+      texto = page.extract_text()
+      if texto:
+        texto_completo += texto + "\n"
+
+  carrera_actual = None
+
+  for linea in texto_completo.split("\n"):
+    linea = linea.strip()
+    if not linea:
+      continue
+
+    # 1. Detección del número de carrera (Ej: "1 Carrera Nro:", "2 Carrera Nro:")
+    match_carrera = re.search(
+        r"(\d+)\s+Carrera\s+Nro:", linea, re.IGNORECASE
+    )
+    if not match_carrera:
+      # Formato alternativo por si varía (ej: "1a. Carrera", "Carrera 1")
+      match_carrera = re.search(
+          r"(?:(\d+)[aªº]?\.\s*CARRERA|CARRERA\s*(\d+))", linea, re.IGNORECASE
       )
-      col_ps1, col_ps2 = st.columns(2)
-      with col_ps1:
-        if st.button(
-            "🚀 Sincronizar y Ordenar por Posición",
-            use_container_width=True,
-            type="primary",
-        ):
-          if procesar_texto_para_remates(texto_seleccion_usuario):
-            st.success("✅ ¡Segmento procesado con éxito!")
-            st.rerun()
-      with col_ps2:
-        if st.button(
-            "⚡ Procesar PDF Completo Organizado", use_container_width=True
-        ):
-          if procesar_texto_para_remates(st.session_state.texto_completo_pdf):
-            st.success("✅ ¡Programa completo procesado!")
-            st.rerun()
+
+    if match_carrera:
+      num = match_carrera.group(1) or match_carrera.group(2)
+      carrera_actual = f"Carrera {num}"
+      if carrera_actual not in carreras_detectadas:
+        carreras_detectadas[carrera_actual] = []
+      continue
+
+    # 2. Detección de Ejemplares (Ej: "1 RENACER BUT-LAX 53...")
+    match_ejemplar = re.match(
+        r"^(\d{1,2})\s+([A-Z0-9\s\(\)\.\'\-]+?)\s+(?:BUT-LAX|LAX|FT-LAX|S/M|\d{2}\b)",
+        linea,
+        re.IGNORECASE,
+    )
+
+    if match_ejemplar and carrera_actual:
+      numero_caballo = match_ejemplar.group(1)
+      nombre_caballo = match_ejemplar.group(2).strip()
+
+      # Omite encabezados de tabla si coinciden accidentalmente
+      palabras_omitir = [
+          "EJEMPLAR",
+          "CABALLO",
+          "JINETE",
+          "PESO",
+          "HARAS",
+          "REUNIÓN",
+          "CONDICIÓN",
+          "HIPÓDROMO",
+      ]
+      if nombre_caballo.upper() not in palabras_omitir:
+        carreras_detectadas[carrera_actual].append({
+            "numero": numero_caballo,
+            "ejemplar": nombre_caballo,
+        })
+
+  return carreras_detectadas
+
+
+# ==========================================
+# ESTRUCTURA EN PESTAÑA: PDF / Auto
+# ==========================================
+
+st.markdown("## 📄 Importador PDF / Extracción Web Automática")
+
+# --- Opción A: Web Scraping ---
+with st.expander("🌐 Opción A: Importar Inscritos desde URL Web"):
+  url_web = st.text_input(
+      "URL de la Revista/Programa Web:",
+      value="https://ejemplo.com/inscritos",
+      key="input_url_scraping",
+  )
+  if st.button(
+      "🚀 Scraping e Importar Carreras",
+      use_container_width=True,
+      type="primary",
+  ):
+    st.info("Función de scraping activa para la URL.")
+
+# --- Opción B: Subir PDF ---
+with st.expander("📂 Opción B: Subir Documento PDF", expanded=True):
+  pdf_subido = st.file_uploader(
+      "Sube el programa oficial en PDF", type=["pdf"], key="pdf_uploader"
+  )
+
+  btn_cargar_memoria = st.button(
+      "📥 Cargar PDF en Memoria", use_container_width=True
+  )
+
+  # Área de texto para segmento específico
+  texto_segmento = st.text_area(
+      "Texto del segmento específico a sincronizar:", height=150
+  )
+
+  col_btn1, col_btn2 = st.columns(2)
+
+  with col_btn1:
+    btn_sincronizar = st.button(
+        "🚀 Sincronizar y Ordenar por Posición",
+        use_container_width=True,
+        type="primary",
+    )
+
+  with col_btn2:
+    btn_procesar_completo = st.button(
+        "⚡ Procesar PDF Completo Organizado",
+        use_container_width=True,
+        type="primary",
+    )
+
+  # Procesar acción al pulsar cualquiera de los botones teniendo un archivo
+  if (
+      btn_procesar_completo or btn_cargar_memoria or btn_sincronizar
+  ) and pdf_subido is not None:
+    with st.spinner("Procesando y organizando carreras desde el PDF..."):
+      datos_extraidos = extraer_datos_pdf(pdf_subido)
+
+      if datos_extraidos:
+        # Actualizamos el estado de la aplicación
+        st.session_state["datos_carreras"] = datos_extraidos
+        st.success(
+            f"✅ ¡Se procesaron exitosamente {len(datos_extraidos)} carreras!"
+        )
+
+        # Muestra el resultado organizado
+        st.markdown("### 📋 Resumen de Carreras y Ejemplares Extraídos:")
+        for carrera, ejemplares in datos_extraidos.items():
+          with st.expander(
+              f"🐎 {carrera} ({len(ejemplares)} Ejemplares)", expanded=False
+          ):
+            for ej in ejemplares:
+              st.write(f"• **N° {ej['numero']}** — {ej['ejemplar']}")
+      else:
+        st.warning(
+            "⚠️ No se encontraron patrones de carreras en el PDF. Verifica que"
+            " el PDF contenga texto seleccionable."
+        )
+  elif (
+      btn_procesar_completo or btn_cargar_memoria or btn_sincronizar
+  ) and pdf_subido is None:
+    st.error("⚠️ Por favor sube un archivo PDF antes de procesar.")
