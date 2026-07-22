@@ -40,7 +40,7 @@ def obtener_siguientes_montos(monto_actual):
         siguientes = [ultimo + i * 1000 for i in range(1, 50)]
     return siguientes
 
-# --- ESTILOS CSS CON CHIPS MINIMALISTAS ALINEADOS A LA DERECHA ---
+# --- ESTILOS CSS CON CHIPS MINIMALISTAS ALINEADOS A LA IZQUIERDA ---
 st.markdown("""
     <style>
     .stApp {
@@ -370,31 +370,28 @@ with tab1:
         if not carreras_filtradas_visibles:
             st.info("ℹ️ No hay carreras activas ni cerradas para mostrar. Selecciona carreras en el menú lateral de control.")
         else:
-            col_vacia, col_chips = st.columns([2, 5])
+            # Alineados a la izquierda: se usa el ancho exacto para los botones y se deja el espacio restante a la derecha
+            num_carreras_visibles = len(carreras_filtradas_visibles)
+            anchos_columnas = [1] * num_carreras_visibles + [max(1, 7 - num_carreras_visibles)]
+            cols_selector = st.columns(anchos_columnas)
             
-            with col_chips:
-                st.markdown("<div style='font-size: 11px; color: #8b949e; text-align: right; margin-bottom: 3px;'>📌 Selecciona carrera:</div>", unsafe_allow_html=True)
+            for idx, c_nombre in enumerate(carreras_filtradas_visibles):
+                col_target = cols_selector[idx]
                 
-                num_carreras_visibles = len(carreras_filtradas_visibles)
-                cols_selector = st.columns(num_carreras_visibles)
+                c_cerrada = st.session_state.carreras_cerradas_remate.get(c_nombre, False)
+                abreviatura = obtener_abreviatura_carrera(c_nombre)
                 
-                for idx, c_nombre in enumerate(carreras_filtradas_visibles):
-                    col_target = cols_selector[idx]
-                    
-                    c_cerrada = st.session_state.carreras_cerradas_remate.get(c_nombre, False)
-                    abreviatura = obtener_abreviatura_carrera(c_nombre)
-                    
-                    if c_cerrada:
-                        label_btn = f"{abreviatura} 🔴"
-                        tipo_btn = "secondary"
-                    else:
-                        label_btn = f"{abreviatura} 🟢"
-                        tipo_btn = "primary"
-                    
-                    with col_target:
-                        if st.button(label_btn, key=f"btn_sel_carr_didactico_{idx}", use_container_width=True, type=tipo_btn, help=f"{c_nombre} - {'Cerrada' if c_cerrada else 'Activa'}"):
-                            st.session_state["carrera_remate_activa_seleccionada"] = c_nombre
-                            st.rerun()
+                if c_cerrada:
+                    label_btn = f"{abreviatura} 🔴"
+                    tipo_btn = "secondary"
+                else:
+                    label_btn = f"{abreviatura} 🟢"
+                    tipo_btn = "primary"
+                
+                with col_target:
+                    if st.button(label_btn, key=f"btn_sel_carr_didactico_{idx}", use_container_width=True, type=tipo_btn, help=f"{c_nombre} - {'Cerrada' if c_cerrada else 'Activa'}"):
+                        st.session_state["carrera_remate_activa_seleccionada"] = c_nombre
+                        st.rerun()
 
             if "carrera_remate_activa_seleccionada" not in st.session_state or st.session_state["carrera_remate_activa_seleccionada"] not in carreras_filtradas_visibles:
                 carr_activa = carreras_filtradas_visibles[0]
