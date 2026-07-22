@@ -222,7 +222,6 @@ def procesar_texto_para_remates(texto_a_procesar):
         carrera_actual_detectada = None
         banco_temporal = {}
         
-        # Patrón flexible para detectar títulos de carrera (ej: "1RA. CARRERA", "PRIMERA CARRERA", "Carrera 3", etc.)
         patron_carrera = re.compile(
             r'(?:carrera|primera|segunda|tercera|cuarta|quinta|sexta|septima|octava|novena|decima|\d+)\s*(?:ª|º|\.)?\s*carrera', 
             re.IGNORECASE
@@ -233,7 +232,6 @@ def procesar_texto_para_remates(texto_a_procesar):
             if not linea_limpia:
                 continue
             
-            # Detectar cambio de carrera
             match_carr = patron_carrera.search(linea_limpia)
             if match_carr or ("carrera" in linea_limpia.lower() and len(linea_limpia) < 35):
                 for c_n in range(1, 15):
@@ -244,14 +242,11 @@ def procesar_texto_para_remates(texto_a_procesar):
                         break
             
             if carrera_actual_detectada:
-                # Captura estricta del número de posición/ejemplar y el nombre exacto del ejemplar correspondiente
-                # Ejemplos válidos: "1 NombreEjemplar", "01 - Nombre", "1. Nombre"
                 match_ejemplar = re.match(r'^(?:[Pp][Oo][Ss]\.?\s*)?(\d{1,2})[\s\-\.\)]+(.+)', linea_limpia)
                 if match_ejemplar:
                     num_pos = int(match_ejemplar.group(1))
                     nom_ej = match_ejemplar.group(2).strip()
                     
-                    # Filtrar palabras clave de la condición o encabezados irrelevantes para asegurar pureza en el nombre del ejemplar
                     palabras_excluir = ['retirado', 'jinete', 'entrenador', 'distancia', 'premio', 'propietario', 'condicion', 'hipodromo', 'metros', 'haras', 'stud', 'aprox']
                     if 1 <= num_pos <= 25 and len(nom_ej) > 1 and not any(p in nom_ej.lower() for p in palabras_excluir):
                         formato_ej = f"{num_pos} - {nom_ej.title()}"
@@ -259,7 +254,6 @@ def procesar_texto_para_remates(texto_a_procesar):
                             banco_temporal[carrera_actual_detectada].append(formato_ej)
 
         if banco_temporal:
-            # Ordenar estrictamente cada carrera por el número de posición de menor a mayor (1, 2, 3...)
             for c_key in banco_temporal:
                 banco_temporal[c_key].sort(key=lambda x: int(re.match(r'^(\d+)', x).group(1)))
 
