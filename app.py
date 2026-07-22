@@ -1011,34 +1011,94 @@ with tab6:
         hide_index=True,
     )
 
-streamlit.errors.StreamlitDuplicateElementllave: This app has encountered an error...
-Traceback:
-File "/mount/src/california-chrome/app.py", line 1132, in <module>
-    url_web = st.text_input(
-        "URL de la Revista/Programa Web:",
-        value="https://ejemplo.com/inscritos",
-        key="input_url_scraping",
+# 7. PDF Y EXTRACCIÓN AUTOMÁTICA WEB
+with tab7:
+    st.markdown(
+        "<div class='subasta-header'>📄 Importador PDF / Extracción Web Automática</div>",
+        unsafe_allow_html=True,
     )
-File "/home/adminuser/venv/lib/python3.14/site-packages/streamlit/runtime/metrics_util.py", line 568, in wrapped_func
-    result = non_optional_func(*args, **kwargs)
-File "/home/adminuser/venv/lib/python3.14/site-packages/streamlit/elements/widgets/text_widgets.py", line 341, in text_input
-    return self._text_input(
-           ~~~~~~~~~~~~~~~~^
-        label=label,
-        ^^^^^^^^^^^^
-    ...<16 lines>...
-        ctx=ctx,
-        ^^^^^^^^
-    )
-    ^
-File "/home/adminuser/venv/lib/python3.14/site-packages/streamlit/elements/widgets/text_widgets.py", line 397, in _text_input
-    element_id = compute_and_register_element_id(
-        "text_input",
-    ...<13 lines>...
-        width=width,
-    )
-File "/home/adminuser/venv/lib/python3.14/site-packages/streamlit/elements/lib/utils.py", line 261, in compute_and_register_element_id
-    _register_element_id(ctx, element_type, element_id)
-    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-File "/home/adminuser/venv/lib/python3.14/site-packages/streamlit/elements/lib/utils.py", line 143, in _register_element_id
-    raise StreamlitDuplicateElementKey(user_key)
+
+    # --- OPCIÓN A: EXTRACCIÓN AUTOMÁTICA DESDE WEB ---
+    with st.expander("🌐 Opción A: Importar Inscritos desde URL Web", expanded=True):
+        url_fuente_input = st.text_input(
+            "URL de la Revista/Programa Web:",
+            value="https://ejemplo.com/inscritos",
+            key="input_url_scraping_tab7_v2",
+        )
+        if st.button(
+            "🚀 Scraping e Importar Carreras",
+            use_container_width=True,
+            type="primary",
+            key="btn_scraping_importar_tab7_v2",
+        ):
+            with st.spinner("Extrayendo carreras desde la web..."):
+                res_dict, err = obtener_inscritos_web_automaticos(url_fuente_input)
+                if res_dict:
+                    st.session_state.banco_caballos_por_carrera = res_dict
+                    for c_k, c_v in res_dict.items():
+                        if c_k not in st.session_state.remates:
+                            st.session_state.remates[c_k] = {}
+                        for ej in c_v:
+                            if ej not in st.session_state.remates[c_k]:
+                                st.session_state.remates[c_k][ej] = {
+                                    "jugador": "Sin Postor",
+                                    "monto": 0.0,
+                                }
+                    st.session_state.carreras_activas_remate = list(res_dict.keys())
+                    st.toast("✅ ¡Carreras importadas desde la web exitosamente!")
+                    st.rerun()
+                else:
+                    st.error(f"⚠️ No se pudo extraer la información: {err}")
+
+    st.markdown("---")
+
+    # --- OPCIÓN B: CARGA DE PDF / TEXTO ---
+    with st.expander("📄 Opción B: Subir Documento PDF", expanded=False):
+        pdf_subido = st.file_uploader(
+            "Sube el programa oficial en PDF",
+            type=["pdf"],
+            key="file_uploader_pdf_tab7_v2",
+        )
+        if pdf_subido is not None:
+            if st.button(
+                "📥 Cargar PDF en Memoria",
+                use_container_width=True,
+                key="btn_cargar_pdf_tab7_v2",
+            ):
+                if extraer_texto_pdf(pdf_subido):
+                    st.success("✅ ¡PDF cargado correctamente!")
+                    st.rerun()
+
+        if st.session_state.programa_pdf_bytes is not None:
+            texto_seleccion_usuario = st.text_area(
+                "Texto del segmento específico a sincronizar:",
+                value=(
+                    st.session_state.texto_completo_pdf[:2000]
+                    if st.session_state.texto_completo_pdf
+                    else ""
+                ),
+                height=200,
+                key="text_area_pdf_segmento_tab7_v2",
+            )
+            col_ps1, col_ps2 = st.columns(2)
+            with col_ps1:
+                if st.button(
+                    "🚀 Sincronizar y Ordenar por Posición",
+                    use_container_width=True,
+                    type="primary",
+                    key="btn_sincronizar_segmento_tab7_v2",
+                ):
+                    if procesar_texto_para_remates(texto_seleccion_usuario):
+                        st.success("✅ ¡Segmento procesado con éxito!")
+                        st.rerun()
+            with col_ps2:
+                if st.button(
+                    "⚡ Procesar PDF Completo Organizado",
+                    use_container_width=True,
+                    key="btn_procesar_pdf_completo_tab7_v2",
+                ):
+                    if procesar_texto_para_remates(
+                        st.session_state.texto_completo_pdf
+                    ):
+                        st.success("✅ ¡Programa completo procesado!")
+                        st.rerun()
