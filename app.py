@@ -1011,195 +1011,35 @@ with tab6:
         hide_index=True,
     )
 
-# 7. PDF Y EXTRACCIÓN AUTOMÁTICA WEB
-with tab7:
-  st.markdown(
-      "<div class='subasta-header'>📄 Importador PDF / Extracción Web"
-      " Automática</div>",
-      unsafe_allow_html=True,
-  )
+streamlit.errors.StreamlitDuplicateElementKey: This app has encountered an error. The original error message is redacted to prevent data leaks. Full error details have been recorded in the logs (if you're on Streamlit Cloud, click on 'Manage app' in the lower right of your app).
 
-  # --- OPCIÓN A: EXTRACCIÓN AUTOMÁTICA DESDE WEB ---
-  with st.expander("🌐 Option A: Importar Inscritos desde URL Web", expanded=True):
-    url_fuente_input = st.text_input(
+Traceback:
+File "/mount/src/california-chrome/app.py", line 1132, in <module>
+    url_web = st.text_input(
         "URL de la Revista/Programa Web:",
-        placeholder="https://ejemplo.com/inscritos",
+        value="https://ejemplo.com/inscritos",
         key="input_url_scraping",
     )
-    if st.button(
-        "🚀 Scraping e Importar Carreras",
-        use_container_width=True,
-        type="primary",
-    ):
-      with st.spinner("Extrayendo carreras desde la web..."):
-        res_dict, err = obtener_inscritos_web_automaticos(url_fuente_input)
-        if res_dict:
-          st.session_state.banco_caballos_por_carrera = res_dict
-          for c_k, c_v in res_dict.items():
-            if c_k not in st.session_state.remates:
-              st.session_state.remates[c_k] = {}
-            for ej in c_v:
-              if ej not in st.session_state.remates[c_k]:
-                st.session_state.remates[c_k][ej] = {
-                    "jugador": "Sin Postor",
-                    "monto": 0.0,
-                }
-          st.session_state.carreras_activas_remate = list(res_dict.keys())
-          st.toast("✅ ¡Carreras importadas desde la web exitosamente!")
-          st.rerun()
-        else:
-          st.error(f"⚠️ No se pudo extraer la información: {err}")
-
-  st.markdown("---")
-
- # ==========================================
-# FUNCIÓN DE EXTRACCIÓN AUTOMÁTICA DE PDF
-# ==========================================
-def extraer_datos_pdf(pdf_file):
-  """Extrae carreras y ejemplares adaptado al formato del programa del INH (La Rinconada)."""
-  carreras_detectadas = {}
-
-  with pdfplumber.open(pdf_file) as pdf:
-    texto_completo = ""
-    for page in pdf.pages:
-      texto = page.extract_text()
-      if texto:
-        texto_completo += texto + "\n"
-
-  carrera_actual = None
-
-  for linea in texto_completo.split("\n"):
-    linea = linea.strip()
-    if not linea:
-      continue
-
-    # 1. Detección del número de carrera (Ej: "1 Carrera Nro:", "2 Carrera Nro:")
-    match_carrera = re.search(
-        r"(\d+)\s+Carrera\s+Nro:", linea, re.IGNORECASE
+File "/home/adminuser/venv/lib/python3.14/site-packages/streamlit/runtime/metrics_util.py", line 568, in wrapped_func
+    result = non_optional_func(*args, **kwargs)
+File "/home/adminuser/venv/lib/python3.14/site-packages/streamlit/elements/widgets/text_widgets.py", line 341, in text_input
+    return self._text_input(
+           ~~~~~~~~~~~~~~~~^
+        label=label,
+        ^^^^^^^^^^^^
+    ...<16 lines>...
+        ctx=ctx,
+        ^^^^^^^^
     )
-    if not match_carrera:
-      # Formato alternativo por si varía (ej: "1a. Carrera", "Carrera 1")
-      match_carrera = re.search(
-          r"(?:(\d+)[aªº]?\.\s*CARRERA|CARRERA\s*(\d+))", linea, re.IGNORECASE
-      )
-
-    if match_carrera:
-      num = match_carrera.group(1) or match_carrera.group(2)
-      carrera_actual = f"Carrera {num}"
-      if carrera_actual not in carreras_detectadas:
-        carreras_detectadas[carrera_actual] = []
-      continue
-
-    # 2. Detección de Ejemplares (Ej: "1 RENACER BUT-LAX 53...")
-    match_ejemplar = re.match(
-        r"^(\d{1,2})\s+([A-Z0-9\s\(\)\.\'\-]+?)\s+(?:BUT-LAX|LAX|FT-LAX|S/M|\d{2}\b)",
-        linea,
-        re.IGNORECASE,
+    ^
+File "/home/adminuser/venv/lib/python3.14/site-packages/streamlit/elements/widgets/text_widgets.py", line 397, in _text_input
+    element_id = compute_and_register_element_id(
+        "text_input",
+    ...<13 lines>...
+        width=width,
     )
-
-    if match_ejemplar and carrera_actual:
-      numero_caballo = match_ejemplar.group(1)
-      nombre_caballo = match_ejemplar.group(2).strip()
-
-      # Omite encabezados de tabla si coinciden accidentalmente
-      palabras_omitir = [
-          "EJEMPLAR",
-          "CABALLO",
-          "JINETE",
-          "PESO",
-          "HARAS",
-          "REUNIÓN",
-          "CONDICIÓN",
-          "HIPÓDROMO",
-      ]
-      if nombre_caballo.upper() not in palabras_omitir:
-        carreras_detectadas[carrera_actual].append({
-            "numero": numero_caballo,
-            "ejemplar": nombre_caballo,
-        })
-
-  return carreras_detectadas
-
-
-# ==========================================
-# ESTRUCTURA EN PESTAÑA: PDF / Auto
-# ==========================================
-
-st.markdown("## 📄 Importador PDF / Extracción Web Automática")
-
-# --- Opción A: Web Scraping ---
-with st.expander("🌐 Opción A: Importar Inscritos desde URL Web"):
-  url_web = st.text_input(
-      "URL de la Revista/Programa Web:",
-      value="https://ejemplo.com/inscritos",
-      key="input_url_scraping",
-  )
-  if st.button(
-      "🚀 Scraping e Importar Carreras",
-      use_container_width=True,
-      type="primary",
-  ):
-    st.info("Función de scraping activa para la URL.")
-
-# --- Opción B: Subir PDF ---
-with st.expander("📂 Opción B: Subir Documento PDF", expanded=True):
-  pdf_subido = st.file_uploader(
-      "Sube el programa oficial en PDF", type=["pdf"], key="pdf_uploader"
-  )
-
-  btn_cargar_memoria = st.button(
-      "📥 Cargar PDF en Memoria", use_container_width=True
-  )
-
-  # Área de texto para segmento específico
-  texto_segmento = st.text_area(
-      "Texto del segmento específico a sincronizar:", height=150
-  )
-
-  col_btn1, col_btn2 = st.columns(2)
-
-  with col_btn1:
-    btn_sincronizar = st.button(
-        "🚀 Sincronizar y Ordenar por Posición",
-        use_container_width=True,
-        type="primary",
-    )
-
-  with col_btn2:
-    btn_procesar_completo = st.button(
-        "⚡ Procesar PDF Completo Organizado",
-        use_container_width=True,
-        type="primary",
-    )
-
-  # Procesar acción al pulsar cualquiera de los botones teniendo un archivo
-  if (
-      btn_procesar_completo or btn_cargar_memoria or btn_sincronizar
-  ) and pdf_subido is not None:
-    with st.spinner("Procesando y organizando carreras desde el PDF..."):
-      datos_extraidos = extraer_datos_pdf(pdf_subido)
-
-      if datos_extraidos:
-        # Actualizamos el estado de la aplicación
-        st.session_state["datos_carreras"] = datos_extraidos
-        st.success(
-            f"✅ ¡Se procesaron exitosamente {len(datos_extraidos)} carreras!"
-        )
-
-        # Muestra el resultado organizado
-        st.markdown("### 📋 Resumen de Carreras y Ejemplares Extraídos:")
-        for carrera, ejemplares in datos_extraidos.items():
-          with st.expander(
-              f"🐎 {carrera} ({len(ejemplares)} Ejemplares)", expanded=False
-          ):
-            for ej in ejemplares:
-              st.write(f"• **N° {ej['numero']}** — {ej['ejemplar']}")
-      else:
-        st.warning(
-            "⚠️ No se encontraron patrones de carreras en el PDF. Verifica que"
-            " el PDF contenga texto seleccionable."
-        )
-  elif (
-      btn_procesar_completo or btn_cargar_memoria or btn_sincronizar
-  ) and pdf_subido is None:
-    st.error("⚠️ Por favor sube un archivo PDF antes de procesar.")
+File "/home/adminuser/venv/lib/python3.14/site-packages/streamlit/elements/lib/utils.py", line 261, in compute_and_register_element_id
+    _register_element_id(ctx, element_type, element_id)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/adminuser/venv/lib/python3.14/site-packages/streamlit/elements/lib/utils.py", line 143, in _register_element_id
+    raise StreamlitDuplicateElementKey(user_key)
