@@ -94,12 +94,17 @@ st.markdown("""
         padding-right: 0.6rem !important;
         max-width: 100% !important;
     }
+    
+    /* --- BOTONES ESTÉTICOS CON BORDES MUY REDONDEADOS Y TEXTO EN DOS LÍNEAS --- */
     .stButton button {
         width: 100% !important;
-        border-radius: 8px !important;
+        border-radius: 20px !important;
         font-weight: bold !important;
-        padding: 0.6rem !important;
-        min-height: 44px !important;
+        padding: 0.4rem 0.2rem !important;
+        min-height: 48px !important;
+        line-height: 1.2 !important;
+        font-size: 13px !important;
+        white-space: pre-line !important;
     }
 
     /* --- ADAPTACIÓN MÓVIL MEJORADA (RESPONSIVE) --- */
@@ -108,7 +113,7 @@ st.markdown("""
             width: 100% !important;
             flex: 1 1 100% !important;
             min-width: 100% !important;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
         }
         div[data-testid="stDataFrame"] {
             overflow-x: auto;
@@ -322,7 +327,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remates Adelantados Activos", "✍️ Banco", "🎟️ Dupletas", "🏁 Cierre", "📊 Cuentas", "🧾 Hist.", "📄 PDF"
 ])
 
-# 1. REMATES ADELANTADOS ACTIVOS (SELECTOR DIDÁCTICO E INTERACTIVO DE CARRERAS)
+# 1. REMATES ADELANTADOS ACTIVOS (SELECTOR ESTÉTICO EN DOS LÍNEAS CON BORDES REDONDEADOS)
 with tab1:
     st.markdown("<div class='subasta-header'>🎯 Remates Adelantados Activos</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='live-clock-banner'>📅 Fecha y Hora Actual: <b>{ahora_dt.strftime('%d/%m/%Y - %I:%M:%S %p')}</b></div>", unsafe_allow_html=True)
@@ -330,31 +335,30 @@ with tab1:
     if not lista_carreras_disponibles:
         st.warning("⚠️ No hay carreras cargadas en el sistema.")
     else:
-        # --- SELECCIONADOR DIDÁCTICO E INTERACTIVO DE CARRERAS (BOTONES COMPACTOS CON ABREVIATURA) ---
-        st.markdown("##### 📌 Selecciona la Carrera a Rematar (🟢 Activas / 🔴 Cerradas):")
+        st.markdown("##### 📌 Selecciona la Carrera a Rematar:")
         
-        # Agrupamos los botones en columnas compactas (hasta 10 por fila si es necesario para que sean pequeños y estéticos)
-        columnas_por_fila_selector = min(max(len(lista_carreras_disponibles), 1), 10)
+        # Agrupamos los botones en columnas compactas (hasta 8 por fila para mejor distribución estética)
+        columnas_por_fila_selector = min(max(len(lista_carreras_disponibles), 1), 8)
         cols_carreras = st.columns(columnas_por_fila_selector)
         
         for idx, c_nombre in enumerate(lista_carreras_disponibles):
             col_target = cols_carreras[idx % len(cols_carreras)]
             
-            # Verificamos si la carrera está marcada como activa en la barra lateral y si no está cerrada manualmente/por tiempo
+            # Verificamos estado
             esta_activa_menu = c_nombre in st.session_state.carreras_activas_remate
             c_cerrada = st.session_state.carreras_cerradas_remate.get(c_nombre, False)
             
             abreviatura = obtener_abreviatura_carrera(c_nombre)
             
-            # Etiqueta y estilo visual diferenciado según estado (más compacto)
+            # Formato en DOS LÍNEAS: Línea 1 (Ícono + Abreviatura), Línea 2 (Estado/Texto descriptivo)
             if not esta_activa_menu:
-                label_btn = f"⚪ {abreviatura}"
+                label_btn = f"⚪ {abreviatura}\nInactiva"
                 tipo_btn = "secondary"
             elif c_cerrada:
-                label_btn = f"🔴 {abreviatura}"
+                label_btn = f"🔴 {abreviatura}\nCerrada"
                 tipo_btn = "secondary"
             else:
-                label_btn = f"🟢 {abreviatura}"
+                label_btn = f"🟢 {abreviatura}\nActiva"
                 tipo_btn = "primary"
             
             with col_target:
