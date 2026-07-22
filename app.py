@@ -40,7 +40,7 @@ def obtener_siguientes_montos(monto_actual):
         siguientes = [ultimo + i * 1000 for i in range(1, 50)]
     return siguientes
 
-# --- ESTILOS CSS MULTIPLATAFORMA Y CONTROL MÓVIL ---
+# --- ESTILOS CSS MINIMALISTAS Y ESTÉTICOS ---
 st.markdown("""
     <style>
     .stApp {
@@ -95,16 +95,17 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    /* --- BOTONES COMPACTOS, REDONDEADOS Y EN DOS LÍNEAS PARA EL SELECTOR --- */
+    /* --- BOTONES MINIMALISTAS COMPACTOS (CHIPS DE ESTADO) --- */
     .stButton button {
         width: 100% !important;
-        border-radius: 12px !important;
-        font-weight: 600 !important;
-        padding: 0.25rem 0.1rem !important;
-        min-height: 38px !important;
-        line-height: 1.15 !important;
+        border-radius: 8px !important;
+        font-weight: 500 !important;
+        padding: 0.15rem 0.05rem !important;
+        min-height: 30px !important;
+        line-height: 1.1 !important;
         font-size: 11px !important;
         white-space: pre-line !important;
+        letter-spacing: 0.3px;
     }
 
     /* --- ADAPTACIÓN MÓVIL MEJORADA (RESPONSIVE) --- */
@@ -327,7 +328,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remates Adelantados Activos", "✍️ Banco", "🎟️ Dupletas", "🏁 Cierre", "📊 Cuentas", "🧾 Hist.", "📄 PDF"
 ])
 
-# 1. REMATES ADELANTADOS ACTIVOS (FILTRADO SOLO PARA ACTIVAS O CERRADAS, EXCLUYENDO INACTIVAS)
+# 1. REMATES ADELANTADOS ACTIVOS (SELECTOR MINIMALISTA Y COMPACTO CON STATUS DE LUZ)
 with tab1:
     st.markdown("<div class='subasta-header'>🎯 Remates Adelantados Activos</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='live-clock-banner'>📅 Fecha y Hora Actual: <b>{ahora_dt.strftime('%d/%m/%Y - %I:%M:%S %p')}</b></div>", unsafe_allow_html=True)
@@ -335,8 +336,7 @@ with tab1:
     if not lista_carreras_disponibles:
         st.warning("⚠️ No hay carreras cargadas en el sistema.")
     else:
-        # FILTRO ESTRICTO: Solo mostrar carreras que estén en st.session_state.carreras_activas_remate (Activas) 
-        # O que ya estén marcadas como cerradas en st.session_state.carreras_cerradas_remate. Se descartan las inactivas.
+        # FILTRO ESTRICTO: Solo mostrar carreras activas o cerradas
         carreras_filtradas_visibles = [
             c for c in lista_carreras_disponibles 
             if (c in st.session_state.carreras_activas_remate) or st.session_state.carreras_cerradas_remate.get(c, False)
@@ -345,10 +345,10 @@ with tab1:
         if not carreras_filtradas_visibles:
             st.info("ℹ️ No hay carreras activas ni cerradas para mostrar. Selecciona carreras en el menú lateral de control.")
         else:
-            st.markdown("##### 📌 Selecciona la Carrera a Rematar:")
+            st.markdown("##### 📌 Selecciona la Carrera:")
             
-            # Agrupamos las columnas dinámicamente para que quepan de forma muy fluida y estética
-            columnas_por_fila_selector = min(max(len(carreras_filtradas_visibles), 1), 10)
+            # Distribución limpia en fila para chips minimalistas
+            columnas_por_fila_selector = min(max(len(carreras_filtradas_visibles), 1), 12)
             cols_carreras = st.columns(columnas_por_fila_selector)
             
             for idx, c_nombre in enumerate(carreras_filtradas_visibles):
@@ -357,12 +357,12 @@ with tab1:
                 c_cerrada = st.session_state.carreras_cerradas_remate.get(c_nombre, False)
                 abreviatura = obtener_abreviatura_carrera(c_nombre)
                 
-                # Como ya filtramos, solo existen estados Activa o Cerrada
+                # Diseño minimalista refinado: Icono de luz diminuto 🟢 / 🔴 y abreviatura clara
                 if c_cerrada:
-                    label_btn = f"{abreviatura}\n🔴 Cerrada"
+                    label_btn = f"{abreviatura} 🔴"
                     tipo_btn = "secondary"
                 else:
-                    label_btn = f"{abreviatura}\n🟢 Activa"
+                    label_btn = f"{abreviatura} 🟢"
                     tipo_btn = "primary"
                 
                 with col_target:
