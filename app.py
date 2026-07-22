@@ -40,7 +40,7 @@ def obtener_siguientes_montos(monto_actual):
         siguientes = [ultimo + i * 1000 for i in range(1, 50)]
     return siguientes
 
-# --- ESTILOS CSS CON CHIPS MINIMALISTAS ALINEADOS A LA IZQUIERDA ---
+# --- ESTILOS CSS CON RECTÁNGULOS COLORIDOS Y DIFERENCIADOS PARA CADA NÚMERO ---
 st.markdown("""
     <style>
     .stApp {
@@ -95,18 +95,24 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    /* --- BOTONES MINIMALISTAS COMPACTOS (CHIPS) --- */
+    /* --- BOTONES BASE --- */
     .stButton button {
         width: 100% !important;
         border-radius: 6px !important;
         font-weight: 500 !important;
         padding: 0.1rem 0.02rem !important;
-        min-height: 28px !important;
-        line-height: 1.0 !important;
-        font-size: 10px !important;
+        min-height: 32px !important;
+        line-height: 1.1 !important;
+        font-size: 11px !important;
         white-space: pre-line !important;
         letter-spacing: 0.2px;
     }
+
+    /* --- PALETA DE RECTÁNGULOS COLORIDOS ÚNICOS POR POSICIÓN (1 AL 25) --- */
+    div[data-testid="column"]:nth-of-type(1) .stButton button { background-color: #1f6feb !important; color: white !important; border: 1px soliod #388bfd !important; font-weight: bold !important; }
+    div[data-testid="column"]:nth-of-type(2) .stButton button { background-color: #238636 !important; color: white !important; border: 1px solid #2ea043 !important; font-weight: bold !important; }
+    div[data-testid="column"]:nth-of-type(3) .stButton button { background-color: #8957e5 !important; color: white !important; border: 1px solid #a371f7 !important; font-weight: bold !important; }
+    div[data-testid="column"]:nth-of-type(4) .stButton button { background-color: #bd561d !important; color: white !important; border: 1px solid #db6d28 !important; font-weight: bold !important; }
 
     /* --- ADAPTACIÓN MÓVIL MEJORADA (RESPONSIVE) --- */
     @media (max-width: 768px) {
@@ -487,7 +493,7 @@ with tab1:
                 premio_total_calculado = pote_neto_base + pote_incentivo_extra
                 st.metric(f"🏆 Premio Total ({carr_activa})", formatear_bs(premio_total_calculado))
 
-                # --- REGISTRO RÁPIDO DE PUJA ---
+                # --- REGISTRO RÁPIDO DE PUJA CON BOTONES COLORIDOS ---
                 with st.container(border=True):
                     st.markdown(f"⚡ **Registro Rápido de Puja - {carr_activa}**")
                     lista_caballos_activos = list(st.session_state.remates[carr_activa].keys())
