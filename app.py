@@ -95,15 +95,15 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    /* --- BOTONES ESTÉTICOS CON BORDES MUY REDONDEADOS Y TEXTO EN DOS LÍNEAS --- */
+    /* --- BOTONES COMPACTOS, REDONDEADOS Y EN DOS LÍNEAS PARA EL SELECTOR --- */
     .stButton button {
         width: 100% !important;
-        border-radius: 20px !important;
-        font-weight: bold !important;
-        padding: 0.4rem 0.2rem !important;
-        min-height: 48px !important;
-        line-height: 1.2 !important;
-        font-size: 13px !important;
+        border-radius: 12px !important;
+        font-weight: 600 !important;
+        padding: 0.25rem 0.1rem !important;
+        min-height: 38px !important;
+        line-height: 1.15 !important;
+        font-size: 11px !important;
         white-space: pre-line !important;
     }
 
@@ -113,7 +113,7 @@ st.markdown("""
             width: 100% !important;
             flex: 1 1 100% !important;
             min-width: 100% !important;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
         }
         div[data-testid="stDataFrame"] {
             overflow-x: auto;
@@ -327,7 +327,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remates Adelantados Activos", "✍️ Banco", "🎟️ Dupletas", "🏁 Cierre", "📊 Cuentas", "🧾 Hist.", "📄 PDF"
 ])
 
-# 1. REMATES ADELANTADOS ACTIVOS (SELECTOR ESTÉTICO EN DOS LÍNEAS CON BORDES REDONDEADOS)
+# 1. REMATES ADELANTADOS ACTIVOS (SELECTOR SÚPER COMPACTO Y ESTÉTICO EN DOS LÍNEAS)
 with tab1:
     st.markdown("<div class='subasta-header'>🎯 Remates Adelantados Activos</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='live-clock-banner'>📅 Fecha y Hora Actual: <b>{ahora_dt.strftime('%d/%m/%Y - %I:%M:%S %p')}</b></div>", unsafe_allow_html=True)
@@ -337,8 +337,8 @@ with tab1:
     else:
         st.markdown("##### 📌 Selecciona la Carrera a Rematar:")
         
-        # Agrupamos los botones en columnas compactas (hasta 8 por fila para mejor distribución estética)
-        columnas_por_fila_selector = min(max(len(lista_carreras_disponibles), 1), 8)
+        # Agrupamos las columnas dinámicamente para que quepan de forma muy fluida y estética
+        columnas_por_fila_selector = min(max(len(lista_carreras_disponibles), 1), 10)
         cols_carreras = st.columns(columnas_por_fila_selector)
         
         for idx, c_nombre in enumerate(lista_carreras_disponibles):
@@ -350,15 +350,15 @@ with tab1:
             
             abreviatura = obtener_abreviatura_carrera(c_nombre)
             
-            # Formato en DOS LÍNEAS: Línea 1 (Ícono + Abreviatura), Línea 2 (Estado/Texto descriptivo)
+            # Formato súper compacto en dos líneas: Línea 1 (Abreviatura limpia), Línea 2 (Estado corto)
             if not esta_activa_menu:
-                label_btn = f"⚪ {abreviatura}\nInactiva"
+                label_btn = f"{abreviatura}\n⚪ Inactiva"
                 tipo_btn = "secondary"
             elif c_cerrada:
-                label_btn = f"🔴 {abreviatura}\nCerrada"
+                label_btn = f"{abreviatura}\n🔴 Cerrada"
                 tipo_btn = "secondary"
             else:
-                label_btn = f"🟢 {abreviatura}\nActiva"
+                label_btn = f"{abreviatura}\n🟢 Activa"
                 tipo_btn = "primary"
             
             with col_target:
