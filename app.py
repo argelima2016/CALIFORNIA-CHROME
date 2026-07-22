@@ -40,7 +40,7 @@ def obtener_siguientes_montos(monto_actual):
         siguientes = [ultimo + i * 1000 for i in range(1, 50)]
     return siguientes
 
-# --- ESTILOS CSS MINIMALISTAS Y ESTÉTICOS ---
+# --- ESTILOS CSS CON CHIPS MINIMALISTAS ALINEADOS A LA DERECHA ---
 st.markdown("""
     <style>
     .stApp {
@@ -95,17 +95,17 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    /* --- BOTONES MINIMALISTAS COMPACTOS (CHIPS DE ESTADO) --- */
+    /* --- BOTONES MINIMALISTAS COMPACTOS (CHIPS) --- */
     .stButton button {
         width: 100% !important;
-        border-radius: 8px !important;
+        border-radius: 6px !important;
         font-weight: 500 !important;
-        padding: 0.15rem 0.05rem !important;
-        min-height: 30px !important;
-        line-height: 1.1 !important;
-        font-size: 11px !important;
+        padding: 0.1rem 0.02rem !important;
+        min-height: 28px !important;
+        line-height: 1.0 !important;
+        font-size: 10px !important;
         white-space: pre-line !important;
-        letter-spacing: 0.3px;
+        letter-spacing: 0.2px;
     }
 
     /* --- ADAPTACIÓN MÓVIL MEJORADA (RESPONSIVE) --- */
@@ -177,6 +177,12 @@ if 'dupleta_bloqueada' not in st.session_state:
 if 'carreras_activas_remate' not in st.session_state:
     st.session_state.carreras_activas_remate = []
 
+if 'programa_pdf_bytes' not in st.session_state:
+    st.session_state.programa_pdf_bytes = None
+
+if 'programa_pdf_nombre' not in st.session_state:
+    st.session_state.programa_pdf_nombre = None
+
 def formatear_bs(monto):
     return f"Bs. {monto:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
@@ -189,6 +195,10 @@ def obtener_abreviatura_carrera(nombre_carrera):
 # --- PROCESADOR DE PDF ---
 def procesar_programa_pdf(archivo_pdf):
     try:
+        bytes_data = archivo_pdf.getvalue()
+        st.session_state.programa_pdf_bytes = bytes_data
+        st.session_state.programa_pdf_nombre = getattr(archivo_pdf, "name", "Inscritos_Semana.pdf")
+        
         lector_pdf = PdfReader(archivo_pdf)
         texto_extraido = ""
         for pagina in lector_pdf.pages:
@@ -328,15 +338,30 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remates Adelantados Activos", "✍️ Banco", "🎟️ Dupletas", "🏁 Cierre", "📊 Cuentas", "🧾 Hist.", "📄 PDF"
 ])
 
-# 1. REMATES ADELANTADOS ACTIVOS (SELECTOR MINIMALISTA Y COMPACTO CON STATUS DE LUZ)
+# 1. REMATES ADELANTADOS ACTIVOS
 with tab1:
-    st.markdown("<div class='subasta-header'>🎯 Remates Adelantados Activos</div>", unsafe_allow_html=True)
+    # Encabezado con título e icono compacto de PDF al lado si hay archivo cargado
+    col_t_title, col_t_pdf = st.columns([5, 1])
+    with col_t_title:
+        st.markdown("<div class='subasta-header' style='margin-bottom:0;'>🎯 Remates Adelantados Activos</div>", unsafe_allow_html=True)
+    with col_t_pdf:
+        if st.session_state.programa_pdf_bytes is not None:
+            st.download_button(
+                label="📄",
+                data=st.session_state.programa_pdf_bytes,
+                file_name=st.session_state.programa_pdf_nombre or "Inscritos_Semana.pdf",
+                mime="application/pdf",
+                key="btn_descarga_pdf_compacto_top",
+                help="📥 Ver/Descargar Inquisitos de la Semana (PDF)"
+            )
+        else:
+            st.markdown("<div style='font-size: 11px; color: #8b949e; text-align: right; padding-top: 10px;'>Sin PDF</div>", unsafe_allow_html=True)
+
     st.markdown(f"<div class='live-clock-banner'>📅 Fecha y Hora Actual: <b>{ahora_dt.strftime('%d/%m/%Y - %I:%M:%S %p')}</b></div>", unsafe_allow_html=True)
     
     if not lista_carreras_disponibles:
         st.warning("⚠️ No hay carreras cargadas en el sistema.")
     else:
-        # FILTRO ESTRICTO: Solo mostrar carreras activas o cerradas
         carreras_filtradas_visibles = [
             c for c in lista_carreras_disponibles 
             if (c in st.session_state.carreras_activas_remate) or st.session_state.carreras_cerradas_remate.get(c, False)
@@ -345,32 +370,32 @@ with tab1:
         if not carreras_filtradas_visibles:
             st.info("ℹ️ No hay carreras activas ni cerradas para mostrar. Selecciona carreras en el menú lateral de control.")
         else:
-            st.markdown("##### 📌 Selecciona la Carrera:")
+            col_vacia, col_chips = st.columns([2, 5])
             
-            # Distribución limpia en fila para chips minimalistas
-            columnas_por_fila_selector = min(max(len(carreras_filtradas_visibles), 1), 12)
-            cols_carreras = st.columns(columnas_por_fila_selector)
-            
-            for idx, c_nombre in enumerate(carreras_filtradas_visibles):
-                col_target = cols_carreras[idx % len(cols_carreras)]
+            with col_chips:
+                st.markdown("<div style='font-size: 11px; color: #8b949e; text-align: right; margin-bottom: 3px;'>📌 Selecciona carrera:</div>", unsafe_allow_html=True)
                 
-                c_cerrada = st.session_state.carreras_cerradas_remate.get(c_nombre, False)
-                abreviatura = obtener_abreviatura_carrera(c_nombre)
+                num_carreras_visibles = len(carreras_filtradas_visibles)
+                cols_selector = st.columns(num_carreras_visibles)
                 
-                # Diseño minimalista refinado: Icono de luz diminuto 🟢 / 🔴 y abreviatura clara
-                if c_cerrada:
-                    label_btn = f"{abreviatura} 🔴"
-                    tipo_btn = "secondary"
-                else:
-                    label_btn = f"{abreviatura} 🟢"
-                    tipo_btn = "primary"
-                
-                with col_target:
-                    if st.button(label_btn, key=f"btn_sel_carr_didactico_{idx}", use_container_width=True, type=tipo_btn, help=f"{c_nombre} - {'Cerrada' if c_cerrada else 'Activa'}"):
-                        st.session_state["carrera_remate_activa_seleccionada"] = c_nombre
-                        st.rerun()
+                for idx, c_nombre in enumerate(carreras_filtradas_visibles):
+                    col_target = cols_selector[idx]
+                    
+                    c_cerrada = st.session_state.carreras_cerradas_remate.get(c_nombre, False)
+                    abreviatura = obtener_abreviatura_carrera(c_nombre)
+                    
+                    if c_cerrada:
+                        label_btn = f"{abreviatura} 🔴"
+                        tipo_btn = "secondary"
+                    else:
+                        label_btn = f"{abreviatura} 🟢"
+                        tipo_btn = "primary"
+                    
+                    with col_target:
+                        if st.button(label_btn, key=f"btn_sel_carr_didactico_{idx}", use_container_width=True, type=tipo_btn, help=f"{c_nombre} - {'Cerrada' if c_cerrada else 'Activa'}"):
+                            st.session_state["carrera_remate_activa_seleccionada"] = c_nombre
+                            st.rerun()
 
-            # Mantener o establecer una carrera seleccionada por defecto dentro de las filtradas
             if "carrera_remate_activa_seleccionada" not in st.session_state or st.session_state["carrera_remate_activa_seleccionada"] not in carreras_filtradas_visibles:
                 carr_activa = carreras_filtradas_visibles[0]
                 st.session_state["carrera_remate_activa_seleccionada"] = carr_activa
@@ -382,7 +407,6 @@ with tab1:
             else:
                 st.markdown(f"---")
                 
-                # Cabecera visual del estado de la carrera seleccionada
                 carrera_cerrada = st.session_state.carreras_cerradas_remate.get(carr_activa, False)
                 
                 if carrera_cerrada:
