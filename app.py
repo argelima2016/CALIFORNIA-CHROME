@@ -40,7 +40,7 @@ def obtener_siguientes_montos(monto_actual):
         siguientes = [ultimo + i * 1000 for i in range(1, 50)]
     return siguientes
 
-# --- ESTILOS CSS CON TARJETAS COLORIDAS Y LETRAS GIGANTES Y LEGIBLES PARA LA TABLA ---
+# --- ESTILOS CSS CON TARJETAS COLORIDAS Y TABLA ELEGANTE DE BORDES DESTACADOS ---
 st.markdown("""
     <style>
     .stApp {
@@ -95,25 +95,45 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    /* --- ESTILOS ULTRA-LEGIBLES PARA LA TABLA PRINCIPAL DE EJEMPLARES --- */
+    /* --- ESTILOS DE TABLA ULTRA-ELEGADA CON BORDES DESTACADOS PARA CABECERAS Y CELDAS --- */
     div[data-testid="stDataFrame"] {
         font-size: 18px !important;
+        border: 2px solid #30363d !important;
+        border-radius: 10px !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+        overflow: hidden !important;
+        background-color: #13171f !important;
     }
     div[data-testid="stDataFrame"] table {
         font-size: 18px !important;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        width: 100% !important;
     }
     div[data-testid="stDataFrame"] th {
-        font-size: 18px !important;
+        font-size: 19px !important;
         font-weight: 800 !important;
-        background-color: #1f242c !important;
+        background: linear-gradient(135deg, #1f242c 0%, #161b22 100%) !important;
         color: #f1e05a !important;
         text-transform: uppercase;
+        border-bottom: 3px solid #f1e05a !important;
+        border-right: 1px solid #30363d !important;
+        padding: 14px 16px !important;
+        text-align: left !important;
+        letter-spacing: 0.5px;
     }
     div[data-testid="stDataFrame"] td {
         font-size: 18px !important;
         font-weight: 700 !important;
-        padding: 10px 14px !important;
+        padding: 12px 16px !important;
         color: #ffffff !important;
+        background-color: #161b22 !important;
+        border-bottom: 1px solid #21262d !important;
+        border-right: 1px solid #21262d !important;
+    }
+    div[data-testid="stDataFrame"] tr:hover td {
+        background-color: #1c212c !important;
+        color: #58a6ff !important;
     }
 
     /* --- BOTONES BASE DE REGISTRO RÁPIDO --- */
@@ -516,7 +536,7 @@ with tab1:
                             else:
                                 st.markdown(f"<div class='timer-box'>⚠️ ULTIMOS SEGUNDOS ANTES DE CIERRE ({carr_activa})</div>", unsafe_allow_html=True)
 
-                # --- TABLA DE EJEMPLARES CON NÚMEROS COLORIDOS Y LETRA GRANDE ---
+                # --- TABLA DE EJEMPLARES CON BORDES DESTACADOS Y ELEGANTES ---
                 datos_tabla = formatear_tabla_remate(st.session_state.remates[carr_activa])
                 total_pote = sum([info['monto'] for info in st.session_state.remates[carr_activa].values()])
                 
