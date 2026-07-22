@@ -40,7 +40,7 @@ def obtener_siguientes_montos(monto_actual):
         siguientes = [ultimo + i * 1000 for i in range(1, 50)]
     return siguientes
 
-# --- ESTILOS CSS CON RECTÁNGULOS COLORIDOS Y DIFERENCIADOS PARA CADA NÚMERO ---
+# --- ESTILOS CSS CON TARJETAS COLORIDAS Y LETRAS GIGANTES Y LEGIBLES PARA LA TABLA ---
 st.markdown("""
     <style>
     .stApp {
@@ -95,7 +95,28 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    /* --- BOTONES BASE --- */
+    /* --- ESTILOS ULTRA-LEGIBLES PARA LA TABLA PRINCIPAL DE EJEMPLARES --- */
+    div[data-testid="stDataFrame"] {
+        font-size: 18px !important;
+    }
+    div[data-testid="stDataFrame"] table {
+        font-size: 18px !important;
+    }
+    div[data-testid="stDataFrame"] th {
+        font-size: 18px !important;
+        font-weight: 800 !important;
+        background-color: #1f242c !important;
+        color: #f1e05a !important;
+        text-transform: uppercase;
+    }
+    div[data-testid="stDataFrame"] td {
+        font-size: 18px !important;
+        font-weight: 700 !important;
+        padding: 10px 14px !important;
+        color: #ffffff !important;
+    }
+
+    /* --- BOTONES BASE DE REGISTRO RÁPIDO --- */
     .stButton button {
         width: 100% !important;
         border-radius: 6px !important;
@@ -109,7 +130,7 @@ st.markdown("""
     }
 
     /* --- PALETA DE RECTÁNGULOS COLORIDOS ÚNICOS POR POSICIÓN (1 AL 25) --- */
-    div[data-testid="column"]:nth-of-type(1) .stButton button { background-color: #1f6feb !important; color: white !important; border: 1px soliod #388bfd !important; font-weight: bold !important; }
+    div[data-testid="column"]:nth-of-type(1) .stButton button { background-color: #1f6feb !important; color: white !important; border: 1px solid #388bfd !important; font-weight: bold !important; }
     div[data-testid="column"]:nth-of-type(2) .stButton button { background-color: #238636 !important; color: white !important; border: 1px solid #2ea043 !important; font-weight: bold !important; }
     div[data-testid="column"]:nth-of-type(3) .stButton button { background-color: #8957e5 !important; color: white !important; border: 1px solid #a371f7 !important; font-weight: bold !important; }
     div[data-testid="column"]:nth-of-type(4) .stButton button { background-color: #bd561d !important; color: white !important; border: 1px solid #db6d28 !important; font-weight: bold !important; }
@@ -200,6 +221,38 @@ def obtener_abreviatura_carrera(nombre_carrera):
     if match:
         return f"C{match.group(0)}"
     return nombre_carrera[:3].upper()
+
+# --- FORMATEADOR VISUAL LLAMATIVO PARA LA TABLA ---
+def formatear_tabla_remate(remates_dict):
+    """Convierte el diccionario de remates en una tabla con números de posición visualmente coloridos tipo etiqueta y nombres claros."""
+    # Mapeo de colores llamativos estilo insignia/chip
+    colores_badges = {
+        1: "🟦 1", 2: "🟩 2", 3: "🟪 3", 4: "🟧 4", 5: "🟨 5",
+        6: "🟥 6", 7: "🔷 7", 8: "🟢 8", 9: "🟣 9", 10: "🟤 10",
+        11: "🔵 11", 12: "🟢 12", 13: "🟣 13", 14: "🟠 14", 15: "🟡 15",
+        16: "🔴 16", 17: "💠 17", 18: "❇️ 18", 19: "🌀 19", 20: "🔶 20",
+        21: "🔹 21", 22: "🟩 22", 23: "💜 23", 24: "🧡 24", 25: "💛 25"
+    }
+    
+    datos = []
+    for cab, info in remates_dict.items():
+        # Extraer el número del ejemplar (ej: "1 - Rey David" -> 1)
+        match_num = re.match(r'^(\d+)', cab)
+        if match_num:
+            num = int(match_num.group(1))
+            nombre_solo = cab.split(" - ", 1)[1] if " - " in cab else cab
+            # Insignia colorida muy atractiva para la tabla
+            etiqueta_colorida = colores_badges.get(num, f"🔹 {num}")
+            ejemplar_formateado = f"**{etiqueta_colorida}** ➔ **{nombre_solo.upper()}**"
+        else:
+            ejemplar_formateado = f"**{cab}**"
+            
+        datos.append({
+            "Ejemplar / Posición": ejemplar_formateado,
+            "Comprador": info['jugador'],
+            "Monto Actual": formatear_bs(info['monto'])
+        })
+    return datos
 
 # --- EXTRACCIÓN GENERAL DE TEXTO DEL PDF ---
 def extraer_texto_pdf(archivo_pdf):
@@ -472,17 +525,17 @@ with tab1:
                             else:
                                 st.markdown(f"<div class='timer-box'>⚠️ ULTIMOS SEGUNDOS ANTES DE CIERRE ({carr_activa})</div>", unsafe_allow_html=True)
 
-                # --- ESTADO ACTUAL Y POTE ---
-                datos_tabla = []
-                total_pote = 0.0
-                for cab, info in st.session_state.remates[carr_activa].items():
-                    datos_tabla.append({"Ejemplar": cab, "Comprador": info['jugador'], "Monto": formatear_bs(info['monto'])})
-                    total_pote += info['monto']
+                # --- TABLA DE EJEMPLARES CON NÚMEROS COLORIDOS Y LETRA GRANDE ---
+                datos_tabla = formatear_tabla_remate(st.session_state.remates[carr_activa])
+                total_pote = sum([info['monto'] for info in st.session_state.remates[carr_activa].values()])
                 
                 cantidad_filas = len(datos_tabla)
-                altura_tabla = min(max(150, (cantidad_filas + 1) * 35), 450)
+                altura_tabla = min(max(180, (cantidad_filas + 1) * 44), 500)
                 
-                st.dataframe(pd.DataFrame(datos_tabla), use_container_width=True, hide_index=True, height=altura_tabla)
+                st.markdown(
+                    pd.DataFrame(datos_tabla).to_markdown(index=False), 
+                    unsafe_allow_html=True
+                )
                 
                 monto_casa = total_pote * (porcentaje_casa / 100)
                 pote_neto_base = total_pote - monto_casa
