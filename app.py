@@ -443,7 +443,46 @@ if st.sidebar.button("🗑️ Reiniciar Jornada", use_container_width=True):
       del st.session_state[key]
   st.toast("🚨 Jornada reiniciada.")
   st.rerun()
+import streamlit as st
+# ==========================================
+# ⚙️ CONFIGURACIÓN Y SELECCIÓN DE CARRERAS
+# ==========================================
 
+# 1. Creamos la lista completa de las 20 carreras disponibles
+CARRERAS_DISPONIBLES = [f"Carrera {i}" for i in range(1, 21)]
+
+# 2. Control en el panel lateral para elegir cuántas correr esta semana
+with st.sidebar:
+    st.header("⚙️ Configuración del Programa")
+    
+    cant_carreras_semana = st.number_input(
+        "Número de carreras a correr esta semana:",
+        min_value=1,
+        max_value=20,
+        value=10,  # Valor por defecto (puedes cambiarlo)
+        step=1,
+        help="Selecciona cuántas carreras estarán activas para esta jornada."
+    )
+
+# 3. Lista filtrada con la cantidad elegida
+carreras_activas = CARRERAS_DISPONIBLES[:cant_carreras_semana]
+
+
+# ==========================================
+# 🏇 VISTA O NAVEGACIÓN DE CARRERAS
+# ==========================================
+
+st.title("Sistema de Remates")
+st.subheader(f"📋 Carreras programadas para esta semana ({len(carreras_activas)} de 20)")
+
+# Ejemplo de generación de pestañas (tabs) dinámicas según la cantidad seleccionada:
+tabs = st.tabs(carreras_activas)
+
+for i, tab_carrera in enumerate(tabs):
+    nombre_carrera = carreras_activas[i]
+    with tab_carrera:
+        st.write(f"### Detalles de la **{nombre_carrera}**")
+        # Aquí va la lógica/tabla/remates correspondiente a esta carrera...
 # --- PESTAÑAS PRINCIPALES ---
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remates Adelantados Activos",
