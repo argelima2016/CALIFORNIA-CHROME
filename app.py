@@ -7,7 +7,7 @@ import pdfplumber
 import requests
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
-
+import io
 # --- CONFIGURACIÓN DE PANTALLA ---
 st.set_page_config(
     page_title="Sistema de Remates", layout="wide", page_icon="🏇"
