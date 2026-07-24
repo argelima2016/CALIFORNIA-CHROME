@@ -1111,7 +1111,7 @@ with tab6:
 
 # 7. PDF Y AUTOMATIZACIÓN
 # 1. Agregamos @st.cache_data para que procese el PDF solo 1 vez y guarde el resultado
-Error al procesar el archivo: name 'io' is not defined
+#Error al procesar el archivo: name 'io' is not defined
 
 
 # 2. En la sección donde el usuario sube el archivo (file_uploader):
