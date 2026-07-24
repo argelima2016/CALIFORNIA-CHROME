@@ -271,7 +271,100 @@ def formatear_tabla_remate(remates_dict):
     return datos
 
 
-# --- EXTRACCIÓN AVANZADA DE PDF (CON ORDENAMIENTO POR COORDENADAS) ---
+# --- PROCESADOR MULTI-ESTRATEGIA DE TEXTO/PDF ---
+def procesar_texto_programa(texto_completo):
+    carreras_extraidas = []
+    patron_carrera = re.compile(
+        r"(?:(?:\d{1,2}[aªá°]?\s*[\-\.]?\s*CARRERA)|(?:CARRERA\s*[\-\#]?\s*\d{1,2})|(?:C\s*[\-\#]?\s*\d{1,2}\b))",
+        re.IGNORECASE,
+    )
+
+    bloques = patron_carrera.split(texto_completo)
+    encabezados = patron_carrera.findall(texto_completo)
+
+    if not encabezados:
+        bloques = [texto_completo]
+        encabezados = ["CARRERA 1"]
+
+    excluir_palabras = {
+        "RETIRADO", "JINETE", "ENTRENADOR", "DISTANCIA", "PREMIO",
+        "HIPODROMO", "HIPÓDROMO", "PROPIETARIO", "HARAS", "STUD",
+        "DIVIDENDOS", "PESO", "KILOS", "KG", "LHM", "VALENCIA",
+        "RINCONADA", "SERIE", "RECLAMO", "COPA", "CLASICO", "CLÁSICO"
+    }
+
+    for idx, bloque in enumerate(bloques[1:] if len(bloques) > 1 else bloques):
+        nombre_carrera = encabezados[idx].strip().upper() if idx < len(encabezados) else f"Carrera {idx+1}"
+        num_match = re.search(r"\d+", nombre_carrera)
+        num_carrera = num_match.group(0) if num_match else str(idx + 1)
+        nombre_carrera_estandar = f"Carrera {num_carrera}"
+
+        match_hora = re.search(
+            r"\b(1[0-2]|0?[1-9]):([0-5][0-9])\s*(AM|PM|a\.m\.|p\.m\.)\b",
+            bloque,
+            re.IGNORECASE,
+        )
+        hora = match_hora.group(0) if match_hora else "No especificada"
+
+        match_distancia = re.search(
+            r"\b(\d[\d\.]*)\s*(metros|mts|m)\b", bloque, re.IGNORECASE
+        )
+        distancia = match_distancia.group(0) if match_distancia else "No especificada"
+
+        ejemplares = []
+        for linea in bloque.split("\n"):
+            linea_limpia = linea.strip()
+            if not linea_limpia:
+                continue
+
+            match_ej = re.match(
+                r"^[^\d]*\(?(\d{1,2})\)?[\s\-\.\)]+([A-Za-zÁÉÍÓÚáéíóúÑñ\s'\.]+)",
+                linea_limpia,
+            )
+
+            if match_ej:
+                puesto = match_ej.group(1)
+                raw_nombre = match_ej.group(2).strip()
+
+                partes = re.split(r"\s{2,}|\t|\d+|[\(\)]", raw_nombre)
+                nom_ej = partes[0].strip().title()
+                nom_ej = re.sub(r"^(Ms|Mr|Sr|Sra)\.?\s*", "", nom_ej, flags=re.IGNORECASE).strip()
+
+                tokens = set(nom_ej.upper().split())
+                if (
+                    len(nom_ej) >= 3
+                    and not tokens.intersection(excluir_palabras)
+                    and not nom_ej.isdigit()
+                ):
+                    formato_completo = f"{puesto} - {nom_ej}"
+                    if not any(e["nombre"].upper() == nom_ej.upper() for e in ejemplares):
+                        ejemplares.append({
+                            "puesto": puesto,
+                            "nombre": nom_ej,
+                            "formato": formato_completo,
+                        })
+
+        carreras_extraidas.append({
+            "carrera": nombre_carrera_estandar,
+            "hora": hora,
+            "distancia": distancia,
+            "ejemplares": ejemplares,
+        })
+
+    st.session_state.carreras_extraidas_pdf = carreras_extraidas
+
+    banco_temp = set(st.session_state.banco_general_extraido)
+    total_nuevos = 0
+    for c in carreras_extraidas:
+        for ej in c["ejemplares"]:
+            if ej["nombre"] not in banco_temp:
+                banco_temp.add(ej["nombre"])
+                total_nuevos += 1
+
+    st.session_state.banco_general_extraido = sorted(list(banco_temp))
+    return total_nuevos
+
+
 def extraer_datos_completos_pdf(archivo_pdf):
     try:
         bytes_data = archivo_pdf.getvalue()
@@ -284,14 +377,12 @@ def extraer_datos_completos_pdf(archivo_pdf):
 
         with pdfplumber.open(archivo_pdf) as pdf:
             for num_pag, pagina in enumerate(pdf.pages, start=1):
-                # INTENTO 1: Extracción por coordenadas físicas (Resuelve tablas y columnas)
+                # ESTRATEGIA 1: Extracción por coordenadas físicas
                 words = pagina.extract_words(use_text_flow=True, keep_blank_chars=True)
-                
                 if words:
                     words_ordenadas = sorted(words, key=lambda w: (round(w['top'], 1), w['x0']))
                     linea_actual = []
                     last_top = None
-                    
                     for w in words_ordenadas:
                         if last_top is None or abs(w['top'] - last_top) < 3:
                             linea_actual.append(w['text'])
@@ -301,13 +392,22 @@ def extraer_datos_completos_pdf(archivo_pdf):
                         last_top = w['top']
                     if linea_actual:
                         lineas_totales.append(" ".join(linea_actual))
-                else:
-                    # INTENTO 2: Extracción simple
+                
+                # ESTRATEGIA 2: Si no trajo palabras, intentar por extracción de tablas
+                if not lineas_totales:
+                    tablas = pagina.extract_tables()
+                    for tabla in tablas:
+                        for fila in tabla:
+                            fila_filtrada = [celda.strip() for celda in fila if celda]
+                            if fila_filtrada:
+                                lineas_totales.append(" ".join(fila_filtrada))
+
+                # ESTRATEGIA 3: Texto directo
+                if not lineas_totales:
                     txt_pag = pagina.extract_text()
                     if txt_pag:
                         lineas_totales.extend(txt_pag.split("\n"))
                     elif HAS_OCR:
-                        # INTENTO 3: Fallback OCR
                         img = pagina.to_image(resolution=300).original
                         txt_ocr = pytesseract.image_to_string(img, lang="spa")
                         if txt_ocr:
@@ -315,111 +415,18 @@ def extraer_datos_completos_pdf(archivo_pdf):
 
         texto_completo = "\n".join(lineas_totales).strip()
 
-        # Ventana de Depuración en Barra Lateral
         if texto_completo:
             with st.sidebar.expander("🔍 Depuración: Texto Leído", expanded=False):
                 st.text(texto_completo[:600] + "...")
         else:
-            st.sidebar.error("❌ **El PDF no tiene texto legible.** Es probable que sea una imagen escaneada.")
+            st.sidebar.error("❌ **El PDF no tiene texto legible.** Usa la opción de pegar texto manual.")
             return False
 
-        # --- PROCESAMIENTO DE BLOQUES DE CARRERA ---
-        carreras_extraidas = []
-        patron_carrera = re.compile(
-            r"(?:(?:\d{1,2}[aªá°]?\s*[\-\.]?\s*CARRERA)|(?:CARRERA\s*[\-\#]?\s*\d{1,2})|(?:C\s*[\-\#]?\s*\d{1,2}\b))",
-            re.IGNORECASE,
-        )
-
-        bloques = patron_carrera.split(texto_completo)
-        encabezados = patron_carrera.findall(texto_completo)
-
-        if not encabezados:
-            bloques = [texto_completo]
-            encabezados = ["CARRERA 1"]
-
-        excluir_palabras = {
-            "RETIRADO", "JINETE", "ENTRENADOR", "DISTANCIA", "PREMIO",
-            "HIPODROMO", "HIPÓDROMO", "PROPIETARIO", "HARAS", "STUD",
-            "DIVIDENDOS", "PESO", "KILOS", "KG", "LHM", "VALENCIA",
-            "RINCONADA", "SERIE", "RECLAMO", "COPA", "CLASICO", "CLÁSICO"
-        }
-
-        for idx, bloque in enumerate(bloques[1:] if len(bloques) > 1 else bloques):
-            nombre_carrera = encabezados[idx].strip().upper() if idx < len(encabezados) else f"Carrera {idx+1}"
-            num_match = re.search(r"\d+", nombre_carrera)
-            num_carrera = num_match.group(0) if num_match else str(idx + 1)
-            nombre_carrera_estandar = f"Carrera {num_carrera}"
-
-            match_hora = re.search(
-                r"\b(1[0-2]|0?[1-9]):([0-5][0-9])\s*(AM|PM|a\.m\.|p\.m\.)\b",
-                bloque,
-                re.IGNORECASE,
-            )
-            hora = match_hora.group(0) if match_hora else "No especificada"
-
-            match_distancia = re.search(
-                r"\b(\d[\d\.]*)\s*(metros|mts|m)\b", bloque, re.IGNORECASE
-            )
-            distancia = match_distancia.group(0) if match_distancia else "No especificada"
-
-            ejemplares = []
-            for linea in bloque.split("\n"):
-                linea_limpia = linea.strip()
-                if not linea_limpia:
-                    continue
-
-                # Regex ultra-flexible para número y nombre del ejemplar
-                match_ej = re.match(
-                    r"^[^\d]*\(?(\d{1,2})\)?[\s\-\.\)]+([A-Za-zÁÉÍÓÚáéíóúÑñ\s'\.]+)",
-                    linea_limpia,
-                )
-
-                if match_ej:
-                    puesto = match_ej.group(1)
-                    raw_nombre = match_ej.group(2).strip()
-
-                    partes = re.split(r"\s{2,}|\t|\d+|[\(\)]", raw_nombre)
-                    nom_ej = partes[0].strip().title()
-                    nom_ej = re.sub(r"^(Ms|Mr|Sr|Sra)\.?\s*", "", nom_ej, flags=re.IGNORECASE).strip()
-
-                    tokens = set(nom_ej.upper().split())
-                    if (
-                        len(nom_ej) >= 3
-                        and not tokens.intersection(excluir_palabras)
-                        and not nom_ej.isdigit()
-                    ):
-                        formato_completo = f"{puesto} - {nom_ej}"
-                        if not any(e["nombre"].upper() == nom_ej.upper() for e in ejemplares):
-                            ejemplares.append({
-                                "puesto": puesto,
-                                "nombre": nom_ej,
-                                "formato": formato_completo,
-                            })
-
-            carreras_extraidas.append({
-                "carrera": nombre_carrera_estandar,
-                "hora": hora,
-                "distancia": distancia,
-                "ejemplares": ejemplares,
-            })
-
-        st.session_state.carreras_extraidas_pdf = carreras_extraidas
-
-        # Poblar Banco General
-        banco_temp = set(st.session_state.banco_general_extraido)
-        total_nuevos = 0
-        for c in carreras_extraidas:
-            for ej in c["ejemplares"]:
-                if ej["nombre"] not in banco_temp:
-                    banco_temp.add(ej["nombre"])
-                    total_nuevos += 1
-
-        st.session_state.banco_general_extraido = sorted(list(banco_temp))
-
+        total_nuevos = procesar_texto_programa(texto_completo)
         if total_nuevos > 0:
             st.sidebar.success(f"✅ ¡Se agregaron {total_nuevos} ejemplares al Banco General!")
         else:
-            st.sidebar.warning("⚠️ Se leyó el PDF pero no se identificaron nuevos patrones de nombres.")
+            st.sidebar.warning("⚠️ Se leyó el PDF pero no se identificaron nuevos nombres.")
 
         return True
     except Exception as e:
@@ -845,14 +852,36 @@ with tab6:
     st.markdown("<div class='subasta-header'>🧾 Historial de Transacciones</div>", unsafe_allow_html=True)
     st.info("Detalle histórico de las operaciones registradas.")
 
-# 7. PDF / AUTO
+# 7. PDF / AUTO (CON OPCIÓN DE COPIAR/PEGAR PLAN B)
 with tab7:
-    st.markdown("<div class='subasta-header'>📄 Cargar Programa (PDF)</div>", unsafe_allow_html=True)
-    archivo_pdf_subido = st.file_uploader(
-        "Sube el archivo PDF del programa oficial", type=["pdf"], key="pdf_uploader_tab7"
+    st.markdown("<div class='subasta-header'>📄 Cargar Programa</div>", unsafe_allow_html=True)
+    
+    metodo_carga = st.radio(
+        "Selecciona el método de importación:",
+        ["📁 Archivo PDF", "📋 Pegar Texto Manual (Plan B)"],
+        horizontal=True,
     )
-    if archivo_pdf_subido is not None:
-        if st.button("🔄 Procesar PDF e importar datos", type="primary"):
-            if extraer_datos_completos_pdf(archivo_pdf_subido):
-                st.success("✅ ¡PDF procesado exitosamente!")
+
+    if metodo_carga == "📁 Archivo PDF":
+        archivo_pdf_subido = st.file_uploader(
+            "Sube el archivo PDF del programa oficial", type=["pdf"], key="pdf_uploader_tab7"
+        )
+        if archivo_pdf_subido is not None:
+            if st.button("🔄 Procesar PDF e importar datos", type="primary"):
+                if extraer_datos_completos_pdf(archivo_pdf_subido):
+                    st.success("✅ ¡PDF procesado exitosamente!")
+                    st.rerun()
+    else:
+        st.markdown("##### 📋 Pega el texto copiado del programa o revista:")
+        texto_pegado = st.text_area(
+            "Texto del programa",
+            height=250,
+            placeholder="Ejemplo:\n1ª CARRERA\n1 - Rey David\n2 - Gran Pepe\n3 - Catire Pedro",
+        )
+        if st.button("🔄 Procesar Texto Pegado", type="primary"):
+            if texto_pegado.strip():
+                nuevos = procesar_texto_programa(texto_pegado.strip())
+                st.success(f"✅ ¡Texto procesado! Se importaron {nuevos} nuevos ejemplares al Banco General.")
                 st.rerun()
+            else:
+                st.warning("Escribe o pega texto antes de procesar.")
