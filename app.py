@@ -10,6 +10,15 @@ import requests
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
+# Intentar importar OCR si está disponible en el entorno
+try:
+    import pytesseract
+    from PIL import Image
+    HAS_OCR = True
+except ImportError:
+    HAS_OCR = False
+
+
 # --- CONFIGURACIÓN DE PANTALLA ---
 st.set_page_config(page_title="Sistema de Remates", layout="wide", page_icon="🏇")
 
@@ -18,6 +27,7 @@ try:
     st_autorefresh(interval=3000, key="datarefresh_en_vivo")
 except Exception:
     pass
+
 
 # --- HORA LOCAL DE VENEZUELA ---
 def obtener_hora_venezuela_local():
@@ -29,6 +39,7 @@ def obtener_hora_venezuela_local():
     tz_venezuela = timezone(timedelta(hours=-4))
     return datetime.now(tz_venezuela).replace(tzinfo=None)
 
+
 # --- ESCALA DE PUJAS ---
 ESCALA_PUJAS = [
     50, 100, 150, 200, 250, 300, 350, 400, 500, 600, 700, 800, 900, 1000,
@@ -36,12 +47,14 @@ ESCALA_PUJAS = [
     6000, 6500, 7000, 7500, 8000, 8500, 9000, 9500, 10000,
 ] + list(range(11000, 1000001, 1000))
 
+
 def obtener_siguientes_montos(monto_actual):
     siguientes = [m for m in ESCALA_PUJAS if m > monto_actual]
     if not siguientes:
         ultimo = ESCALA_PUJAS[-1] if ESCALA_PUJAS else max(monto_actual, 10000)
         siguientes = [ultimo + i * 1000 for i in range(1, 50)]
     return siguientes
+
 
 # --- ESTILOS CSS ---
 st.markdown(
@@ -164,6 +177,7 @@ div[data-testid="stDataFrame"] tr:hover td {
     unsafe_allow_html=True,
 )
 
+
 # --- JUGADORES BASE ---
 @st.cache_data
 def cargar_jugadores_base():
@@ -172,6 +186,7 @@ def cargar_jugadores_base():
         "ALFONSO", "MACANO", "MIGUEL", "TOCAYO", "EL GOCHO", "PAPIRO",
         "CHAYO", "ALEXIS",
     ]
+
 
 # --- ESTADO GLOBAL ---
 if "lista_jugadores" not in st.session_state:
@@ -220,14 +235,17 @@ if "programa_pdf_bytes" not in st.session_state:
 if "programa_pdf_nombre" not in st.session_state:
     st.session_state.programa_pdf_nombre = None
 
+
 def formatear_bs(monto):
     return f"Bs. {monto:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
 
 def obtener_abreviatura_carrera(nombre_carrera):
     match = re.search(r"\d+", nombre_carrera)
     if match:
         return f"C{match.group(0)}"
     return nombre_carrera[:3].upper()
+
 
 def formatear_tabla_remate(remates_dict):
     colores_badges = {
@@ -252,7 +270,8 @@ def formatear_tabla_remate(remates_dict):
         })
     return datos
 
-# --- EXTRACCIÓN ULTRA-PERMISIVA Y TOLERANTE DEL PDF ---
+
+# --- EXTRACCIÓN AVANZADA DE PDF (CON ORDENAMIENTO POR COORDENADAS) ---
 def extraer_datos_completos_pdf(archivo_pdf):
     try:
         bytes_data = archivo_pdf.getvalue()
@@ -260,29 +279,57 @@ def extraer_datos_completos_pdf(archivo_pdf):
         st.session_state.programa_pdf_nombre = getattr(
             archivo_pdf, "name", "Inscritos_Semana.pdf"
         )
-        carreras_extraidas = []
-        texto_completo = ""
+        
+        lineas_totales = []
 
-        # 1. Extraer todo el texto acumulado del PDF
         with pdfplumber.open(archivo_pdf) as pdf:
             for num_pag, pagina in enumerate(pdf.pages, start=1):
-                texto_pagina = pagina.extract_text()
-                if texto_pagina:
-                    texto_completo += texto_pagina + "\n"
+                # INTENTO 1: Extracción por coordenadas físicas (Resuelve tablas y columnas)
+                words = pagina.extract_words(use_text_flow=True, keep_blank_chars=True)
+                
+                if words:
+                    words_ordenadas = sorted(words, key=lambda w: (round(w['top'], 1), w['x0']))
+                    linea_actual = []
+                    last_top = None
+                    
+                    for w in words_ordenadas:
+                        if last_top is None or abs(w['top'] - last_top) < 3:
+                            linea_actual.append(w['text'])
+                        else:
+                            lineas_totales.append(" ".join(linea_actual))
+                            linea_actual = [w['text']]
+                        last_top = w['top']
+                    if linea_actual:
+                        lineas_totales.append(" ".join(linea_actual))
+                else:
+                    # INTENTO 2: Extracción simple
+                    txt_pag = pagina.extract_text()
+                    if txt_pag:
+                        lineas_totales.extend(txt_pag.split("\n"))
+                    elif HAS_OCR:
+                        # INTENTO 3: Fallback OCR
+                        img = pagina.to_image(resolution=300).original
+                        txt_ocr = pytesseract.image_to_string(img, lang="spa")
+                        if txt_ocr:
+                            lineas_totales.extend(txt_ocr.split("\n"))
 
-        # Validar si el PDF es de solo imágenes (escaneado)
-        if not texto_completo.strip():
-            st.sidebar.error(
-                "⚠️ El PDF no contiene texto seleccionable. "
-                "Parece ser un PDF escaneado (imagen). Se requiere un PDF con texto vectorial/digital."
-            )
+        texto_completo = "\n".join(lineas_totales).strip()
+
+        # Ventana de Depuración en Barra Lateral
+        if texto_completo:
+            with st.sidebar.expander("🔍 Depuración: Texto Leído", expanded=False):
+                st.text(texto_completo[:600] + "...")
+        else:
+            st.sidebar.error("❌ **El PDF no tiene texto legible.** Es probable que sea una imagen escaneada.")
             return False
 
-        # 2. Separar por bloques de carrera
+        # --- PROCESAMIENTO DE BLOQUES DE CARRERA ---
+        carreras_extraidas = []
         patron_carrera = re.compile(
-            r"(?:(?:\d{1,2}[aªá°]?\.?\s*CARRERA)|(?:CARRERA\s*\d{1,2}))",
+            r"(?:(?:\d{1,2}[aªá°]?\s*[\-\.]?\s*CARRERA)|(?:CARRERA\s*[\-\#]?\s*\d{1,2})|(?:C\s*[\-\#]?\s*\d{1,2}\b))",
             re.IGNORECASE,
         )
+
         bloques = patron_carrera.split(texto_completo)
         encabezados = patron_carrera.findall(texto_completo)
 
@@ -290,12 +337,12 @@ def extraer_datos_completos_pdf(archivo_pdf):
             bloques = [texto_completo]
             encabezados = ["CARRERA 1"]
 
-        excluir_palabras = [
+        excluir_palabras = {
             "RETIRADO", "JINETE", "ENTRENADOR", "DISTANCIA", "PREMIO",
             "HIPODROMO", "HIPÓDROMO", "PROPIETARIO", "HARAS", "STUD",
             "DIVIDENDOS", "PESO", "KILOS", "KG", "LHM", "VALENCIA",
             "RINCONADA", "SERIE", "RECLAMO", "COPA", "CLASICO", "CLÁSICO"
-        ]
+        }
 
         for idx, bloque in enumerate(bloques[1:] if len(bloques) > 1 else bloques):
             nombre_carrera = encabezados[idx].strip().upper() if idx < len(encabezados) else f"Carrera {idx+1}"
@@ -313,38 +360,32 @@ def extraer_datos_completos_pdf(archivo_pdf):
             match_distancia = re.search(
                 r"\b(\d[\d\.]*)\s*(metros|mts|m)\b", bloque, re.IGNORECASE
             )
-            distancia = (
-                match_distancia.group(0) if match_distancia else "No especificada"
-            )
+            distancia = match_distancia.group(0) if match_distancia else "No especificada"
 
             ejemplares = []
-            lineas = bloque.split("\n")
-
-            for linea in lineas:
+            for linea in bloque.split("\n"):
                 linea_limpia = linea.strip()
                 if not linea_limpia:
                     continue
 
-                # Regex flexible para detectar números de puesto y letras
+                # Regex ultra-flexible para número y nombre del ejemplar
                 match_ej = re.match(
                     r"^[^\d]*\(?(\d{1,2})\)?[\s\-\.\)]+([A-Za-zÁÉÍÓÚáéíóúÑñ\s'\.]+)",
-                    linea_limpia
+                    linea_limpia,
                 )
 
                 if match_ej:
                     puesto = match_ej.group(1)
-                    texto_nombre = match_ej.group(2).strip()
+                    raw_nombre = match_ej.group(2).strip()
 
-                    partes = re.split(r"\s{2,}|\t|\d+|[\(\)]", texto_nombre)
+                    partes = re.split(r"\s{2,}|\t|\d+|[\(\)]", raw_nombre)
                     nom_ej = partes[0].strip().title()
-
-                    # Eliminar sufijos o prefijos comunes
                     nom_ej = re.sub(r"^(Ms|Mr|Sr|Sra)\.?\s*", "", nom_ej, flags=re.IGNORECASE).strip()
 
-                    nom_upper = nom_ej.upper()
+                    tokens = set(nom_ej.upper().split())
                     if (
                         len(nom_ej) >= 3
-                        and not any(p in nom_upper for p in excluir_palabras)
+                        and not tokens.intersection(excluir_palabras)
                         and not nom_ej.isdigit()
                     ):
                         formato_completo = f"{puesto} - {nom_ej}"
@@ -364,7 +405,7 @@ def extraer_datos_completos_pdf(archivo_pdf):
 
         st.session_state.carreras_extraidas_pdf = carreras_extraidas
 
-        # Poblar el Banco General
+        # Poblar Banco General
         banco_temp = set(st.session_state.banco_general_extraido)
         total_nuevos = 0
         for c in carreras_extraidas:
@@ -378,14 +419,15 @@ def extraer_datos_completos_pdf(archivo_pdf):
         if total_nuevos > 0:
             st.sidebar.success(f"✅ ¡Se agregaron {total_nuevos} ejemplares al Banco General!")
         else:
-            st.sidebar.warning("⚠️ Se leyó el PDF pero no se agregaron nuevos nombres.")
+            st.sidebar.warning("⚠️ Se leyó el PDF pero no se identificaron nuevos patrones de nombres.")
 
         return True
     except Exception as e:
         st.sidebar.error(f"Error procesando PDF: {e}")
         return False
 
-# --- INICIALIZACIÓN DINÁMICA DE REMATES Y CARRERAS ---
+
+# --- INICIALIZACIÓN DINÁMICA DE REMATES ---
 if not st.session_state.remates:
     for i in range(1, 21):
         carr = f"Carrera {i}"
@@ -409,7 +451,6 @@ with st.sidebar.expander("⚙️ Configuración del Programa", expanded=True):
         max_value=20,
         value=st.session_state.cant_carreras_semana,
         step=1,
-        help="Selecciona cuántas carreras estarán disponibles en el sistema.",
     )
     if cant_carreras != st.session_state.cant_carreras_semana:
         st.session_state.cant_carreras_semana = cant_carreras
