@@ -1111,20 +1111,7 @@ with tab6:
 
 # 7. PDF Y AUTOMATIZACIÓN
 # 1. Agregamos @st.cache_data para que procese el PDF solo 1 vez y guarde el resultado
-@st.cache_data(show_spinner=False)
-def extraer_datos_pdf(file_bytes):
-    texto_completo = ""
-    try:
-        # Leemos los bytes del PDF en memoria
-        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-            for pagina in pdf.pages:
-                # Extraemos el texto de cada página
-                texto_pagina = pagina.extract_text()
-                if texto_pagina:
-                    texto_completo += texto_pagina + "\n"
-        return texto_completo
-    except Exception as e:
-        return f"Error al procesar el archivo: {e}"
+Error al procesar el archivo: name 'io' is not defined
 
 
 # 2. En la sección donde el usuario sube el archivo (file_uploader):
