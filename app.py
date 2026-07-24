@@ -252,7 +252,7 @@ def formatear_tabla_remate(remates_dict):
         })
     return datos
 
-# --- EXTRACCIÓN MEJORADA Y FLEXIBLE DEL PDF ---
+# --- EXTRACCIÓN ULTRA-PERMISIVA Y TOLERANTE DEL PDF ---
 def extraer_datos_completos_pdf(archivo_pdf):
     try:
         bytes_data = archivo_pdf.getvalue()
@@ -263,33 +263,42 @@ def extraer_datos_completos_pdf(archivo_pdf):
         carreras_extraidas = []
         texto_completo = ""
 
-        # 1. Extraer todo el texto del PDF
+        # 1. Extraer todo el texto acumulado del PDF
         with pdfplumber.open(archivo_pdf) as pdf:
-            for pagina in pdf.pages:
+            for num_pag, pagina in enumerate(pdf.pages, start=1):
                 texto_pagina = pagina.extract_text()
                 if texto_pagina:
                     texto_completo += texto_pagina + "\n"
 
+        # Validar si el PDF es de solo imágenes (escaneado)
         if not texto_completo.strip():
-            st.sidebar.error("El PDF no contiene texto legible (es una imagen/escáner).")
+            st.sidebar.error(
+                "⚠️ El PDF no contiene texto seleccionable. "
+                "Parece ser un PDF escaneado (imagen). Se requiere un PDF con texto vectorial/digital."
+            )
             return False
 
-        # 2. Separar por bloques de Carrera
+        # 2. Separar por bloques de carrera
         patron_carrera = re.compile(
-            r"(?:(?:\d{1,2}[aªá]\.?\s*CARRERA)|(?:CARRERA\s*\d{1,2}))",
+            r"(?:(?:\d{1,2}[aªá°]?\.?\s*CARRERA)|(?:CARRERA\s*\d{1,2}))",
             re.IGNORECASE,
         )
         bloques = patron_carrera.split(texto_completo)
         encabezados = patron_carrera.findall(texto_completo)
-        
-        excluir = [
+
+        if not encabezados:
+            bloques = [texto_completo]
+            encabezados = ["CARRERA 1"]
+
+        excluir_palabras = [
             "RETIRADO", "JINETE", "ENTRENADOR", "DISTANCIA", "PREMIO",
             "HIPODROMO", "HIPÓDROMO", "PROPIETARIO", "HARAS", "STUD",
-            "DIVIDENDOS", "PESO", "KILOS", "KG"
+            "DIVIDENDOS", "PESO", "KILOS", "KG", "LHM", "VALENCIA",
+            "RINCONADA", "SERIE", "RECLAMO", "COPA", "CLASICO", "CLÁSICO"
         ]
 
-        for idx, bloque in enumerate(bloques[1:]):
-            nombre_carrera = encabezados[idx].strip().upper()
+        for idx, bloque in enumerate(bloques[1:] if len(bloques) > 1 else bloques):
+            nombre_carrera = encabezados[idx].strip().upper() if idx < len(encabezados) else f"Carrera {idx+1}"
             num_match = re.search(r"\d+", nombre_carrera)
             num_carrera = num_match.group(0) if num_match else str(idx + 1)
             nombre_carrera_estandar = f"Carrera {num_carrera}"
@@ -310,34 +319,41 @@ def extraer_datos_completos_pdf(archivo_pdf):
 
             ejemplares = []
             lineas = bloque.split("\n")
-            
+
             for linea in lineas:
                 linea_limpia = linea.strip()
                 if not linea_limpia:
                     continue
 
-                # Regex optimizado: admite números al inicio y letras en español (con tildes / Ñ)
+                # Regex flexible para detectar números de puesto y letras
                 match_ej = re.match(
-                    r"^\(?(\d{1,2})\)?[\s\-\.\)]+([A-Za-zÁÉÍÓÚáéíóúÑñ\s\.]+)",
+                    r"^[^\d]*\(?(\d{1,2})\)?[\s\-\.\)]+([A-Za-zÁÉÍÓÚáéíóúÑñ\s'\.]+)",
                     linea_limpia
                 )
-                
+
                 if match_ej:
                     puesto = match_ej.group(1)
-                    bruto_nombre = match_ej.group(2)
-                    
-                    # Corta datos sobrantes (pesos, jinetes, dobles espacios)
-                    nom_ej = re.split(r"\s{2,}|\d+[\.,]\d+|\b[A-Z]{2,}\b", bruto_nombre)[0].strip().title()
-                    
-                    # Filtrar palabras o encabezados no deseados
+                    texto_nombre = match_ej.group(2).strip()
+
+                    partes = re.split(r"\s{2,}|\t|\d+|[\(\)]", texto_nombre)
+                    nom_ej = partes[0].strip().title()
+
+                    # Eliminar sufijos o prefijos comunes
+                    nom_ej = re.sub(r"^(Ms|Mr|Sr|Sra)\.?\s*", "", nom_ej, flags=re.IGNORECASE).strip()
+
                     nom_upper = nom_ej.upper()
-                    if len(nom_ej) > 1 and not any(p in nom_upper for p in excluir):
+                    if (
+                        len(nom_ej) >= 3
+                        and not any(p in nom_upper for p in excluir_palabras)
+                        and not nom_ej.isdigit()
+                    ):
                         formato_completo = f"{puesto} - {nom_ej}"
-                        ejemplares.append({
-                            "puesto": puesto,
-                            "nombre": nom_ej,
-                            "formato": formato_completo,
-                        })
+                        if not any(e["nombre"].upper() == nom_ej.upper() for e in ejemplares):
+                            ejemplares.append({
+                                "puesto": puesto,
+                                "nombre": nom_ej,
+                                "formato": formato_completo,
+                            })
 
             carreras_extraidas.append({
                 "carrera": nombre_carrera_estandar,
@@ -348,12 +364,21 @@ def extraer_datos_completos_pdf(archivo_pdf):
 
         st.session_state.carreras_extraidas_pdf = carreras_extraidas
 
-        # Actualizar banco general
+        # Poblar el Banco General
         banco_temp = set(st.session_state.banco_general_extraido)
+        total_nuevos = 0
         for c in carreras_extraidas:
             for ej in c["ejemplares"]:
-                banco_temp.add(ej["nombre"])
+                if ej["nombre"] not in banco_temp:
+                    banco_temp.add(ej["nombre"])
+                    total_nuevos += 1
+
         st.session_state.banco_general_extraido = sorted(list(banco_temp))
+
+        if total_nuevos > 0:
+            st.sidebar.success(f"✅ ¡Se agregaron {total_nuevos} ejemplares al Banco General!")
+        else:
+            st.sidebar.warning("⚠️ Se leyó el PDF pero no se agregaron nuevos nombres.")
 
         return True
     except Exception as e:
@@ -788,5 +813,5 @@ with tab7:
     if archivo_pdf_subido is not None:
         if st.button("🔄 Procesar PDF e importar datos", type="primary"):
             if extraer_datos_completos_pdf(archivo_pdf_subido):
-                st.success("✅ ¡PDF procesado e impreso al Banco General con éxito!")
+                st.success("✅ ¡PDF procesado exitosamente!")
                 st.rerun()
