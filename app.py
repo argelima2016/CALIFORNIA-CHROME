@@ -1110,74 +1110,36 @@ with tab6:
       st.markdown(f"- **{t['fecha']}** : {t['descripcion']}")
 
 # 7. PDF Y AUTOMATIZACIÓN
-with tab7:
-  st.markdown(
-      "<div class='subasta-header'>📄 Carga de Programa y Extracción"
-      " Estructurada</div>",
-      unsafe_allow_html=True,
-  )
+# 1. Agregamos @st.cache_data para que procese el PDF solo 1 vez y guarde el resultado
+@st.cache_data(show_spinner=False)
+def extraer_datos_pdf(file_bytes):
+    texto_completo = ""
+    try:
+        # Leemos los bytes del PDF en memoria
+        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+            for pagina in pdf.pages:
+                # Extraemos el texto de cada página
+                texto_pagina = pagina.extract_text()
+                if texto_pagina:
+                    texto_completo += texto_pagina + "\n"
+        return texto_completo
+    except Exception as e:
+        return f"Error al procesar el archivo: {e}"
 
-  archivo_subido = st.file_uploader(
-      "Subir Programa Oficial (PDF)", type=["pdf"]
-  )
 
-  if archivo_subido is not None:
-    if extraer_datos_completos_pdf(archivo_subido):
-      st.success("✅ PDF analizado correctamente con `pdfplumber`.")
+# 2. En la sección donde el usuario sube el archivo (file_uploader):
+archivo_pdf = st.file_uploader("Cargar PDF de Remates", type=["pdf"])
 
-      carreras = st.session_state.carreras_extraidas_pdf
-
-      if carreras:
-        st.markdown(f"### 📊 Se detectaron {len(carreras)} carreras:")
-
-        for c in carreras:
-          with st.expander(
-              f"🏇 {c['carrera']} | ⏰ Hora: {c['hora']} | 📏 Distancia:"
-              f" {c['distancia']}"
-          ):
-            if c["ejemplares"]:
-              df_ej = pd.DataFrame(c["ejemplares"])
-              st.dataframe(
-                  df_ej[["puesto", "nombre"]],
-                  use_container_width=True,
-                  hide_index=True,
-              )
-            else:
-              st.warning("No se detectaron ejemplares para esta carrera.")
-
-        if st.button(
-            "🚀 Cargar Carreras y Ejemplares al Sistema",
-            type="primary",
-            use_container_width=True,
-        ):
-          for c in carreras:
-            c_nombre = c["carrera"]
-            if c_nombre not in st.session_state.remates:
-              st.session_state.remates[c_nombre] = {}
-            if (
-                c_nombre
-                not in st.session_state.banco_caballos_por_carrera
-            ):
-              st.session_state.banco_caballos_por_carrera[c_nombre] = []
-
-            for ej in c["ejemplares"]:
-              fmt = ej["formato"]
-              if (
-                  fmt
-                  not in st.session_state.banco_caballos_por_carrera[c_nombre]
-              ):
-                st.session_state.banco_caballos_por_carrera[c_nombre].append(
-                    fmt
-                )
-              if fmt not in st.session_state.remates[c_nombre]:
-                st.session_state.remates[c_nombre][fmt] = {
-                    "jugador": "Sin Postor",
-                    "monto": 0.0,
-                }
-
-          st.success("✅ ¡Carreras y ejemplares asignados correctamente!")
-          st.rerun()
-      else:
-        st.error(
-            "⚠️ No se pudieron extraer datos estructurados de carreras del PDF."
-        )
+if archivo_pdf is not None:
+    # Leemos los bytes del archivo
+    bytes_data = archivo_pdf.read()
+    
+    with st.spinner("Procesando PDF, por favor espera..."):
+        contenido_extraido = extraer_datos_pdf(bytes_data)
+    
+    if contenido_extraido.strip():
+        st.success("¡Lectura completada!")
+        # Aquí puedes usar 'contenido_extraido' para tus expresiones regulares o dataframes
+        st.text_area("Texto extraído:", contenido_extraido, height=250)
+    else:
+        st.error("No se pudo extraer texto. Es muy probable que el PDF sea una imagen o escáner.")
