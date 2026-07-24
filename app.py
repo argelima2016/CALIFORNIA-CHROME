@@ -2,8 +2,8 @@ from datetime import datetime, time, timedelta, timezone
 import os
 import re
 from zoneinfo import ZoneInfo
-import pdfplumber
 import pandas as pd
+import pdfplumber
 import requests
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
@@ -127,6 +127,8 @@ def cargar_jugadores_base():
 # --- ESTADO GLOBAL ---
 if "lista_jugadores" not in st.session_state:
   st.session_state.lista_jugadores = cargar_jugadores_base()
+if "cant_carreras_semana" not in st.session_state:
+  st.session_state.cant_carreras_semana = 10
 if "banco_caballos_por_carrera" not in st.session_state:
   st.session_state.banco_caballos_por_carrera = {}
 if "banco_general_extraido" not in st.session_state:
@@ -236,7 +238,6 @@ def extraer_datos_completos_pdf(archivo_pdf):
         if texto_pagina:
           texto_completo += texto_pagina + "\n"
 
-    # Buscar bloques de carrera (ej: "1a. CARRERA", "CARRERA 1", "1ª Carrera")
     patron_carrera = re.compile(
         r"(?:(?:\d{1,2}[aªá]\.?\s*CARRERA)|(?:CARRERA\s*\d{1,2}))", re.IGNORECASE
     )
@@ -261,7 +262,6 @@ def extraer_datos_completos_pdf(archivo_pdf):
       num_carrera = num_match.group(0) if num_match else str(idx + 1)
       nombre_carrera_estandar = f"Carrera {num_carrera}"
 
-      # Extraer Hora
       match_hora = re.search(
           r"\b(1[0-2]|0?[1-9]):([0-5][0-9])\s*(AM|PM|a\.m\.|p\.m\.)\b",
           bloque,
@@ -269,7 +269,6 @@ def extraer_datos_completos_pdf(archivo_pdf):
       )
       hora = match_hora.group(0) if match_hora else "No especificada"
 
-      # Extraer Distancia
       match_distancia = re.search(
           r"\b(\d[\d\.]*)\s*(metros|mts|m)\b", bloque, re.IGNORECASE
       )
@@ -277,7 +276,6 @@ def extraer_datos_completos_pdf(archivo_pdf):
           match_distancia.group(0) if match_distancia else "No especificada"
       )
 
-      # Extraer Ejemplares con su Puesto
       ejemplares = []
       lineas = bloque.split("\n")
 
@@ -313,7 +311,6 @@ def extraer_datos_completos_pdf(archivo_pdf):
 
     st.session_state.carreras_extraidas_pdf = carreras_extraidas
 
-    # Actualizar Banco General
     banco_temp = set(st.session_state.banco_general_extraido)
     for c in carreras_extraidas:
       for ej in c["ejemplares"]:
@@ -326,34 +323,51 @@ def extraer_datos_completos_pdf(archivo_pdf):
   return False
 
 
+# --- INICIALIZACIÓN DINÁMICA DE REMATES Y CARRERAS ---
 if not st.session_state.remates:
-  for i in range(1, 11):
+  for i in range(1, 21):  # Soporta hasta 20 carreras
     carr = f"Carrera {i}"
     st.session_state.banco_caballos_por_carrera[carr] = [
-        f"{j} - Ejemplar {j}" for j in range(1, 11)
+        f"{j} - Ejemplar {j}" for j in range(1, 10)
     ]
     st.session_state.remates[carr] = {
         f"{j} - Ejemplar {j}": {"jugador": "Sin Postor", "monto": 0.0}
-        for j in range(1, 11)
+        for j in range(1, 10)
     }
-
-lista_carreras_disponibles = list(st.session_state.remates.keys())
-if not st.session_state.carreras_activas_remate and lista_carreras_disponibles:
-  st.session_state.carreras_activas_remate = list(lista_carreras_disponibles)
-if (
-    not st.session_state.carreras_habilitadas_dupleta
-    and lista_carreras_disponibles
-):
-  st.session_state.carreras_habilitadas_dupleta = list(
-      lista_carreras_disponibles
-  )
 
 # --- BARRA LATERAL ---
 st.sidebar.header("⚙️ Menú de Control")
 ahora_dt = obtener_hora_venezuela_local()
 st.sidebar.markdown(f"🕒 **Hora:** `{ahora_dt.strftime('%I:%M:%S %p')}`")
 
-with st.sidebar.expander("⚡ Carreras Activas para Remate", expanded=True):
+with st.sidebar.expander("⚙️ Configuración del Programa", expanded=True):
+  cant_carreras = st.number_input(
+      "Número de carreras para esta semana:",
+      min_value=1,
+      max_value=20,
+      value=st.session_state.cant_carreras_semana,
+      step=1,
+      help="Selecciona cuántas carreras estarán disponibles en el sistema.",
+  )
+  if cant_carreras != st.session_state.cant_carreras_semana:
+    st.session_state.cant_carreras_semana = cant_carreras
+    st.rerun()
+
+# Definimos la lista de carreras activas según la cantidad elegida
+CARRERAS_DISPONIBLES = [f"Carrera {i}" for i in range(1, 21)]
+lista_carreras_disponibles = CARRERAS_DISPONIBLES[
+    : st.session_state.cant_carreras_semana
+]
+
+if not st.session_state.carreras_activas_remate:
+  st.session_state.carreras_activas_remate = list(lista_carreras_disponibles)
+
+if not st.session_state.carreras_habilitadas_dupleta:
+  st.session_state.carreras_habilitadas_dupleta = list(
+      lista_carreras_disponibles
+  )
+
+with st.sidebar.expander("⚡ Carreras Activas para Remate", expanded=False):
   carreras_seleccionadas_activas = st.multiselect(
       "Carreras Activas",
       options=lista_carreras_disponibles,
@@ -443,46 +457,10 @@ if st.sidebar.button("🗑️ Reiniciar Jornada", use_container_width=True):
       del st.session_state[key]
   st.toast("🚨 Jornada reiniciada.")
   st.rerun()
-import streamlit as st
-# ==========================================
-# ⚙️ CONFIGURACIÓN Y SELECCIÓN DE CARRERAS
-# ==========================================
 
-# 1. Creamos la lista completa de las 20 carreras disponibles
-CARRERAS_DISPONIBLES = [f"Carrera {i}" for i in range(1, 21)]
+# --- TITULO PRINCIPAL ---
+st.title("🏇 Sistema de Remates")
 
-# 2. Control en el panel lateral para elegir cuántas correr esta semana
-with st.sidebar:
-    st.header("⚙️ Configuración del Programa")
-    
-    cant_carreras_semana = st.number_input(
-        "Número de carreras a correr esta semana:",
-        min_value=1,
-        max_value=20,
-        value=10,  # Valor por defecto (puedes cambiarlo)
-        step=1,
-        help="Selecciona cuántas carreras estarán activas para esta jornada."
-    )
-
-# 3. Lista filtrada con la cantidad elegida
-carreras_activas = CARRERAS_DISPONIBLES[:cant_carreras_semana]
-
-
-# ==========================================
-# 🏇 VISTA O NAVEGACIÓN DE CARRERAS
-# ==========================================
-
-st.title("Sistema de Remates")
-st.subheader(f"📋 Carreras programadas para esta semana ({len(carreras_activas)} de 20)")
-
-# Ejemplo de generación de pestañas (tabs) dinámicas según la cantidad seleccionada:
-tabs = st.tabs(carreras_activas)
-
-for i, tab_carrera in enumerate(tabs):
-    nombre_carrera = carreras_activas[i]
-    with tab_carrera:
-        st.write(f"### Detalles de la **{nombre_carrera}**")
-        # Aquí va la lógica/tabla/remates correspondiente a esta carrera...
 # --- PESTAÑAS PRINCIPALES ---
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏇 Remates Adelantados Activos",
