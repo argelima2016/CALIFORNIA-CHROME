@@ -252,7 +252,7 @@ def formatear_tabla_remate(remates_dict):
         })
     return datos
 
-# --- EXTRACCIÓN ESTRUCTURADA CON PDFPLUMBER (CORREGIDA) ---
+# --- EXTRACCIÓN MEJORADA Y FLEXIBLE DEL PDF ---
 def extraer_datos_completos_pdf(archivo_pdf):
     try:
         bytes_data = archivo_pdf.getvalue()
@@ -263,23 +263,29 @@ def extraer_datos_completos_pdf(archivo_pdf):
         carreras_extraidas = []
         texto_completo = ""
 
-        # 1. Extraer todo el texto acumulado del PDF
+        # 1. Extraer todo el texto del PDF
         with pdfplumber.open(archivo_pdf) as pdf:
             for pagina in pdf.pages:
                 texto_pagina = pagina.extract_text()
                 if texto_pagina:
                     texto_completo += texto_pagina + "\n"
 
-        # 2. Procesar el texto completo una sola vez fuera del bucle
+        if not texto_completo.strip():
+            st.sidebar.error("El PDF no contiene texto legible (es una imagen/escáner).")
+            return False
+
+        # 2. Separar por bloques de Carrera
         patron_carrera = re.compile(
             r"(?:(?:\d{1,2}[aªá]\.?\s*CARRERA)|(?:CARRERA\s*\d{1,2}))",
             re.IGNORECASE,
         )
         bloques = patron_carrera.split(texto_completo)
         encabezados = patron_carrera.findall(texto_completo)
+        
         excluir = [
-            "RETIRADO", "JINETE", "ENTRENADOR", "DISTANCIA",
-            "PREMIO", "HIPODROMO", "PROPIETARIO", "HARAS", "STUD",
+            "RETIRADO", "JINETE", "ENTRENADOR", "DISTANCIA", "PREMIO",
+            "HIPODROMO", "HIPÓDROMO", "PROPIETARIO", "HARAS", "STUD",
+            "DIVIDENDOS", "PESO", "KILOS", "KG"
         ]
 
         for idx, bloque in enumerate(bloques[1:]):
@@ -304,19 +310,28 @@ def extraer_datos_completos_pdf(archivo_pdf):
 
             ejemplares = []
             lineas = bloque.split("\n")
+            
             for linea in lineas:
                 linea_limpia = linea.strip()
+                if not linea_limpia:
+                    continue
+
+                # Regex optimizado: admite números al inicio y letras en español (con tildes / Ñ)
                 match_ej = re.match(
-                    r"^\(?(\d{1,2})\)?[\s\-\.\)]+([A-Za-z\s]+)", linea_limpia
+                    r"^\(?(\d{1,2})\)?[\s\-\.\)]+([A-Za-zÁÉÍÓÚáéíóúÑñ\s\.]+)",
+                    linea_limpia
                 )
+                
                 if match_ej:
                     puesto = match_ej.group(1)
-                    nom_ej = (
-                        re.split(r"\s{2,}|\d+[\.,]\d+|\b[A-Z]{2,}\b", match_ej.group(2))[0]
-                        .strip()
-                        .title()
-                    )
-                    if len(nom_ej) > 1 and not any(p in nom_ej.upper() for p in excluir):
+                    bruto_nombre = match_ej.group(2)
+                    
+                    # Corta datos sobrantes (pesos, jinetes, dobles espacios)
+                    nom_ej = re.split(r"\s{2,}|\d+[\.,]\d+|\b[A-Z]{2,}\b", bruto_nombre)[0].strip().title()
+                    
+                    # Filtrar palabras o encabezados no deseados
+                    nom_upper = nom_ej.upper()
+                    if len(nom_ej) > 1 and not any(p in nom_upper for p in excluir):
                         formato_completo = f"{puesto} - {nom_ej}"
                         ejemplares.append({
                             "puesto": puesto,
@@ -332,8 +347,8 @@ def extraer_datos_completos_pdf(archivo_pdf):
             })
 
         st.session_state.carreras_extraidas_pdf = carreras_extraidas
-        
-        # Poblar banco general
+
+        # Actualizar banco general
         banco_temp = set(st.session_state.banco_general_extraido)
         for c in carreras_extraidas:
             for ej in c["ejemplares"]:
@@ -347,7 +362,7 @@ def extraer_datos_completos_pdf(archivo_pdf):
 
 # --- INICIALIZACIÓN DINÁMICA DE REMATES Y CARRERAS ---
 if not st.session_state.remates:
-    for i in range(1, 21):  # Soporta hasta 20 carreras
+    for i in range(1, 21):
         carr = f"Carrera {i}"
         st.session_state.banco_caballos_por_carrera[carr] = [
             f"{j} - Ejemplar {j}" for j in range(1, 10)
@@ -461,7 +476,7 @@ if st.sidebar.button("🗑️ Reiniciar Jornada", use_container_width=True):
     st.toast("🚨 Jornada reiniciada.")
     st.rerun()
 
-# --- TITULO PRINCIPAL ---
+# --- TÍTULO PRINCIPAL ---
 st.title("🏇 Sistema de Remates")
 
 # --- PESTAÑAS PRINCIPALES ---
@@ -773,5 +788,5 @@ with tab7:
     if archivo_pdf_subido is not None:
         if st.button("🔄 Procesar PDF e importar datos", type="primary"):
             if extraer_datos_completos_pdf(archivo_pdf_subido):
-                st.success("✅ ¡PDF procesado exitosamente!")
+                st.success("✅ ¡PDF procesado e impreso al Banco General con éxito!")
                 st.rerun()
